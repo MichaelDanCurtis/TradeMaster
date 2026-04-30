@@ -9,6 +9,7 @@ description = "TradingAgents: Multi-Agents LLM Financial Trading Framework"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "fastapi>=0.115.0",
     "langchain-core>=0.3.81",
     "backtrader>=1.9.78.123",
     "langchain-anthropic>=0.3.15",
@@ -29,11 +30,20 @@ dependencies = [
     "stockstats>=0.6.5",
     "tqdm>=4.67.1",
     "typing-extensions>=4.14.0",
+    "uvicorn[standard]>=0.30.0",
     "yfinance>=0.2.63",
+    "sqlmodel>=0.0.22",
 ]
 
 [project.scripts]
 tradingagents = "cli.main:app"
+tradingagents-ui-api = "tradingagents.ui.__main__:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.0",
+    "httpx>=0.28.0",
+]
 
 [tool.setuptools.packages.find]
 include = ["tradingagents*", "cli*"]
