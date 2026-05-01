@@ -1,12 +1,63 @@
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from tradingagents.ui.api import create_app
 
 
-def test_health_endpoint_returns_ok():
-    client = TestClient(create_app())
+def test_health_endpoint_returns_ok(tmp_path: Path):
+    client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
 
     response = client.get("/api/health")
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "service": "tradingagents-ui"}
+
+
+def test_create_run_and_fetch_events(tmp_path: Path):
+    client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
+
+    created = client.post(
+        "/api/runs",
+        json={"ticker": "NVDA", "trade_date": "2026-04-30", "broker_mode": "disabled"},
+    )
+    run_id = created.json()["run_id"]
+    events = client.get(f"/api/runs/{run_id}/events")
+
+    assert created.status_code == 200
+    assert created.json()["status"] == "completed"
+    assert events.status_code == 200
+    assert events.json()[0]["type"] == "run.created"
+
+
+def test_stream_run_events_as_sse(tmp_path: Path):
+    client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
+    run_id = client.post(
+        "/api/runs",
+        json={"ticker": "AAPL", "trade_date": "2026-04-30"},
+    ).json()["run_id"]
+
+    response = client.get(f"/api/runs/{run_id}/stream")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert "event: run.created" in response.text
+    assert "event: run.completed" in response.text
+
+
+def test_missing_run_events_return_404(tmp_path: Path):
+    client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
+
+    response = client.get("/api/runs/missing/events")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Run not found"}
+
+
+def test_missing_run_stream_returns_404(tmp_path: Path):
+    client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
+
+    response = client.get("/api/runs/missing/stream")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Run not found"}
