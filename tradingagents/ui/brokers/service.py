@@ -1,0 +1,81 @@
+from __future__ import annotations
+
+from typing import cast
+
+from tradingagents.ui.brokers.base import (
+    BrokerAdapter,
+    BrokerOrder,
+    OrderPreview,
+    OrderSide,
+)
+from tradingagents.ui.repository import UiRepository
+
+
+class BrokerService:
+    def __init__(self, repository: UiRepository, broker: BrokerAdapter) -> None:
+        self._repo = repository
+        self._broker = broker
+
+    def preview_order(
+        self, run_id: str, symbol: str, side: OrderSide | str, notional: float
+    ) -> OrderPreview:
+        if notional <= 0:
+            raise ValueError("notional must be greater than zero")
+        symbol = symbol.strip().upper()
+        if not symbol:
+            raise ValueError("symbol must not be empty")
+        normalized_side = side.strip().lower()
+        if normalized_side not in ("buy", "sell"):
+            raise ValueError("side must be buy or sell")
+        order_side = cast(OrderSide, normalized_side)
+        intent = self._repo.create_trade_intent(
+            run_id=run_id,
+            symbol=symbol,
+            side=order_side,
+            notional=notional,
+        )
+        estimated_price = self._broker.estimate_price(symbol)
+        return OrderPreview(
+            intent_id=intent.intent_id,
+            broker=self._broker.broker_name,
+            environment=self._broker.environment,
+            symbol=symbol,
+            side=order_side,
+            notional=notional,
+            estimated_price=estimated_price,
+            estimated_quantity=round(notional / estimated_price, 6),
+        )
+
+    def approve_order(self, intent_id: str, actor: str) -> None:
+        intent = self._repo.get_trade_intent(intent_id)
+        self._repo.record_approval(
+            intent_id=intent_id,
+            actor=actor,
+            action="approve_order",
+            before_payload={"status": intent.status},
+            after_payload={"status": "approved"},
+        )
+
+    def submit_approved_order(self, intent_id: str) -> BrokerOrder:
+        intent = self._repo.get_trade_intent(intent_id)
+        if intent.status != "previewed":
+            raise ValueError(f"order is not previewed; current status is {intent.status}")
+        if not self._repo.has_approval(intent_id):
+            raise PermissionError("order submission requires approval")
+        if intent.side not in ("buy", "sell"):
+            raise ValueError("side must be buy or sell")
+        order_side = cast(OrderSide, intent.side)
+        order = self._broker.submit_order(
+            intent_id=intent.intent_id,
+            symbol=intent.symbol,
+            side=order_side,
+            notional=intent.notional,
+        )
+        self._repo.store_broker_order(
+            intent_id=order.intent_id,
+            broker=order.broker,
+            environment=order.environment,
+            status=order.status,
+            broker_order_id=order.broker_order_id,
+        )
+        return order
