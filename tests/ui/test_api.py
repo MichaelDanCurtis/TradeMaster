@@ -61,3 +61,63 @@ def test_missing_run_stream_returns_404(tmp_path: Path):
 
     assert response.status_code == 404
     assert response.json() == {"detail": "Run not found"}
+
+
+def test_trade_ticket_preview_approval_and_submit(tmp_path: Path):
+    client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
+    run_id = client.post(
+        "/api/runs",
+        json={"ticker": "NVDA", "trade_date": "2026-04-30", "broker_mode": "paper"},
+    ).json()["run_id"]
+
+    preview = client.post(
+        "/api/trades/preview",
+        json={"run_id": run_id, "symbol": "NVDA", "side": "buy", "notional": 1000},
+    )
+    intent_id = preview.json()["intent_id"]
+    blocked_submit = client.post(f"/api/trades/{intent_id}/submit")
+    approval = client.post(
+        f"/api/trades/{intent_id}/approve", json={"actor": "local-user"}
+    )
+    submitted = client.post(f"/api/trades/{intent_id}/submit")
+
+    assert preview.status_code == 200
+    assert preview.json()["environment"] == "paper"
+    assert blocked_submit.status_code == 403
+    assert approval.status_code == 200
+    assert submitted.status_code == 200
+    assert submitted.json()["status"] == "submitted"
+
+
+def test_trade_ticket_preview_invalid_side_returns_validation_error(tmp_path: Path):
+    client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
+    run_id = client.post(
+        "/api/runs",
+        json={"ticker": "NVDA", "trade_date": "2026-04-30", "broker_mode": "paper"},
+    ).json()["run_id"]
+
+    response = client.post(
+        "/api/trades/preview",
+        json={"run_id": run_id, "symbol": "NVDA", "side": "hold", "notional": 1000},
+    )
+
+    assert response.status_code == 422
+
+
+def test_trade_ticket_duplicate_submit_returns_controlled_error(tmp_path: Path):
+    client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
+    run_id = client.post(
+        "/api/runs",
+        json={"ticker": "NVDA", "trade_date": "2026-04-30", "broker_mode": "paper"},
+    ).json()["run_id"]
+    intent_id = client.post(
+        "/api/trades/preview",
+        json={"run_id": run_id, "symbol": "NVDA", "side": "buy", "notional": 1000},
+    ).json()["intent_id"]
+
+    client.post(f"/api/trades/{intent_id}/approve", json={"actor": "local-user"})
+    submitted = client.post(f"/api/trades/{intent_id}/submit")
+    duplicate = client.post(f"/api/trades/{intent_id}/submit")
+
+    assert submitted.status_code == 200
+    assert duplicate.status_code in (400, 403)
