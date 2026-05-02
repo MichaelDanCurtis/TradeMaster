@@ -12,6 +12,7 @@ from tradingagents.ui.brokers.fake import FakePaperBroker
 from tradingagents.ui.brokers.service import BrokerService
 from tradingagents.ui.db import create_session_factory, init_db
 from tradingagents.ui.events import RunConfig, RunCreated, RunEvent
+from tradingagents.ui.providers import ProviderCatalog, get_provider_catalog
 from tradingagents.ui.repository import UiRepository
 from tradingagents.ui.runner import TradingRunService
 
@@ -59,6 +60,10 @@ def create_app(database_url: str | None = None) -> FastAPI:
     @app.get("/api/health")
     def health() -> dict[str, str]:
         return {"status": "ok", "service": "tradingagents-ui"}
+
+    @app.get("/api/providers", response_model=ProviderCatalog)
+    def list_providers() -> ProviderCatalog:
+        return get_provider_catalog()
 
     @app.post("/api/runs", response_model=RunCreated)
     def create_run(

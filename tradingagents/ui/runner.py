@@ -27,12 +27,51 @@ class TradingRunService:
             yield f"event: {event.type}\ndata: {data}\n\n"
 
     def _append_fake_events(self, run_id: str, config: RunConfig) -> None:
+        analyst_events = [
+            (
+                "Market Analyst",
+                "market",
+                "simulated-market-data",
+                "fake_market_snapshot",
+                "Updated simulated market report.",
+            ),
+            (
+                "News Analyst",
+                "news",
+                "simulated-news",
+                "fake_news_scan",
+                "Updated simulated news report.",
+            ),
+            (
+                "Social Analyst",
+                "social",
+                "simulated-social",
+                "fake_social_scan",
+                "Updated simulated social report.",
+            ),
+            (
+                "Fundamentals Analyst",
+                "fundamentals",
+                "simulated-fundamentals",
+                "fake_fundamentals_snapshot",
+                "Updated simulated fundamentals report.",
+            ),
+        ]
         fake_events: list[dict[str, Any]] = [
             {
                 "type": "run.created",
                 "node": None,
                 "message": f"Created simulated run for {config.ticker}.",
-                "payload": {"ticker": config.ticker},
+                "payload": {
+                    "ticker": config.ticker,
+                    "providers": {
+                        "brokerage": "fake-paper-broker"
+                        if config.broker_mode == "paper"
+                        else "disabled",
+                        "llm": config.llm_provider,
+                        "market_data": "simulated-market-data",
+                    },
+                },
             },
             {
                 "type": "run.started",
@@ -40,44 +79,83 @@ class TradingRunService:
                 "message": "Started simulated TradingAgents run.",
                 "payload": {"trade_date": config.trade_date},
             },
-            {
-                "type": "agent.started",
-                "node": "Market Analyst",
-                "message": "Market Analyst started.",
-                "payload": {"analyst": "market"},
-            },
-            {
-                "type": "tool.called",
-                "node": "Market Analyst",
-                "message": "Fetched simulated market context.",
-                "payload": {"tool": "fake_market_snapshot"},
-            },
-            {
-                "type": "report.updated",
-                "node": "Market Analyst",
-                "message": "Updated simulated market report.",
-                "payload": {"section": "market"},
-            },
-            {
-                "type": "agent.started",
-                "node": "Portfolio Manager",
-                "message": "Portfolio Manager started.",
-                "payload": {"agent": "portfolio_manager"},
-            },
+        ]
+        for node, analyst, provider, tool, report_message in analyst_events:
+            fake_events.extend(
+                [
+                    {
+                        "type": "agent.started",
+                        "node": node,
+                        "message": f"{node} started.",
+                        "payload": {"analyst": analyst},
+                    },
+                    {
+                        "type": "tool.called",
+                        "node": node,
+                        "message": f"Fetched {analyst} context from {provider}.",
+                        "payload": {"provider": provider, "tool": tool},
+                    },
+                    {
+                        "type": "report.updated",
+                        "node": node,
+                        "message": report_message,
+                        "payload": {"section": analyst},
+                    },
+                ]
+            )
+        fake_events.extend(
+            [
+                {
+                    "type": "agent.started",
+                    "node": "Research Manager",
+                    "message": "Research Manager started.",
+                    "payload": {"agent": "research_manager"},
+                },
+                {
+                    "type": "report.updated",
+                    "node": "Research Manager",
+                    "message": "Synthesized simulated bull and bear research.",
+                    "payload": {"section": "research"},
+                },
+                {
+                    "type": "agent.started",
+                    "node": "Risk Manager",
+                    "message": "Risk Manager started.",
+                    "payload": {"agent": "risk_manager"},
+                },
+                {
+                    "type": "report.updated",
+                    "node": "Risk Manager",
+                    "message": "Updated simulated risk debate.",
+                    "payload": {"section": "risk"},
+                },
+                {
+                    "type": "agent.started",
+                    "node": "Portfolio Manager",
+                    "message": "Portfolio Manager started.",
+                    "payload": {"agent": "portfolio_manager"},
+                },
+            ]
+        )
+        fake_events.append(
             {
                 "type": "decision.created",
                 "node": "Portfolio Manager",
                 "message": "Created simulated decision.",
                 "payload": {"rating": "Overweight", "action": "Buy"},
-            },
-        ]
+            }
+        )
         if config.broker_mode == "paper":
             fake_events.append(
                 {
                     "type": "trade.previewed",
                     "node": "Broker",
                     "message": "Previewed simulated paper trade.",
-                    "payload": {"symbol": config.ticker, "side": "buy"},
+                    "payload": {
+                        "provider": "fake-paper-broker",
+                        "side": "buy",
+                        "symbol": config.ticker,
+                    },
                 }
             )
         fake_events.append(

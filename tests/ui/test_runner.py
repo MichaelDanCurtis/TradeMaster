@@ -28,17 +28,22 @@ def test_start_fake_run_creates_run_and_events(service):
     events = service.list_events(created.run_id)
 
     assert created.status == "completed"
-    assert [event.type for event in events] == [
-        "run.created",
-        "run.started",
-        "agent.started",
-        "tool.called",
-        "report.updated",
-        "agent.started",
+    assert [event.node for event in events if event.type == "agent.started"] == [
+        "Market Analyst",
+        "News Analyst",
+        "Social Analyst",
+        "Fundamentals Analyst",
+        "Research Manager",
+        "Risk Manager",
+        "Portfolio Manager",
+    ]
+    assert [event.type for event in events][-3:] == [
         "decision.created",
         "trade.previewed",
         "run.completed",
     ]
+    market_tool = next(event for event in events if event.node == "Market Analyst" and event.type == "tool.called")
+    assert market_tool.payload["provider"] == "simulated-market-data"
 
 
 def test_disabled_fake_run_does_not_create_trade_preview_or_intent(

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { AgentRunGraph } from "@/components/AgentRunGraph";
 import { RunTimeline } from "@/components/RunTimeline";
 import { TradeTicket } from "@/components/TradeTicket";
 import { createRun, listRunEvents, previewTrade } from "@/lib/api";
@@ -14,15 +15,19 @@ export function AgentCockpit({ symbol }: { symbol: string }) {
   const [error, setError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const requestIdRef = useRef(0);
+  const revealTimersRef = useRef<number[]>([]);
   const activePreview = preview?.symbol === symbol ? preview : null;
 
   useEffect(() => {
     requestIdRef.current += 1;
+    clearRevealTimers();
     setEvents([]);
     setRunId(null);
     setPreview(null);
     setError(null);
     setIsRunning(false);
+
+    return clearRevealTimers;
   }, [symbol]);
 
   async function startRun() {
@@ -31,6 +36,7 @@ export function AgentCockpit({ symbol }: { symbol: string }) {
     requestIdRef.current = requestId;
 
     setError(null);
+    clearRevealTimers();
     setEvents([]);
     setRunId(null);
     setPreview(null);
@@ -47,7 +53,7 @@ export function AgentCockpit({ symbol }: { symbol: string }) {
 
       const nextEvents = await listRunEvents(created.run_id);
       if (requestIdRef.current !== requestId) return;
-      setEvents(nextEvents);
+      revealEvents(nextEvents, requestId);
 
       const tradePreview = await previewTrade({
         runId: created.run_id,
@@ -65,6 +71,23 @@ export function AgentCockpit({ symbol }: { symbol: string }) {
         setIsRunning(false);
       }
     }
+  }
+
+  function clearRevealTimers() {
+    revealTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    revealTimersRef.current = [];
+  }
+
+  function revealEvents(nextEvents: RunEvent[], requestId: number) {
+    clearRevealTimers();
+    nextEvents.forEach((event, index) => {
+      const timer = window.setTimeout(() => {
+        if (requestIdRef.current !== requestId) return;
+
+        setEvents((currentEvents) => [...currentEvents, event]);
+      }, index * 160);
+      revealTimersRef.current.push(timer);
+    });
   }
 
   return (
@@ -87,6 +110,7 @@ export function AgentCockpit({ symbol }: { symbol: string }) {
       </section>
       {runId ? <p className="run-id">Run {runId}</p> : null}
       {error ? <p className="error">{error}</p> : null}
+      <AgentRunGraph events={events} />
       <section className="cockpit-section">
         <div className="section-title">
           <span>Execution trace</span>

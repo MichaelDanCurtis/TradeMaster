@@ -1,4 +1,4 @@
-import type { BrokerMode, OrderPreview, OrderSide, RunCreated, RunEvent } from "./types";
+import type { BrokerMode, OrderPreview, OrderSide, ProviderCatalog, RunCreated, RunEvent } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8787";
 
@@ -29,6 +29,16 @@ export async function listRunEvents(runId: string): Promise<RunEvent[]> {
 
   if (!response.ok) {
     throw new Error(`Failed to list run events: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function listProviders(): Promise<ProviderCatalog> {
+  const response = await fetch(`${API_BASE}/api/providers`);
+
+  if (!response.ok) {
+    throw new Error(`Failed to list providers: ${response.status}`);
   }
 
   return response.json();

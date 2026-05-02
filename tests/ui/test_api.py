@@ -16,6 +16,23 @@ def test_health_endpoint_returns_ok(tmp_path: Path):
     assert response.json() == {"status": "ok", "service": "tradingagents-ui"}
 
 
+def test_provider_registry_endpoint_returns_roles_and_capabilities(tmp_path: Path):
+    client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
+
+    response = client.get("/api/providers")
+
+    assert response.status_code == 200
+    providers = response.json()["providers"]
+    by_id = {provider["id"]: provider for provider in providers}
+
+    assert by_id["simulated-market-data"]["status"] == "available"
+    assert by_id["simulated-market-data"]["role"] == "market-data"
+    assert "historical-bars" in by_id["alpaca-market-data"]["capabilities"]
+    assert by_id["fake-paper-broker"]["role"] == "brokerage"
+    assert by_id["plaid-investments"]["status"] == "needs_key"
+    assert by_id["openai-llm"]["role"] == "llm"
+
+
 def test_create_run_and_fetch_events(tmp_path: Path):
     client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
 

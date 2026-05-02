@@ -1,6 +1,8 @@
 export type RunStatus = "queued" | "running" | "completed" | "failed" | "canceled";
 export type BrokerMode = "disabled" | "paper" | "live_preview";
 export type OrderSide = "buy" | "sell";
+export type ProviderRole = "brokerage" | "llm" | "market-data" | "portfolio";
+export type ProviderStatus = "available" | "disabled" | "needs_key" | "planned";
 
 export type WatchlistItem = {
   symbol: string;
@@ -22,6 +24,19 @@ export type RunEvent = {
   message: string;
   payload: Record<string, unknown>;
   created_at: string;
+};
+
+export type ProviderDescriptor = {
+  id: string;
+  name: string;
+  role: ProviderRole;
+  status: ProviderStatus;
+  capabilities: string[];
+  primary_use: string;
+};
+
+export type ProviderCatalog = {
+  providers: ProviderDescriptor[];
 };
 
 export type OrderPreview = {

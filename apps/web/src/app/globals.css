@@ -241,6 +241,7 @@ button {
 .rail-micro-panel,
 .data-source-strip,
 .decision-panel,
+.provider-panel,
 .report-strip,
 .run-control-panel,
 .trade-ticket {
@@ -258,6 +259,7 @@ button {
 
 .rail-micro-panel span,
 .data-source-strip span,
+.provider-role,
 .run-control-panel span,
 .market-readout span,
 .trade-ticket dt,
@@ -271,6 +273,90 @@ button {
 .data-source-strip strong,
 .run-control-panel strong {
   font-size: 12px;
+}
+
+.provider-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px;
+}
+
+.provider-list {
+  display: grid;
+  gap: 7px;
+}
+
+.provider-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid #1f2b37;
+  border-radius: 6px;
+  background: #0d141c;
+}
+
+.provider-item strong {
+  display: block;
+  overflow: hidden;
+  color: #e7eef6;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.provider-role {
+  display: block;
+  margin-bottom: 2px;
+  color: #7f93a7;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.provider-status {
+  align-self: start;
+  border: 1px solid #2a3744;
+  border-radius: 999px;
+  padding: 2px 6px;
+  color: #9eb0c2;
+  background: #101720;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.provider-status.available {
+  border-color: #28543a;
+  color: #b8f7ca;
+  background: #0e2116;
+}
+
+.provider-status.needs_key {
+  border-color: #5b4a22;
+  color: #f4d68b;
+  background: #20190d;
+}
+
+.provider-status.planned {
+  border-color: #34435a;
+  color: #9fb7d4;
+}
+
+.provider-capabilities {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  gap: 4px;
+}
+
+.provider-capabilities span {
+  border-radius: 4px;
+  padding: 2px 5px;
+  color: #8397aa;
+  background: #111b25;
+  font-size: 10px;
 }
 
 .chart-workspace {
@@ -547,6 +633,7 @@ button {
 }
 
 .cockpit-section,
+.agent-graph-panel,
 .decision-panel,
 .trade-ticket {
   margin-top: 12px;
@@ -564,6 +651,119 @@ button {
   display: grid;
   gap: 6px;
   margin-top: 10px;
+}
+
+.agent-graph-panel {
+  border: 1px solid #202c38;
+  border-radius: 7px;
+  background: #101720;
+}
+
+.agent-graph {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.agent-graph-step {
+  display: grid;
+  grid-template-columns: 1fr 16px;
+  align-items: center;
+  gap: 6px;
+}
+
+.agent-graph-step:last-child {
+  grid-template-columns: 1fr;
+}
+
+.agent-node {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  gap: 3px 8px;
+  padding: 8px;
+  border: 1px solid #22303c;
+  border-radius: 6px;
+  background: #0d141c;
+}
+
+.agent-node-status {
+  grid-row: 1 / span 2;
+  align-self: center;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #405162;
+  box-shadow: 0 0 0 3px rgba(64, 81, 98, 0.16);
+}
+
+.agent-node strong {
+  overflow: hidden;
+  color: #e7eef6;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-node small {
+  overflow: hidden;
+  color: #8397aa;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-node.running {
+  border-color: #365c9c;
+}
+
+.agent-node.running .agent-node-status {
+  background: #4f8cff;
+  box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.18);
+}
+
+.agent-node.complete {
+  border-color: #28543a;
+}
+
+.agent-node.complete .agent-node-status {
+  background: #33d17a;
+  box-shadow: 0 0 0 3px rgba(51, 209, 122, 0.16);
+}
+
+.agent-node.waiting {
+  border-color: #5b4a22;
+}
+
+.agent-node.waiting .agent-node-status {
+  background: #e7c75f;
+  box-shadow: 0 0 0 3px rgba(231, 199, 95, 0.16);
+}
+
+.agent-node.failed {
+  border-color: #713035;
+}
+
+.agent-node.failed .agent-node-status {
+  background: #ff6b6b;
+  box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.16);
+}
+
+.agent-edge {
+  width: 12px;
+  height: 2px;
+  background: #273542;
+}
+
+.agent-edge.complete {
+  background: #33d17a;
+}
+
+.agent-edge.running {
+  background: #4f8cff;
+}
+
+.agent-edge.waiting {
+  background: #e7c75f;
 }
 
 .timeline-event {

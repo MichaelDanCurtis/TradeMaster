@@ -1,5 +1,6 @@
 "use client";
 
+import { ProviderPanel } from "@/components/ProviderPanel";
 import type { WatchlistItem } from "@/lib/types";
 
 export function WatchlistRail({
@@ -46,6 +47,7 @@ export function WatchlistRail({
         <span>Universe</span>
         <strong>Large cap signal scan</strong>
       </section>
+      <ProviderPanel />
     </aside>
   );
 }
