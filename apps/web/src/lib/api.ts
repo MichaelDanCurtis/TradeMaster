@@ -61,3 +61,35 @@ export async function previewTrade(input: {
 
   return response.json();
 }
+
+export async function approveTrade(intentId: string): Promise<{ intent_id: string; status: string }> {
+  const response = await fetch(`${API_BASE}/api/trades/${intentId}/approve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ actor: "local-user" })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to approve trade: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function submitTrade(intentId: string): Promise<{
+  intent_id: string;
+  broker: string;
+  environment: string;
+  status: string;
+  broker_order_id: string;
+}> {
+  const response = await fetch(`${API_BASE}/api/trades/${intentId}/submit`, {
+    method: "POST"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to submit trade: ${response.status}`);
+  }
+
+  return response.json();
+}

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { RunTimeline } from "@/components/RunTimeline";
+import { TradeTicket } from "@/components/TradeTicket";
 import { createRun, listRunEvents, previewTrade } from "@/lib/api";
 import type { OrderPreview, RunEvent } from "@/lib/types";
 
@@ -13,6 +14,7 @@ export function AgentCockpit({ symbol }: { symbol: string }) {
   const [error, setError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const requestIdRef = useRef(0);
+  const activePreview = preview?.symbol === symbol ? preview : null;
 
   useEffect(() => {
     requestIdRef.current += 1;
@@ -77,17 +79,7 @@ export function AgentCockpit({ symbol }: { symbol: string }) {
       {runId ? <p className="muted">Run: {runId}</p> : null}
       {error ? <p className="error">{error}</p> : null}
       <RunTimeline events={events} />
-      {preview ? (
-        <section className="trade-preview">
-          <h2>Paper trade preview</h2>
-          <p>
-            {preview.side.toUpperCase()} {preview.symbol} ${preview.notional.toLocaleString()}
-          </p>
-          <p className="muted">
-            Est. {preview.estimated_quantity} shares at ${preview.estimated_price}
-          </p>
-        </section>
-      ) : null}
+      {activePreview ? <TradeTicket key={activePreview.intent_id} preview={activePreview} /> : null}
     </aside>
   );
 }
