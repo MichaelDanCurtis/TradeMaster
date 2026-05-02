@@ -1,3 +1,5 @@
+import { MarketShell } from "@/components/MarketShell";
+
 export default function Page() {
-  return <main className="app-shell">TradingAgents UI</main>;
+  return <MarketShell />;
 }
