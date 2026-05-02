@@ -13,7 +13,13 @@ export function WatchlistRail({
 }) {
   return (
     <aside className="watchlist-rail" aria-label="Watchlist">
-      <div className="rail-header">Watchlist</div>
+      <header className="panel-header">
+        <div>
+          <span className="panel-kicker">Markets</span>
+          <h2>Watchlist</h2>
+        </div>
+        <span className="panel-count">{items.length}</span>
+      </header>
       <div className="watchlist-list">
         {items.map((item) => (
           <button
@@ -36,6 +42,10 @@ export function WatchlistRail({
           </button>
         ))}
       </div>
+      <section className="rail-micro-panel">
+        <span>Universe</span>
+        <strong>Large cap signal scan</strong>
+      </section>
     </aside>
   );
 }

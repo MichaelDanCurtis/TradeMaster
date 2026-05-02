@@ -69,16 +69,36 @@ export function AgentCockpit({ symbol }: { symbol: string }) {
 
   return (
     <aside className="agent-cockpit">
-      <header>
-        <span>Agent Cockpit</span>
-        <strong>{symbol}</strong>
+      <header className="panel-header cockpit-header">
+        <div>
+          <span className="panel-kicker">Agent cockpit</span>
+          <h2>{symbol}</h2>
+        </div>
+        <span className={isRunning ? "run-state running" : "run-state"}>{isRunning ? "Running" : "Idle"}</span>
       </header>
-      <button className="primary-button" type="button" onClick={startRun} disabled={isRunning}>
-        {isRunning ? "Running..." : "Run report"}
-      </button>
-      {runId ? <p className="muted">Run: {runId}</p> : null}
+      <section className="run-control-panel">
+        <div>
+          <span>Research package</span>
+          <strong>Market, news, social, fundamentals</strong>
+        </div>
+        <button className="primary-button" type="button" onClick={startRun} disabled={isRunning}>
+          {isRunning ? "Running..." : "Run report"}
+        </button>
+      </section>
+      {runId ? <p className="run-id">Run {runId}</p> : null}
       {error ? <p className="error">{error}</p> : null}
-      <RunTimeline events={events} />
+      <section className="cockpit-section">
+        <div className="section-title">
+          <span>Execution trace</span>
+          <strong>{events.length}</strong>
+        </div>
+        <RunTimeline events={events} />
+      </section>
+      <section className="decision-panel">
+        <span className="panel-kicker">Decision ledger</span>
+        <strong>{events.some((event) => event.type === "decision.created") ? "Overweight / Buy" : "No decision yet"}</strong>
+        <p>Final reports will land here before any paper ticket can be approved.</p>
+      </section>
       {activePreview ? <TradeTicket key={activePreview.intent_id} preview={activePreview} /> : null}
     </aside>
   );

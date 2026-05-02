@@ -38,8 +38,13 @@ export function TradeTicket({ preview }: { preview: OrderPreview }) {
 
   return (
     <section className="trade-ticket">
-      <div className="mode-pill">Paper trading</div>
-      <h2>Trade ticket</h2>
+      <header className="ticket-header">
+        <div>
+          <span className="mode-pill">Paper trading</span>
+          <h2>Trade ticket</h2>
+        </div>
+        <span className={isSubmitted ? "ticket-status submitted" : "ticket-status"}>{status}</span>
+      </header>
       <dl>
         <div>
           <dt>Symbol</dt>
@@ -61,7 +66,6 @@ export function TradeTicket({ preview }: { preview: OrderPreview }) {
       <button className="primary-button" type="button" onClick={approveAndSubmit} disabled={isSubmitting || isSubmitted}>
         {isSubmitted ? "Submitted" : isSubmitting ? "Submitting..." : "Approve and submit paper order"}
       </button>
-      <p className="muted">Status: {status}</p>
       {brokerOrderId ? <p className="muted">Broker order: {brokerOrderId}</p> : null}
       {error ? <p className="error">{error}</p> : null}
     </section>

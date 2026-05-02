@@ -228,3 +228,6 @@ apps/web/.next/
 
 # Local TradingAgents UI runtime state
 .tradingagents-ui.db
+
+# Superpowers visual companion scratch files
+.superpowers/

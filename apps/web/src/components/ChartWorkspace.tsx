@@ -18,6 +18,8 @@ const SYMBOL_OFFSETS: Record<string, number> = {
   SPY: -390
 };
 
+const TIMEFRAMES = ["1D", "5D", "1M", "6M", "YTD"];
+
 function getSeriesForSymbol(symbol: string): CandlestickData<Time>[] {
   const offset = SYMBOL_OFFSETS[symbol] ?? 0;
 
@@ -34,6 +36,8 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const seriesData = useMemo(() => getSeriesForSymbol(symbol), [symbol]);
   const lastBar = seriesData[seriesData.length - 1];
+  const openChange = lastBar.close - lastBar.open;
+  const range = lastBar.high - lastBar.low;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -94,7 +98,7 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
     <section className="chart-workspace">
       <header className="workspace-header">
         <div>
-          <span className="workspace-kicker">Market workspace</span>
+          <span className="panel-kicker">Market workspace</span>
           <h1>{symbol}</h1>
         </div>
         <div className="quote-strip" aria-label={`${symbol} quote snapshot`}>
@@ -102,11 +106,45 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
           <strong>{lastBar.close.toFixed(2)}</strong>
           <span className={lastBar.close >= lastBar.open ? "positive" : "negative"}>
             {lastBar.close >= lastBar.open ? "+" : ""}
-            {(lastBar.close - lastBar.open).toFixed(2)}
+            {openChange.toFixed(2)}
           </span>
         </div>
       </header>
-      <div ref={containerRef} className="chart-surface" />
+      <div className="workspace-toolbar" aria-label="Chart timeframe controls">
+        {TIMEFRAMES.map((timeframe) => (
+          <button className={timeframe === "1D" ? "timeframe active" : "timeframe"} key={timeframe} type="button">
+            {timeframe}
+          </button>
+        ))}
+      </div>
+      <div className="chart-shell">
+        <div ref={containerRef} className="chart-surface" />
+      </div>
+      <footer className="market-readout">
+        <div>
+          <span>Open</span>
+          <strong>{lastBar.open.toFixed(2)}</strong>
+        </div>
+        <div>
+          <span>High</span>
+          <strong>{lastBar.high.toFixed(2)}</strong>
+        </div>
+        <div>
+          <span>Low</span>
+          <strong>{lastBar.low.toFixed(2)}</strong>
+        </div>
+        <div>
+          <span>Range</span>
+          <strong>{range.toFixed(2)}</strong>
+        </div>
+      </footer>
+      <section className="report-strip">
+        <div>
+          <span className="panel-kicker">Research stance</span>
+          <strong>Awaiting latest agent report</strong>
+        </div>
+        <p>Run the analyst team from the cockpit to populate a decision, trace, and approval-gated paper order.</p>
+      </section>
     </section>
   );
 }
