@@ -344,6 +344,33 @@ button {
   overflow: hidden;
 }
 
+.candlestick-chart {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.chart-grid-line {
+  stroke: rgba(105, 128, 150, 0.16);
+  stroke-width: 1;
+}
+
+.chart-axis-label,
+.chart-time-label {
+  fill: #70869b;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-time-label {
+  text-anchor: middle;
+}
+
+.candle-wick {
+  stroke-linecap: round;
+  stroke-width: 2;
+}
+
 .market-readout {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
