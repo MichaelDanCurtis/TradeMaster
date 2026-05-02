@@ -425,6 +425,54 @@ button {
   margin-bottom: 10px;
 }
 
+.comparison-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.comparison-toolbar label {
+  display: grid;
+  gap: 4px;
+  color: #8397aa;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.comparison-toolbar select {
+  min-width: 82px;
+  min-height: 30px;
+  color: #dbe5ee;
+  background: #0f151c;
+  border: 1px solid #222f3b;
+  border-radius: 5px;
+  padding: 0 8px;
+}
+
+.comparison-toolbar select:disabled {
+  color: #5f7285;
+  background: #0b1016;
+}
+
+.toggle-control {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  border: 1px solid #222f3b;
+  border-radius: 5px;
+  background: #0f151c;
+  padding: 0 8px;
+}
+
+.toggle-control input {
+  width: 14px;
+  height: 14px;
+  accent-color: #4f8cff;
+}
+
 .timeframe,
 .view-mode {
   min-width: 42px;
@@ -525,8 +573,44 @@ button {
   stroke-width: 2;
 }
 
+.price-line.step {
+  stroke: #8fb7ff;
+}
+
+.baseline-zero {
+  stroke: rgba(242, 246, 250, 0.34);
+  stroke-dasharray: 4 5;
+  stroke-width: 1.2;
+}
+
+.hollow-candle-body {
+  vector-effect: non-scaling-stroke;
+}
+
 .area-fill {
   opacity: 0.92;
+}
+
+.performance-line {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.1;
+}
+
+.performance-line.subject,
+.performance-line.comparison-subject {
+  stroke: #4f8cff;
+}
+
+.performance-line.benchmark {
+  stroke: #e7c75f;
+}
+
+.performance-line.prior {
+  opacity: 0.86;
+  stroke: #a78bfa;
+  stroke-dasharray: 7 5;
 }
 
 .volume-bar.positive {

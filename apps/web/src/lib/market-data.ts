@@ -23,6 +23,7 @@ export type MarketProviderCapability =
   | "trade-stream";
 
 export type MarketInterval = "1s" | "5s" | "10s" | "1m" | "5m" | "15m" | "1h" | "1d";
+export type MarketRange = "1M" | "YTD" | "1Y" | "3Y" | "5Y" | "10Y";
 
 export type MarketFeed = "boats" | "iex" | "otc" | "sandbox" | "sip" | "simulated";
 
@@ -56,6 +57,23 @@ export type VolumeProfileBin = {
   priceMid: number;
   volume: number;
   volumeShare: number;
+};
+
+export type PerformancePoint = {
+  timestamp: string;
+  value: number;
+};
+
+export type ComparisonPoint = {
+  timestamp: string;
+  subject: number;
+  benchmark: number;
+};
+
+export type PerformanceSpread = {
+  subjectReturn: number;
+  benchmarkReturn: number;
+  relativeSpread: number;
 };
 
 export type NormalizedQuote = {
@@ -186,6 +204,15 @@ const INTERVAL_CONFIG: Record<MarketInterval, { count: number; minutes: number }
   "1d": { count: 160, minutes: 390 }
 };
 
+const RANGE_CONFIG: Record<MarketRange, { count: number; label: string }> = {
+  "1M": { count: 22, label: "1 month" },
+  "YTD": { count: 86, label: "year to date" },
+  "1Y": { count: 252, label: "1 year" },
+  "3Y": { count: 756, label: "3 years" },
+  "5Y": { count: 1260, label: "5 years" },
+  "10Y": { count: 2520, label: "10 years" }
+};
+
 const SIMULATED_SESSION_END = Date.UTC(2026, 4, 1, 20, 0, 0);
 
 export function getMarketProviderCatalog(): Record<MarketProviderId, MarketProviderDescriptor> {
@@ -243,6 +270,76 @@ export function createSimulatedMarketSnapshot(symbol: string, interval: MarketIn
       timestamp: lastBar.timestamp
     },
     symbol
+  };
+}
+
+export function createSimulatedHistoricalSnapshot(symbol: string, range: MarketRange): MarketDataSnapshot {
+  const bars = createSimulatedHistoricalBars(symbol, range, 0);
+  const lastBar = bars[bars.length - 1];
+  const dayOpen = bars[0].open;
+  const dayHigh = Math.max(...bars.map((bar) => bar.high));
+  const dayLow = Math.min(...bars.map((bar) => bar.low));
+  const dayVolume = bars.reduce((sum, bar) => sum + bar.volume, 0);
+  const spread = Math.max(lastBar.close * 0.00018, 0.01);
+
+  return {
+    bars,
+    feed: "simulated",
+    generatedAt: lastBar.timestamp,
+    interval: "1d",
+    provider: "simulated",
+    quote: {
+      ask: roundPrice(lastBar.close + spread),
+      bid: roundPrice(lastBar.close - spread),
+      dayHigh: roundPrice(dayHigh),
+      dayLow: roundPrice(dayLow),
+      dayOpen: roundPrice(dayOpen),
+      dayVolume,
+      feed: "simulated",
+      last: lastBar.close,
+      provider: "simulated",
+      symbol,
+      timestamp: lastBar.timestamp
+    },
+    symbol
+  };
+}
+
+export function createPriorPeriodBars(symbol: string, range: MarketRange): NormalizedMarketBar[] {
+  return createSimulatedHistoricalBars(symbol, range, 1);
+}
+
+export function normalizePerformanceSeries(sourceBars: NormalizedMarketBar[]): PerformancePoint[] {
+  const firstClose = sourceBars[0]?.close || 1;
+
+  return sourceBars.map((bar) => ({
+    timestamp: bar.timestamp,
+    value: roundPercent(((bar.close - firstClose) / firstClose) * 100)
+  }));
+}
+
+export function createComparisonSeries(
+  subjectBars: NormalizedMarketBar[],
+  benchmarkBars: NormalizedMarketBar[]
+): ComparisonPoint[] {
+  const subjectPerformance = normalizePerformanceSeries(subjectBars);
+  const benchmarkPerformance = normalizePerformanceSeries(benchmarkBars);
+  const pointCount = Math.min(subjectPerformance.length, benchmarkPerformance.length);
+
+  return Array.from({ length: pointCount }, (_, index) => ({
+    benchmark: benchmarkPerformance[index].value,
+    subject: subjectPerformance[index].value,
+    timestamp: subjectPerformance[index].timestamp
+  }));
+}
+
+export function calculatePerformanceSpread(comparison: ComparisonPoint[]): PerformanceSpread {
+  const lastPoint = comparison.at(-1) ?? { benchmark: 0, subject: 0 };
+
+  return {
+    benchmarkReturn: roundPercent(lastPoint.benchmark),
+    relativeSpread: roundPercent(lastPoint.subject - lastPoint.benchmark),
+    subjectReturn: roundPercent(lastPoint.subject)
   };
 }
 
@@ -322,6 +419,50 @@ export function createVolumeProfileBins(sourceBars: NormalizedMarketBar[], binCo
     volume: Math.round(bin.volume),
     volumeShare: Number((bin.volume / maxVolume).toFixed(4))
   }));
+}
+
+function createSimulatedHistoricalBars(symbol: string, range: MarketRange, priorYearOffset: number): NormalizedMarketBar[] {
+  const profile = SYMBOL_PROFILES[symbol] ?? makeProfile(symbol);
+  const config = RANGE_CONFIG[range];
+  const seed = hashSymbol(`${symbol}:${range}:${priorYearOffset}`);
+  const bars: NormalizedMarketBar[] = [];
+  const trendBoost = symbol === "SPY" ? 0.014 : 0.022 + pseudoRandom(seed) * 0.026;
+  const endTime = Date.UTC(2026 - priorYearOffset, 4, 1, 20, 0, 0);
+  let previousClose = profile.basePrice * (1 - trendBoost * Math.log10(config.count + 10));
+
+  for (let index = 0; index < config.count; index += 1) {
+    const trend = trendBoost * (index / Math.max(config.count - 1, 1));
+    const longWave = Math.sin((index + seed) / 31) * profile.volatility * 0.42;
+    const mediumWave = Math.cos((index + seed) / 11) * profile.volatility * 0.22;
+    const noise = (pseudoRandom(seed + index * 19) - 0.5) * profile.volatility * 0.7;
+    const open = previousClose;
+    const close = Math.max(1, open + trend + longWave * 0.12 + mediumWave * 0.1 + noise * 0.12);
+    const wick = profile.volatility * (0.24 + pseudoRandom(seed + index * 29) * 0.48);
+    const high = Math.max(open, close) + wick;
+    const low = Math.max(0.01, Math.min(open, close) - wick);
+    const timestamp = new Date(endTime - (config.count - 1 - index) * 86_400_000);
+    const volumePulse = 0.74 + Math.abs(Math.sin((index + seed) / 21)) * 0.82;
+    const volume = Math.round(profile.volumeBase * volumePulse * 210);
+
+    bars.push({
+      close: roundPrice(close),
+      feed: "simulated",
+      high: roundPrice(high),
+      interval: "1d",
+      low: roundPrice(low),
+      open: roundPrice(open),
+      provider: "simulated",
+      symbol,
+      timestamp: timestamp.toISOString(),
+      tradeCount: Math.round(volume / 180),
+      volume,
+      vwap: roundPrice((open + high + low + close * 2) / 5)
+    });
+
+    previousClose = close;
+  }
+
+  return bars;
 }
 
 function createSimulatedBars(symbol: string, interval: MarketInterval): NormalizedMarketBar[] {
@@ -417,5 +558,9 @@ function pseudoRandom(seed: number): number {
 }
 
 function roundPrice(value: number): number {
+  return Number(value.toFixed(2));
+}
+
+function roundPercent(value: number): number {
   return Number(value.toFixed(2));
 }

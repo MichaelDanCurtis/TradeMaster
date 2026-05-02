@@ -3,11 +3,16 @@
 import { useMemo, useState } from "react";
 
 import {
+  calculatePerformanceSpread,
+  createComparisonSeries,
   createHeikinAshiBars,
-  createSimulatedMarketSnapshot,
+  createPriorPeriodBars,
+  createSimulatedHistoricalSnapshot,
   createVolumeProfileBins,
   getMarketProviderCatalog,
-  type MarketInterval,
+  normalizePerformanceSeries,
+  type ComparisonPoint,
+  type MarketRange,
   type NormalizedMarketBar
 } from "@/lib/market-data";
 
@@ -37,28 +42,39 @@ type TimeTick = {
   x: number;
 };
 
-type ChartView = "area" | "bars" | "candles" | "heikin-ashi" | "line" | "volume-profile";
-
-const INTERVALS: Array<{ interval: MarketInterval; label: string; enabled: boolean; note: string }> = [
-  { enabled: false, interval: "1s", label: "1s", note: "trade aggregation" },
-  { enabled: false, interval: "5s", label: "5s", note: "trade aggregation" },
-  { enabled: false, interval: "10s", label: "10s", note: "trade aggregation" },
-  { enabled: true, interval: "1m", label: "1m", note: "Alpaca bars" },
-  { enabled: true, interval: "5m", label: "5m", note: "Alpaca bars" },
-  { enabled: true, interval: "15m", label: "15m", note: "Alpaca bars" },
-  { enabled: true, interval: "1h", label: "1h", note: "Alpaca bars" },
-  { enabled: true, interval: "1d", label: "1d", note: "historical" }
-];
+type ChartView =
+  | "area"
+  | "bars"
+  | "baseline"
+  | "candles"
+  | "heikin-ashi"
+  | "hollow-candles"
+  | "line"
+  | "step-line"
+  | "volume-profile";
 
 const CHART_VIEWS: Array<{ label: string; value: ChartView }> = [
   { label: "Candles", value: "candles" },
+  { label: "Hollow", value: "hollow-candles" },
   { label: "Bars", value: "bars" },
   { label: "Line", value: "line" },
+  { label: "Step", value: "step-line" },
   { label: "Area", value: "area" },
+  { label: "Baseline", value: "baseline" },
   { label: "Heikin Ashi", value: "heikin-ashi" },
   { label: "Volume Profile", value: "volume-profile" }
 ];
 
+const RANGE_OPTIONS: Array<{ label: string; value: MarketRange }> = [
+  { label: "1M", value: "1M" },
+  { label: "YTD", value: "YTD" },
+  { label: "1Y", value: "1Y" },
+  { label: "3Y", value: "3Y" },
+  { label: "5Y", value: "5Y" },
+  { label: "10Y", value: "10Y" }
+];
+
+const COMPARE_OPTIONS = ["SPY", "AAPL", "MSFT", "NVDA"];
 const CHART_HEIGHT = 520;
 const CHART_WIDTH = 1040;
 const PLOT_PADDING = {
@@ -124,26 +140,26 @@ function getPriceTicks(seriesData: NormalizedMarketBar[]): AxisTick[] {
   });
 }
 
-function getTimeTicks(renderedBars: RenderedBar[], interval: MarketInterval): TimeTick[] {
+function getTimeTicks(renderedBars: RenderedBar[], range: MarketRange): TimeTick[] {
   const targetCount = 6;
   const stride = Math.max(1, Math.floor((renderedBars.length - 1) / (targetCount - 1)));
   const selected = renderedBars.filter((_, index) => index % stride === 0).slice(0, targetCount - 1);
   const bars = [...selected, renderedBars[renderedBars.length - 1]];
 
   return bars.map((bar) => ({
-    label: formatTimeLabel(bar.timestamp, interval),
+    label: formatTimeLabel(bar.timestamp, range),
     x: bar.x
   }));
 }
 
-function formatTimeLabel(timestamp: string, interval: MarketInterval): string {
+function formatTimeLabel(timestamp: string, range: MarketRange): string {
   const date = new Date(timestamp);
 
-  if (interval === "1d") {
+  if (range === "1M" || range === "YTD") {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   }
 
-  return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
 }
 
 function formatVolume(value: number): string {
@@ -170,6 +186,19 @@ function getLinePoints(renderedBars: RenderedBar[]): string {
   return renderedBars.map((bar) => `${bar.x.toFixed(2)},${bar.yClose.toFixed(2)}`).join(" ");
 }
 
+function getStepLinePoints(renderedBars: RenderedBar[]): string {
+  return renderedBars
+    .flatMap((bar, index) => {
+      if (index === 0) {
+        return [`${bar.x.toFixed(2)},${bar.yClose.toFixed(2)}`];
+      }
+
+      const previous = renderedBars[index - 1];
+      return [`${bar.x.toFixed(2)},${previous.yClose.toFixed(2)}`, `${bar.x.toFixed(2)},${bar.yClose.toFixed(2)}`];
+    })
+    .join(" ");
+}
+
 function getAreaPath(renderedBars: RenderedBar[]): string {
   const pricePlotBottom = PLOT_PADDING.top + PRICE_PLOT_HEIGHT;
   const linePoints = renderedBars.map((bar) => `L ${bar.x.toFixed(2)} ${bar.yClose.toFixed(2)}`).join(" ");
@@ -193,19 +222,95 @@ function getPriceY(seriesData: NormalizedMarketBar[], value: number): number {
   return PLOT_PADDING.top + ((maxValue - value) / valueRange) * PRICE_PLOT_HEIGHT;
 }
 
+function getPerformanceY(points: Array<{ value: number }>, value: number): number {
+  const values = points.map((point) => point.value);
+  const minValue = Math.min(-1, ...values);
+  const maxValue = Math.max(1, ...values);
+  const valueRange = maxValue - minValue || 1;
+
+  return PLOT_PADDING.top + ((maxValue - value) / valueRange) * PRICE_PLOT_HEIGHT;
+}
+
+function getPerformancePoints(points: Array<{ value: number }>, scalePoints: Array<{ value: number }> = points): string {
+  const plotWidth = CHART_WIDTH - PLOT_PADDING.left - PLOT_PADDING.right;
+  const step = plotWidth / Math.max(points.length - 1, 1);
+
+  return points
+    .map((point, index) => {
+      const x = PLOT_PADDING.left + index * step;
+      const y = getPerformanceY(scalePoints, point.value);
+
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    })
+    .join(" ");
+}
+
+function getComparisonPoints(
+  points: ComparisonPoint[],
+  key: "benchmark" | "subject",
+  scalePoints: Array<{ value: number }>
+): string {
+  const plotWidth = CHART_WIDTH - PLOT_PADDING.left - PLOT_PADDING.right;
+  const step = plotWidth / Math.max(points.length - 1, 1);
+
+  return points
+    .map((point, index) => {
+      const x = PLOT_PADDING.left + index * step;
+      const y = getPerformanceY(scalePoints, point[key]);
+
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    })
+    .join(" ");
+}
+
+function downsampleBars(bars: NormalizedMarketBar[], maxCount: number): NormalizedMarketBar[] {
+  if (bars.length <= maxCount) return bars;
+
+  const stride = Math.ceil(bars.length / maxCount);
+  return bars.filter((_, index) => index % stride === 0).slice(0, maxCount);
+}
+
 export function ChartWorkspace({ symbol }: { symbol: string }) {
-  const [interval, setInterval] = useState<MarketInterval>("1m");
+  const [chartRange, setChartRange] = useState<MarketRange>("1M");
   const [chartView, setChartView] = useState<ChartView>("candles");
+  const [compareEnabled, setCompareEnabled] = useState(false);
+  const [compareSymbol, setCompareSymbol] = useState("SPY");
+  const [priorPeriodEnabled, setPriorPeriodEnabled] = useState(false);
   const providerCatalog = useMemo(() => getMarketProviderCatalog(), []);
-  const snapshot = useMemo(() => createSimulatedMarketSnapshot(symbol, interval), [interval, symbol]);
+  const effectiveCompareSymbol =
+    compareSymbol === symbol ? (COMPARE_OPTIONS.find((option) => option !== symbol) ?? "SPY") : compareSymbol;
+  const snapshot = useMemo(() => createSimulatedHistoricalSnapshot(symbol, chartRange), [chartRange, symbol]);
+  const comparisonSnapshot = useMemo(
+    () => createSimulatedHistoricalSnapshot(effectiveCompareSymbol, chartRange),
+    [chartRange, effectiveCompareSymbol]
+  );
+  const priorPeriodBars = useMemo(() => createPriorPeriodBars(symbol, chartRange), [chartRange, symbol]);
   const displayedBars = useMemo(
     () => (chartView === "heikin-ashi" ? createHeikinAshiBars(snapshot.bars) : snapshot.bars),
     [chartView, snapshot.bars]
   );
-  const renderedBars = useMemo(() => getRenderedBars(displayedBars), [displayedBars]);
-  const priceTicks = useMemo(() => getPriceTicks(displayedBars), [displayedBars]);
-  const timeTicks = useMemo(() => getTimeTicks(renderedBars, interval), [interval, renderedBars]);
-  const volumeProfileBins = useMemo(() => createVolumeProfileBins(displayedBars, 18), [displayedBars]);
+  const renderBars = useMemo(() => downsampleBars(displayedBars, 260), [displayedBars]);
+  const renderedBars = useMemo(() => getRenderedBars(renderBars), [renderBars]);
+  const priceTicks = useMemo(() => getPriceTicks(renderBars), [renderBars]);
+  const timeTicks = useMemo(() => getTimeTicks(renderedBars, chartRange), [chartRange, renderedBars]);
+  const volumeProfileBins = useMemo(() => createVolumeProfileBins(renderBars, 18), [renderBars]);
+  const performanceSeries = useMemo(() => normalizePerformanceSeries(snapshot.bars), [snapshot.bars]);
+  const comparisonSeries = useMemo(
+    () => createComparisonSeries(snapshot.bars, comparisonSnapshot.bars),
+    [comparisonSnapshot.bars, snapshot.bars]
+  );
+  const priorPerformanceSeries = useMemo(() => normalizePerformanceSeries(priorPeriodBars), [priorPeriodBars]);
+  const performanceScalePoints = useMemo(
+    () => [
+      ...performanceSeries,
+      ...(compareEnabled
+        ? comparisonSeries.flatMap((point) => [{ value: point.subject }, { value: point.benchmark }])
+        : []),
+      ...(priorPeriodEnabled ? priorPerformanceSeries : [])
+    ],
+    [compareEnabled, comparisonSeries, performanceSeries, priorPeriodEnabled, priorPerformanceSeries]
+  );
+  const performanceSpread = useMemo(() => calculatePerformanceSpread(comparisonSeries), [comparisonSeries]);
   const lastBar = snapshot.bars[snapshot.bars.length - 1];
   const firstBar = snapshot.bars[0];
   const sessionChange = lastBar.close - firstBar.open;
@@ -213,13 +318,24 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
   const range = snapshot.quote.dayHigh - snapshot.quote.dayLow;
   const vwap = lastBar.vwap ?? lastBar.close;
   const linePoints = getLinePoints(renderedBars);
+  const stepLinePoints = getStepLinePoints(renderedBars);
   const areaPath = getAreaPath(renderedBars);
-  const showCandles = chartView === "candles" || chartView === "heikin-ashi" || chartView === "volume-profile";
+  const showCandles =
+    chartView === "candles" ||
+    chartView === "heikin-ashi" ||
+    chartView === "hollow-candles" ||
+    chartView === "volume-profile";
   const showBars = chartView === "bars";
-  const showLine = chartView === "line" || chartView === "area";
+  const showLine = chartView === "line" || chartView === "area" || chartView === "baseline";
   const showArea = chartView === "area";
+  const showStepLine = chartView === "step-line";
+  const showBaseline = chartView === "baseline";
   const showVolumeProfile = chartView === "volume-profile";
   const selectedViewLabel = CHART_VIEWS.find((view) => view.value === chartView)?.label ?? "Candles";
+  const performanceMode = compareEnabled || priorPeriodEnabled;
+  const comparisonPoints = getComparisonPoints(comparisonSeries, "benchmark", performanceScalePoints);
+  const priorPeriodPoints = getPerformancePoints(priorPerformanceSeries, performanceScalePoints);
+  const subjectPerformancePoints = getPerformancePoints(performanceSeries, performanceScalePoints);
 
   return (
     <section className="chart-workspace">
@@ -245,38 +361,13 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
         <div>
           <span>Mode</span>
           <strong>
-            {selectedViewLabel} {snapshot.interval}
+            {selectedViewLabel} {chartRange}
           </strong>
         </div>
         <div>
           <span>Coverage</span>
           <strong>Bars, quote, VWAP, volume</strong>
         </div>
-      </div>
-
-      <div className="workspace-toolbar" aria-label="Chart timeframe controls">
-        {INTERVALS.map((timeframe) => (
-          <button
-            aria-disabled={!timeframe.enabled}
-            className={[
-              "timeframe",
-              timeframe.interval === interval ? "active" : "",
-              !timeframe.enabled ? "disabled" : ""
-            ]
-              .filter(Boolean)
-              .join(" ")}
-            key={timeframe.interval}
-            onClick={() => {
-              if (timeframe.enabled) {
-                setInterval(timeframe.interval);
-              }
-            }}
-            title={timeframe.note}
-            type="button"
-          >
-            {timeframe.label}
-          </button>
-        ))}
       </div>
 
       <div className="view-toolbar" aria-label="Chart view controls">
@@ -290,6 +381,44 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
             {view.label}
           </button>
         ))}
+      </div>
+      <div className="comparison-toolbar" aria-label="Chart comparison controls">
+        <label>
+          <span>Range</span>
+          <select value={chartRange} onChange={(event) => setChartRange(event.target.value as MarketRange)}>
+            {RANGE_OPTIONS.map((rangeOption) => (
+              <option key={rangeOption.value} value={rangeOption.value}>
+                {rangeOption.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="toggle-control">
+          <input checked={compareEnabled} onChange={(event) => setCompareEnabled(event.target.checked)} type="checkbox" />
+          <span>Compare</span>
+        </label>
+        <label>
+          <span>Against</span>
+          <select
+            disabled={!compareEnabled}
+            value={compareSymbol}
+            onChange={(event) => setCompareSymbol(event.target.value)}
+          >
+            {COMPARE_OPTIONS.filter((option) => option !== symbol).map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="toggle-control">
+          <input
+            checked={priorPeriodEnabled}
+            onChange={(event) => setPriorPeriodEnabled(event.target.checked)}
+            type="checkbox"
+          />
+          <span>Prior period</span>
+        </label>
       </div>
 
       <div className="chart-shell">
@@ -327,14 +456,44 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
               y1={VOLUME_PLOT_TOP - 18}
               y2={VOLUME_PLOT_TOP - 18}
             />
-            {priceTicks.map((tick) => (
-              <text className="chart-axis-label" key={tick.label} x={CHART_WIDTH - 70} y={tick.y + 4}>
-                {tick.label}
-              </text>
-            ))}
-            {showArea ? <path className="area-fill" d={areaPath} fill={`url(#areaFill-${symbol})`} /> : null}
-            {showLine ? <polyline className="price-line" points={linePoints} /> : null}
-            {showCandles
+            {performanceMode
+              ? [-20, -10, 0, 10, 20].map((tick) => (
+                  <text className="chart-axis-label" key={tick} x={CHART_WIDTH - 70} y={getPerformanceY(performanceScalePoints, tick) + 4}>
+                    {tick}%
+                  </text>
+                ))
+              : priceTicks.map((tick) => (
+                  <text className="chart-axis-label" key={tick.label} x={CHART_WIDTH - 70} y={tick.y + 4}>
+                    {tick.label}
+                  </text>
+                ))}
+            {performanceMode ? (
+              <>
+                <line
+                  className="baseline-zero"
+                  x1={PLOT_PADDING.left}
+                  x2={CHART_WIDTH - PLOT_PADDING.right}
+                  y1={getPerformanceY(performanceScalePoints, 0)}
+                  y2={getPerformanceY(performanceScalePoints, 0)}
+                />
+                <polyline className="performance-line subject" points={subjectPerformancePoints} />
+                {compareEnabled ? <polyline className="performance-line benchmark" points={comparisonPoints} /> : null}
+                {priorPeriodEnabled ? <polyline className="performance-line prior" points={priorPeriodPoints} /> : null}
+              </>
+            ) : null}
+            {!performanceMode && showArea ? <path className="area-fill" d={areaPath} fill={`url(#areaFill-${symbol})`} /> : null}
+            {!performanceMode && showLine ? <polyline className="price-line" points={linePoints} /> : null}
+            {!performanceMode && showStepLine ? <polyline className="price-line step" points={stepLinePoints} /> : null}
+            {!performanceMode && showBaseline ? (
+              <line
+                className="baseline-zero"
+                x1={PLOT_PADDING.left}
+                x2={CHART_WIDTH - PLOT_PADDING.right}
+                y1={getPriceY(renderBars, firstBar.open)}
+                y2={getPriceY(renderBars, firstBar.open)}
+              />
+            ) : null}
+            {!performanceMode && showCandles
               ? renderedBars.map((bar) => (
                   <g className={showVolumeProfile ? "candle muted" : "candle"} key={bar.timestamp}>
                     <line
@@ -346,10 +505,13 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
                       y2={bar.wickY2}
                     />
                     <rect
-                      fill={bar.color}
+                      className={chartView === "hollow-candles" && bar.close >= bar.open ? "hollow-candle-body" : ""}
+                      fill={chartView === "hollow-candles" && bar.close >= bar.open ? "transparent" : bar.color}
                       height={bar.bodyHeight}
                       rx={bar.radius}
                       ry={bar.radius}
+                      stroke={chartView === "hollow-candles" ? bar.color : "none"}
+                      strokeWidth={chartView === "hollow-candles" ? 1.4 : 0}
                       width={bar.bodyWidth}
                       x={bar.x - bar.bodyWidth / 2}
                       y={bar.bodyY}
@@ -357,7 +519,7 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
                   </g>
                 ))
               : null}
-            {showBars
+            {!performanceMode && showBars
               ? renderedBars.map((bar) => {
                   const tickWidth = Math.max(4, bar.bodyWidth * 1.8);
 
@@ -370,19 +532,21 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
                   );
                 })
               : null}
-            {renderedBars.map((bar) => (
-              <rect
-                className={bar.close >= bar.open ? "volume-bar positive" : "volume-bar negative"}
-                height={bar.volumeHeight}
-                key={`volume-${bar.timestamp}`}
-                rx="1.8"
-                ry="1.8"
-                width={Math.max(1.8, bar.bodyWidth)}
-                x={bar.x - Math.max(1.8, bar.bodyWidth) / 2}
-                y={bar.volumeY}
-              />
-            ))}
-            {showVolumeProfile
+            {!performanceMode
+              ? renderedBars.map((bar) => (
+                  <rect
+                    className={bar.close >= bar.open ? "volume-bar positive" : "volume-bar negative"}
+                    height={bar.volumeHeight}
+                    key={`volume-${bar.timestamp}`}
+                    rx="1.8"
+                    ry="1.8"
+                    width={Math.max(1.8, bar.bodyWidth)}
+                    x={bar.x - Math.max(1.8, bar.bodyWidth) / 2}
+                    y={bar.volumeY}
+                  />
+                ))
+              : null}
+            {!performanceMode && showVolumeProfile
               ? volumeProfileBins.map((bin) => {
                   const yTop = getPriceY(displayedBars, bin.priceEnd);
                   const yBottom = getPriceY(displayedBars, bin.priceStart);
@@ -403,10 +567,10 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
                   );
                 })
               : null}
-            <polyline
+            {!performanceMode ? <polyline
               className="vwap-line"
               points={renderedBars.map((bar) => `${bar.x.toFixed(2)},${bar.vwapY.toFixed(2)}`).join(" ")}
-            />
+            /> : null}
             {timeTicks.map((tick) => (
               <text className="chart-time-label" key={`${tick.x}-${tick.label}`} x={tick.x} y={CHART_HEIGHT - 16}>
                 {tick.label}
@@ -418,6 +582,12 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
             <text className="chart-volume-label" x={PLOT_PADDING.left + 116} y={VOLUME_PLOT_TOP - 28}>
               VWAP {vwap.toFixed(2)}
             </text>
+            {compareEnabled ? (
+              <text className="chart-volume-label" x={PLOT_PADDING.left + 220} y={VOLUME_PLOT_TOP - 28}>
+                {symbol} {formatSigned(performanceSpread.subjectReturn)}% vs {effectiveCompareSymbol}{" "}
+                {formatSigned(performanceSpread.benchmarkReturn)}%
+              </text>
+            ) : null}
           </svg>
         </div>
       </div>
@@ -438,6 +608,14 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
         <div>
           <span>Range</span>
           <strong>{range.toFixed(2)}</strong>
+        </div>
+        <div>
+          <span>{chartRange} Return</span>
+          <strong>{formatSigned(sessionChangePercent)}%</strong>
+        </div>
+        <div>
+          <span>Relative</span>
+          <strong>{compareEnabled ? `${formatSigned(performanceSpread.relativeSpread)}%` : "Off"}</strong>
         </div>
         <div>
           <span>Bid / Ask</span>

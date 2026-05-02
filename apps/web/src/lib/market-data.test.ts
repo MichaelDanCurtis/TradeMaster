@@ -2,10 +2,15 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  calculatePerformanceSpread,
+  createComparisonSeries,
   createHeikinAshiBars,
+  createPriorPeriodBars,
+  createSimulatedHistoricalSnapshot,
   createSimulatedMarketSnapshot,
   createVolumeProfileBins,
   getMarketProviderCatalog,
+  normalizePerformanceSeries,
   type NormalizedMarketBar,
   normalizeAlpacaBar
 } from "./market-data.ts";
@@ -54,6 +59,66 @@ describe("market data normalization", () => {
     assert.equal(first.quote.provider, "simulated");
     assert.equal(first.bars[0].interval, "1m");
     assert.equal(first.bars.at(-1)?.timestamp, first.quote.timestamp);
+  });
+
+  it("creates deterministic historical snapshots for standard return ranges", () => {
+    const oneMonth = createSimulatedHistoricalSnapshot("NVDA", "1M");
+    const tenYear = createSimulatedHistoricalSnapshot("NVDA", "10Y");
+    const repeated = createSimulatedHistoricalSnapshot("NVDA", "10Y");
+
+    assert.equal(oneMonth.bars.length, 22);
+    assert.equal(tenYear.bars.length, 2520);
+    assert.deepEqual(tenYear.bars, repeated.bars);
+    assert.equal(tenYear.interval, "1d");
+    assert.equal(tenYear.quote.timestamp, tenYear.bars.at(-1)?.timestamp);
+  });
+
+  it("normalizes bars into percent performance from the first close", () => {
+    const series = normalizePerformanceSeries([
+      makeBar({ close: 100, timestamp: "2026-01-01T00:00:00.000Z" }),
+      makeBar({ close: 110, timestamp: "2026-01-02T00:00:00.000Z" }),
+      makeBar({ close: 90, timestamp: "2026-01-03T00:00:00.000Z" })
+    ]);
+
+    assert.deepEqual(series, [
+      { timestamp: "2026-01-01T00:00:00.000Z", value: 0 },
+      { timestamp: "2026-01-02T00:00:00.000Z", value: 10 },
+      { timestamp: "2026-01-03T00:00:00.000Z", value: -10 }
+    ]);
+  });
+
+  it("creates aligned comparison series and spread summary", () => {
+    const subject = [
+      makeBar({ close: 100, timestamp: "2026-01-01T00:00:00.000Z" }),
+      makeBar({ close: 125, timestamp: "2026-01-02T00:00:00.000Z" })
+    ];
+    const benchmark = [
+      makeBar({ close: 200, symbol: "SPY", timestamp: "2026-01-01T00:00:00.000Z" }),
+      makeBar({ close: 220, symbol: "SPY", timestamp: "2026-01-02T00:00:00.000Z" })
+    ];
+
+    const comparison = createComparisonSeries(subject, benchmark);
+    const spread = calculatePerformanceSpread(comparison);
+
+    assert.deepEqual(comparison.at(-1), {
+      benchmark: 10,
+      subject: 25,
+      timestamp: "2026-01-02T00:00:00.000Z"
+    });
+    assert.deepEqual(spread, {
+      benchmarkReturn: 10,
+      relativeSpread: 15,
+      subjectReturn: 25
+    });
+  });
+
+  it("creates prior-period bars with aligned length for year-over-year overlays", () => {
+    const current = createSimulatedHistoricalSnapshot("NVDA", "YTD").bars;
+    const prior = createPriorPeriodBars("NVDA", "YTD");
+
+    assert.equal(prior.length, current.length);
+    assert.notEqual(prior[0].timestamp.slice(0, 4), current[0].timestamp.slice(0, 4));
+    assert.equal(prior.at(-1)?.interval, "1d");
   });
 
   it("keeps provider roles separate from the normalized rendering contract", () => {
