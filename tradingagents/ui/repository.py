@@ -44,6 +44,11 @@ class UiRepository:
                 raise KeyError(run_id)
             return self._run_summary(record)
 
+    def get_run_config(self, run_id: str) -> dict[str, Any]:
+        with self._session_factory() as session:
+            record = self._require_run(session, run_id)
+            return dict(record.config)
+
     def list_runs(self) -> list[RunSummary]:
         statement = select(RunRecord).order_by(RunRecord.created_at.desc())
         with self._session_factory() as session:

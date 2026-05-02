@@ -108,6 +108,8 @@ def create_app(database_url: str | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="Trade or run not found") from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     @app.post("/api/trades/{intent_id}/approve")
     def approve_trade(
@@ -119,6 +121,8 @@ def create_app(database_url: str | None = None) -> FastAPI:
             service.approve_order(intent_id, actor=request.actor)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Trade or run not found") from exc
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
         return {"intent_id": intent_id, "status": "approved"}
 
     @app.post("/api/trades/{intent_id}/submit")

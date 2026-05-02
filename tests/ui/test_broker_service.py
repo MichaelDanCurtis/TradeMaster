@@ -33,6 +33,18 @@ def _service(tmp_path: Path) -> tuple[BrokerService, UiRepository, str]:
     return BrokerService(repo, FakePaperBroker()), repo, run.run_id
 
 
+def _service_with_broker_mode(
+    tmp_path: Path, broker_mode: str
+) -> tuple[BrokerService, UiRepository, str]:
+    engine, session_factory = create_session_factory(f"sqlite:///{tmp_path / 'ui.db'}")
+    init_db(engine)
+    repo = UiRepository(session_factory)
+    run = repo.create_run(
+        RunConfig(ticker="NVDA", trade_date="2026-04-30", broker_mode=broker_mode)
+    )
+    return BrokerService(repo, FakePaperBroker()), repo, run.run_id
+
+
 def test_create_trade_preview_records_intent(tmp_path):
     service, repo, run_id = _service(tmp_path)
 
@@ -43,6 +55,35 @@ def test_create_trade_preview_records_intent(tmp_path):
     intent = repo.get_trade_intent(preview.intent_id)
     assert preview.environment == "paper"
     assert intent.status == "previewed"
+
+
+def test_disabled_run_cannot_preview_trade(tmp_path):
+    service, _, run_id = _service_with_broker_mode(tmp_path, "disabled")
+
+    with pytest.raises(PermissionError, match="broker_mode=paper"):
+        service.preview_order(
+            run_id=run_id, symbol="NVDA", side="buy", notional=1000
+        )
+
+
+def test_disabled_run_cannot_submit_existing_intent(tmp_path):
+    service, repo, run_id = _service_with_broker_mode(tmp_path, "disabled")
+    intent = repo.create_trade_intent(
+        run_id=run_id, symbol="NVDA", side="buy", notional=1000
+    )
+
+    with pytest.raises(PermissionError, match="broker_mode=paper"):
+        service.approve_order(intent.intent_id, actor="local-user")
+
+    repo.record_approval(
+        intent_id=intent.intent_id,
+        actor="test",
+        action="approve_order",
+        before_payload={"status": intent.status},
+        after_payload={"status": "approved"},
+    )
+    with pytest.raises(PermissionError, match="broker_mode=paper"):
+        service.submit_approved_order(intent.intent_id)
 
 
 def test_submit_order_requires_approval(tmp_path):

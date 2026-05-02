@@ -27,6 +27,7 @@ class BrokerService:
         normalized_side = side.strip().lower()
         if normalized_side not in ("buy", "sell"):
             raise ValueError("side must be buy or sell")
+        self._require_paper_broker_mode(run_id)
         order_side = cast(OrderSide, normalized_side)
         intent = self._repo.create_trade_intent(
             run_id=run_id,
@@ -48,6 +49,7 @@ class BrokerService:
 
     def approve_order(self, intent_id: str, actor: str) -> None:
         intent = self._repo.get_trade_intent(intent_id)
+        self._require_paper_broker_mode(intent.run_id)
         self._repo.record_approval(
             intent_id=intent_id,
             actor=actor,
@@ -58,6 +60,7 @@ class BrokerService:
 
     def submit_approved_order(self, intent_id: str) -> BrokerOrder:
         intent = self._repo.get_trade_intent(intent_id)
+        self._require_paper_broker_mode(intent.run_id)
         if intent.status != "previewed":
             raise ValueError(f"order is not previewed; current status is {intent.status}")
         if not self._repo.has_approval(intent_id):
@@ -79,3 +82,8 @@ class BrokerService:
             broker_order_id=order.broker_order_id,
         )
         return order
+
+    def _require_paper_broker_mode(self, run_id: str) -> None:
+        config = self._repo.get_run_config(run_id)
+        if config.get("broker_mode") != "paper":
+            raise PermissionError("paper broker requires broker_mode=paper")

@@ -70,19 +70,24 @@ class TradingRunService:
                 "message": "Created simulated decision.",
                 "payload": {"rating": "Overweight", "action": "Buy"},
             },
-            {
-                "type": "trade.previewed",
-                "node": "Broker",
-                "message": "Previewed simulated paper trade.",
-                "payload": {"symbol": config.ticker, "side": "buy"},
-            },
+        ]
+        if config.broker_mode == "paper":
+            fake_events.append(
+                {
+                    "type": "trade.previewed",
+                    "node": "Broker",
+                    "message": "Previewed simulated paper trade.",
+                    "payload": {"symbol": config.ticker, "side": "buy"},
+                }
+            )
+        fake_events.append(
             {
                 "type": "run.completed",
                 "node": None,
                 "message": "Completed simulated TradingAgents run.",
                 "payload": {"status": RunStatus.COMPLETED.value},
-            },
-        ]
+            }
+        )
 
         self._repository.set_run_status(run_id, RunStatus.RUNNING)
         for sequence, event in enumerate(fake_events, start=1):
@@ -104,12 +109,13 @@ class TradingRunService:
             thesis=f"{config.ticker} has a constructive simulated setup for UI testing.",
             risk_notes="This is fake run output. Use paper trading only.",
         )
-        self._repository.create_trade_intent(
-            run_id=run_id,
-            symbol=config.ticker,
-            side="buy",
-            notional=10000,
-        )
+        if config.broker_mode == "paper":
+            self._repository.create_trade_intent(
+                run_id=run_id,
+                symbol=config.ticker,
+                side="buy",
+                notional=10000,
+            )
         self._repository.set_run_status(run_id, RunStatus.COMPLETED)
 
     @staticmethod

@@ -3,6 +3,8 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from tradingagents.ui.api import create_app
+from tradingagents.ui.db import create_session_factory
+from tradingagents.ui.repository import UiRepository
 
 
 def test_health_endpoint_returns_ok(tmp_path: Path):
@@ -87,6 +89,42 @@ def test_trade_ticket_preview_approval_and_submit(tmp_path: Path):
     assert approval.status_code == 200
     assert submitted.status_code == 200
     assert submitted.json()["status"] == "submitted"
+
+
+def test_disabled_run_rejects_trade_preview(tmp_path: Path):
+    client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
+    run_id = client.post(
+        "/api/runs",
+        json={"ticker": "NVDA", "trade_date": "2026-04-30", "broker_mode": "disabled"},
+    ).json()["run_id"]
+
+    response = client.post(
+        "/api/trades/preview",
+        json={"run_id": run_id, "symbol": "NVDA", "side": "buy", "notional": 1000},
+    )
+
+    assert response.status_code == 403
+
+
+def test_disabled_run_rejects_trade_approval(tmp_path: Path):
+    database_url = f"sqlite:///{tmp_path / 'ui.db'}"
+    client = TestClient(create_app(database_url))
+    run_id = client.post(
+        "/api/runs",
+        json={"ticker": "NVDA", "trade_date": "2026-04-30", "broker_mode": "disabled"},
+    ).json()["run_id"]
+    _, session_factory = create_session_factory(database_url)
+    repo = UiRepository(session_factory)
+    intent = repo.create_trade_intent(
+        run_id=run_id, symbol="NVDA", side="buy", notional=1000
+    )
+
+    response = client.post(
+        f"/api/trades/{intent.intent_id}/approve", json={"actor": "local-user"}
+    )
+
+    assert response.status_code == 403
+    assert not repo.has_approval(intent.intent_id)
 
 
 def test_trade_ticket_preview_invalid_side_returns_validation_error(tmp_path: Path):
