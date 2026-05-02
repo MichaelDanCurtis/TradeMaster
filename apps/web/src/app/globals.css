@@ -28,7 +28,7 @@ select {
 
 .market-shell {
   display: grid;
-  grid-template-columns: 280px minmax(520px, 1fr) 360px;
+  grid-template-columns: 240px minmax(360px, 1fr) 320px;
   min-height: 100vh;
   overflow: hidden;
   background: #0b0f14;
@@ -156,15 +156,11 @@ select {
 
 @media (max-width: 1100px) {
   .market-shell {
-    grid-template-columns: 240px minmax(0, 1fr);
-  }
-
-  .agent-cockpit {
-    display: none;
+    grid-template-columns: 220px minmax(300px, 1fr) 300px;
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 860px) {
   .market-shell {
     grid-template-columns: 1fr;
     overflow: auto;
@@ -173,6 +169,11 @@ select {
   .watchlist-rail {
     border-right: 0;
     border-bottom: 1px solid #202b36;
+  }
+
+  .agent-cockpit {
+    border-left: 0;
+    border-top: 1px solid #202b36;
   }
 
   .watchlist-list {

@@ -225,3 +225,6 @@ __marimo__/
 node_modules/
 .next/
 apps/web/.next/
+
+# Local TradingAgents UI runtime state
+.tradingagents-ui.db
