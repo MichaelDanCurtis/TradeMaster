@@ -325,15 +325,23 @@ button {
 }
 
 .chart-shell {
-  border: 1px solid #222f3b;
-  border-radius: 8px;
-  background: #0f1720;
+  border: 1px solid rgba(91, 111, 132, 0.42);
+  border-radius: 5px 5px 24px 24px;
+  background:
+    linear-gradient(180deg, rgba(26, 38, 50, 0.72), rgba(10, 15, 21, 0.96)),
+    #0f1720;
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
   overflow: hidden;
+  padding: 1px;
 }
 
 .chart-surface {
   height: min(62vh, 540px);
   min-height: 410px;
+  border-radius: 4px 4px 22px 22px;
+  overflow: hidden;
 }
 
 .market-readout {
