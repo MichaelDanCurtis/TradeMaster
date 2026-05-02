@@ -239,6 +239,7 @@ button {
 }
 
 .rail-micro-panel,
+.data-source-strip,
 .decision-panel,
 .report-strip,
 .run-control-panel,
@@ -256,6 +257,7 @@ button {
 }
 
 .rail-micro-panel span,
+.data-source-strip span,
 .run-control-panel span,
 .market-readout span,
 .trade-ticket dt,
@@ -266,6 +268,7 @@ button {
 }
 
 .rail-micro-panel strong,
+.data-source-strip strong,
 .run-control-panel strong {
   font-size: 12px;
 }
@@ -300,8 +303,31 @@ button {
   font-size: 22px;
 }
 
+.data-source-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+}
+
+.data-source-strip div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.data-source-strip strong {
+  overflow: hidden;
+  color: #f2f6fa;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .workspace-toolbar {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 10px;
 }
@@ -324,6 +350,13 @@ button {
   border-color: #4f8cff;
 }
 
+.timeframe.disabled {
+  color: #5f7285;
+  background: #0b1016;
+  border-color: #18232e;
+  cursor: not-allowed;
+}
+
 .chart-shell {
   border: 1px solid rgba(91, 111, 132, 0.42);
   border-radius: 5px 5px 24px 24px;
@@ -338,8 +371,7 @@ button {
 }
 
 .chart-surface {
-  height: min(62vh, 540px);
-  min-height: 410px;
+  height: clamp(380px, 52vh, 520px);
   border-radius: 4px 4px 22px 22px;
   overflow: hidden;
 }
@@ -355,8 +387,14 @@ button {
   stroke-width: 1;
 }
 
+.chart-section-rule {
+  stroke: rgba(105, 128, 150, 0.22);
+  stroke-width: 1;
+}
+
 .chart-axis-label,
-.chart-time-label {
+.chart-time-label,
+.chart-volume-label {
   fill: #70869b;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -368,12 +406,29 @@ button {
 
 .candle-wick {
   stroke-linecap: round;
-  stroke-width: 2;
+  stroke-width: 1.4;
+}
+
+.volume-bar.positive {
+  fill: rgba(51, 209, 122, 0.3);
+}
+
+.volume-bar.negative {
+  fill: rgba(255, 107, 107, 0.28);
+}
+
+.vwap-line {
+  fill: none;
+  opacity: 0.9;
+  stroke: #e7c75f;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
 }
 
 .market-readout {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
   margin-top: 10px;
 }
@@ -555,6 +610,10 @@ button {
     grid-template-columns: 220px minmax(320px, 1fr) 300px;
   }
 
+  .market-readout {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .session-clock {
     display: none;
   }
@@ -593,6 +652,10 @@ button {
 
   .watchlist-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .data-source-strip {
+    grid-template-columns: 1fr;
   }
 
   .market-readout {

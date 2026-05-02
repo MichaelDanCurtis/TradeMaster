@@ -1,114 +1,169 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
-type ChartBar = {
-  time: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-};
+import {
+  createSimulatedMarketSnapshot,
+  getMarketProviderCatalog,
+  type MarketDataSnapshot,
+  type MarketInterval,
+  type NormalizedMarketBar
+} from "@/lib/market-data";
 
-type RenderedBar = ChartBar & {
+type RenderedBar = NormalizedMarketBar & {
   bodyHeight: number;
+  bodyWidth: number;
   bodyY: number;
   color: string;
   radius: number;
+  volumeHeight: number;
+  volumeY: number;
+  vwapY: number;
   wickY1: number;
   wickY2: number;
   x: number;
-  yClose: number;
-  yOpen: number;
 };
 
-const BASE_SERIES: ChartBar[] = [
-  { time: "2026-04-24", open: 880, high: 902, low: 871, close: 895 },
-  { time: "2026-04-25", open: 895, high: 910, low: 888, close: 904 },
-  { time: "2026-04-28", open: 904, high: 918, low: 899, close: 912 },
-  { time: "2026-04-29", open: 912, high: 920, low: 893, close: 900 },
-  { time: "2026-04-30", open: 900, high: 930, low: 896, close: 924 }
+type AxisTick = {
+  label: string;
+  y: number;
+};
+
+type TimeTick = {
+  label: string;
+  x: number;
+};
+
+const INTERVALS: Array<{ interval: MarketInterval; label: string; enabled: boolean; note: string }> = [
+  { enabled: false, interval: "1s", label: "1s", note: "trade aggregation" },
+  { enabled: false, interval: "5s", label: "5s", note: "trade aggregation" },
+  { enabled: false, interval: "10s", label: "10s", note: "trade aggregation" },
+  { enabled: true, interval: "1m", label: "1m", note: "Alpaca bars" },
+  { enabled: true, interval: "5m", label: "5m", note: "Alpaca bars" },
+  { enabled: true, interval: "15m", label: "15m", note: "Alpaca bars" },
+  { enabled: true, interval: "1h", label: "1h", note: "Alpaca bars" },
+  { enabled: true, interval: "1d", label: "1d", note: "historical" }
 ];
 
-const SYMBOL_OFFSETS: Record<string, number> = {
-  AAPL: -710,
-  MSFT: -480,
-  NVDA: 0,
-  SPY: -390
-};
-
-const TIMEFRAMES = ["1D", "5D", "1M", "6M", "YTD"];
-const CHART_HEIGHT = 420;
-const CHART_WIDTH = 920;
-const CANDLE_WIDTH = 72;
-const CANDLE_RADIUS = 5;
+const CHART_HEIGHT = 520;
+const CHART_WIDTH = 1040;
 const PLOT_PADDING = {
-  bottom: 42,
-  left: 34,
-  right: 72,
+  bottom: 38,
+  left: 38,
+  right: 82,
   top: 28
 };
+const PRICE_PLOT_HEIGHT = 342;
+const VOLUME_PLOT_TOP = 404;
+const VOLUME_PLOT_HEIGHT = 74;
 
-function getSeriesForSymbol(symbol: string): ChartBar[] {
-  const offset = SYMBOL_OFFSETS[symbol] ?? 0;
-
-  return BASE_SERIES.map((bar) => ({
-    ...bar,
-    open: bar.open + offset,
-    high: bar.high + offset,
-    low: bar.low + offset,
-    close: bar.close + offset
-  }));
-}
-
-function getRenderedBars(seriesData: ChartBar[]): RenderedBar[] {
+function getRenderedBars(snapshot: MarketDataSnapshot): RenderedBar[] {
+  const seriesData = snapshot.bars;
   const minValue = Math.min(...seriesData.map((bar) => bar.low));
   const maxValue = Math.max(...seriesData.map((bar) => bar.high));
   const valueRange = maxValue - minValue || 1;
-  const plotHeight = CHART_HEIGHT - PLOT_PADDING.top - PLOT_PADDING.bottom;
   const plotWidth = CHART_WIDTH - PLOT_PADDING.left - PLOT_PADDING.right;
   const step = plotWidth / Math.max(seriesData.length - 1, 1);
-  const scaleY = (value: number) =>
-    PLOT_PADDING.top + ((maxValue - value) / valueRange) * plotHeight;
+  const bodyWidth = Math.max(2.6, Math.min(7.2, step * 0.68));
+  const maxVolume = Math.max(...seriesData.map((bar) => bar.volume));
+  const scaleY = (value: number) => PLOT_PADDING.top + ((maxValue - value) / valueRange) * PRICE_PLOT_HEIGHT;
+  const scaleVolume = (volume: number) => (volume / maxVolume) * VOLUME_PLOT_HEIGHT;
 
   return seriesData.map((bar, index) => {
     const x = PLOT_PADDING.left + index * step;
     const yOpen = scaleY(bar.open);
     const yClose = scaleY(bar.close);
     const bodyY = Math.min(yOpen, yClose);
-    const bodyHeight = Math.max(Math.abs(yClose - yOpen), 4);
-    const radius = Math.min(CANDLE_RADIUS, CANDLE_WIDTH / 2, bodyHeight / 2);
+    const bodyHeight = Math.max(Math.abs(yClose - yOpen), 2.4);
+    const radius = Math.min(3.2, bodyWidth / 2, bodyHeight / 2);
+    const volumeHeight = scaleVolume(bar.volume);
 
     return {
       ...bar,
       bodyHeight,
+      bodyWidth,
       bodyY,
       color: bar.close >= bar.open ? "#33d17a" : "#ff6b6b",
       radius,
+      volumeHeight,
+      volumeY: VOLUME_PLOT_TOP + VOLUME_PLOT_HEIGHT - volumeHeight,
+      vwapY: scaleY(bar.vwap ?? bar.close),
       wickY1: scaleY(bar.high),
       wickY2: scaleY(bar.low),
-      x,
-      yClose,
-      yOpen
+      x
     };
   });
 }
 
-function getPriceTicks(seriesData: ChartBar[]): string[] {
+function getPriceTicks(seriesData: NormalizedMarketBar[]): AxisTick[] {
   const minValue = Math.min(...seriesData.map((bar) => bar.low));
   const maxValue = Math.max(...seriesData.map((bar) => bar.high));
-  const midValue = (minValue + maxValue) / 2;
 
-  return [maxValue, midValue, minValue].map((value) => value.toFixed(0));
+  return [0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+    const value = maxValue - (maxValue - minValue) * ratio;
+
+    return {
+      label: value.toFixed(2),
+      y: PLOT_PADDING.top + PRICE_PLOT_HEIGHT * ratio
+    };
+  });
+}
+
+function getTimeTicks(renderedBars: RenderedBar[], interval: MarketInterval): TimeTick[] {
+  const targetCount = 6;
+  const stride = Math.max(1, Math.floor((renderedBars.length - 1) / (targetCount - 1)));
+  const selected = renderedBars.filter((_, index) => index % stride === 0).slice(0, targetCount - 1);
+  const bars = [...selected, renderedBars[renderedBars.length - 1]];
+
+  return bars.map((bar) => ({
+    label: formatTimeLabel(bar.timestamp, interval),
+    x: bar.x
+  }));
+}
+
+function formatTimeLabel(timestamp: string, interval: MarketInterval): string {
+  const date = new Date(timestamp);
+
+  if (interval === "1d") {
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  }
+
+  return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatVolume(value: number): string {
+  if (value >= 1_000_000_000) {
+    return `${(value / 1_000_000_000).toFixed(1)}B`;
+  }
+
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1)}M`;
+  }
+
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(1)}K`;
+  }
+
+  return value.toString();
+}
+
+function formatSigned(value: number): string {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
 }
 
 export function ChartWorkspace({ symbol }: { symbol: string }) {
-  const seriesData = useMemo(() => getSeriesForSymbol(symbol), [symbol]);
-  const renderedBars = useMemo(() => getRenderedBars(seriesData), [seriesData]);
-  const priceTicks = useMemo(() => getPriceTicks(seriesData), [seriesData]);
-  const lastBar = seriesData[seriesData.length - 1];
-  const openChange = lastBar.close - lastBar.open;
-  const range = lastBar.high - lastBar.low;
+  const [interval, setInterval] = useState<MarketInterval>("1m");
+  const providerCatalog = useMemo(() => getMarketProviderCatalog(), []);
+  const snapshot = useMemo(() => createSimulatedMarketSnapshot(symbol, interval), [interval, symbol]);
+  const renderedBars = useMemo(() => getRenderedBars(snapshot), [snapshot]);
+  const priceTicks = useMemo(() => getPriceTicks(snapshot.bars), [snapshot.bars]);
+  const timeTicks = useMemo(() => getTimeTicks(renderedBars, interval), [interval, renderedBars]);
+  const lastBar = snapshot.bars[snapshot.bars.length - 1];
+  const firstBar = snapshot.bars[0];
+  const sessionChange = lastBar.close - firstBar.open;
+  const sessionChangePercent = (sessionChange / firstBar.open) * 100;
+  const range = snapshot.quote.dayHigh - snapshot.quote.dayLow;
+  const vwap = lastBar.vwap ?? lastBar.close;
 
   return (
     <section className="chart-workspace">
@@ -119,29 +174,62 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
         </div>
         <div className="quote-strip" aria-label={`${symbol} quote snapshot`}>
           <span>Last</span>
-          <strong>{lastBar.close.toFixed(2)}</strong>
-          <span className={lastBar.close >= lastBar.open ? "positive" : "negative"}>
-            {lastBar.close >= lastBar.open ? "+" : ""}
-            {openChange.toFixed(2)}
+          <strong>{snapshot.quote.last.toFixed(2)}</strong>
+          <span className={sessionChange >= 0 ? "positive" : "negative"}>
+            {formatSigned(sessionChange)} ({formatSigned(sessionChangePercent)}%)
           </span>
         </div>
       </header>
+
+      <div className="data-source-strip" aria-label="Market data provider status">
+        <div>
+          <span>Feed</span>
+          <strong>{providerCatalog[snapshot.provider].name}</strong>
+        </div>
+        <div>
+          <span>Mode</span>
+          <strong>Normalized {snapshot.interval}</strong>
+        </div>
+        <div>
+          <span>Coverage</span>
+          <strong>Bars, quote, VWAP, volume</strong>
+        </div>
+      </div>
+
       <div className="workspace-toolbar" aria-label="Chart timeframe controls">
-        {TIMEFRAMES.map((timeframe) => (
-          <button className={timeframe === "1D" ? "timeframe active" : "timeframe"} key={timeframe} type="button">
-            {timeframe}
+        {INTERVALS.map((timeframe) => (
+          <button
+            aria-disabled={!timeframe.enabled}
+            className={[
+              "timeframe",
+              timeframe.interval === interval ? "active" : "",
+              !timeframe.enabled ? "disabled" : ""
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            key={timeframe.interval}
+            onClick={() => {
+              if (timeframe.enabled) {
+                setInterval(timeframe.interval);
+              }
+            }}
+            title={timeframe.note}
+            type="button"
+          >
+            {timeframe.label}
           </button>
         ))}
       </div>
+
       <div className="chart-shell">
-        <div className="chart-surface" aria-label={`${symbol} simulated candlestick chart`}>
+        <div className="chart-surface" aria-label={`${symbol} normalized candlestick chart`}>
           <svg
             className="candlestick-chart"
             role="img"
             viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
             xmlns="http://www.w3.org/2000/svg"
           >
-            <title>{symbol} simulated candlestick chart</title>
+            <title>{symbol} normalized candlestick chart</title>
             <defs>
               <linearGradient id={`chartGlow-${symbol}`} x1="0" x2="0" y1="0" y2="1">
                 <stop offset="0%" stopColor="#172231" />
@@ -150,20 +238,27 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
             </defs>
             <rect fill={`url(#chartGlow-${symbol})`} height={CHART_HEIGHT} width={CHART_WIDTH} />
             {[0, 1, 2, 3, 4].map((line) => {
-              const y = PLOT_PADDING.top + line * 72;
+              const y = PLOT_PADDING.top + line * (PRICE_PLOT_HEIGHT / 4);
               return <line className="chart-grid-line" key={`h-${line}`} x1="0" x2={CHART_WIDTH} y1={y} y2={y} />;
             })}
             {[0, 1, 2, 3, 4, 5].map((line) => {
-              const x = PLOT_PADDING.left + line * 146;
+              const x = PLOT_PADDING.left + line * ((CHART_WIDTH - PLOT_PADDING.left - PLOT_PADDING.right) / 5);
               return <line className="chart-grid-line" key={`v-${line}`} x1={x} x2={x} y1="0" y2={CHART_HEIGHT} />;
             })}
-            {priceTicks.map((tick, index) => (
-              <text className="chart-axis-label" key={tick} x={CHART_WIDTH - 52} y={PLOT_PADDING.top + index * 174}>
-                {tick}
+            <line
+              className="chart-section-rule"
+              x1={PLOT_PADDING.left}
+              x2={CHART_WIDTH - PLOT_PADDING.right}
+              y1={VOLUME_PLOT_TOP - 18}
+              y2={VOLUME_PLOT_TOP - 18}
+            />
+            {priceTicks.map((tick) => (
+              <text className="chart-axis-label" key={tick.label} x={CHART_WIDTH - 70} y={tick.y + 4}>
+                {tick.label}
               </text>
             ))}
             {renderedBars.map((bar) => (
-              <g className="candle" key={bar.time}>
+              <g className="candle" key={bar.timestamp}>
                 <line
                   className="candle-wick"
                   stroke={bar.color}
@@ -177,18 +272,40 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
                   height={bar.bodyHeight}
                   rx={bar.radius}
                   ry={bar.radius}
-                  width={CANDLE_WIDTH}
-                  x={bar.x - CANDLE_WIDTH / 2}
+                  width={bar.bodyWidth}
+                  x={bar.x - bar.bodyWidth / 2}
                   y={bar.bodyY}
                 />
-                <text className="chart-time-label" x={bar.x} y={CHART_HEIGHT - 18}>
-                  {bar.time.slice(5)}
-                </text>
+                <rect
+                  className={bar.close >= bar.open ? "volume-bar positive" : "volume-bar negative"}
+                  height={bar.volumeHeight}
+                  rx="1.8"
+                  ry="1.8"
+                  width={Math.max(1.8, bar.bodyWidth)}
+                  x={bar.x - Math.max(1.8, bar.bodyWidth) / 2}
+                  y={bar.volumeY}
+                />
               </g>
             ))}
+            <polyline
+              className="vwap-line"
+              points={renderedBars.map((bar) => `${bar.x.toFixed(2)},${bar.vwapY.toFixed(2)}`).join(" ")}
+            />
+            {timeTicks.map((tick) => (
+              <text className="chart-time-label" key={`${tick.x}-${tick.label}`} x={tick.x} y={CHART_HEIGHT - 16}>
+                {tick.label}
+              </text>
+            ))}
+            <text className="chart-volume-label" x={PLOT_PADDING.left} y={VOLUME_PLOT_TOP - 28}>
+              VOL {formatVolume(snapshot.quote.dayVolume)}
+            </text>
+            <text className="chart-volume-label" x={PLOT_PADDING.left + 116} y={VOLUME_PLOT_TOP - 28}>
+              VWAP {vwap.toFixed(2)}
+            </text>
           </svg>
         </div>
       </div>
+
       <footer className="market-readout">
         <div>
           <span>Open</span>
@@ -196,17 +313,28 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
         </div>
         <div>
           <span>High</span>
-          <strong>{lastBar.high.toFixed(2)}</strong>
+          <strong>{snapshot.quote.dayHigh.toFixed(2)}</strong>
         </div>
         <div>
           <span>Low</span>
-          <strong>{lastBar.low.toFixed(2)}</strong>
+          <strong>{snapshot.quote.dayLow.toFixed(2)}</strong>
         </div>
         <div>
           <span>Range</span>
           <strong>{range.toFixed(2)}</strong>
         </div>
+        <div>
+          <span>Bid / Ask</span>
+          <strong>
+            {snapshot.quote.bid.toFixed(2)} / {snapshot.quote.ask.toFixed(2)}
+          </strong>
+        </div>
+        <div>
+          <span>Volume</span>
+          <strong>{formatVolume(snapshot.quote.dayVolume)}</strong>
+        </div>
       </footer>
+
       <section className="report-strip">
         <div>
           <span className="panel-kicker">Research stance</span>
