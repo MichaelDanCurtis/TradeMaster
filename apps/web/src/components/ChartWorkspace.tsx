@@ -3,9 +3,10 @@
 import { useMemo, useState } from "react";
 
 import {
+  createHeikinAshiBars,
   createSimulatedMarketSnapshot,
+  createVolumeProfileBins,
   getMarketProviderCatalog,
-  type MarketDataSnapshot,
   type MarketInterval,
   type NormalizedMarketBar
 } from "@/lib/market-data";
@@ -22,6 +23,8 @@ type RenderedBar = NormalizedMarketBar & {
   wickY1: number;
   wickY2: number;
   x: number;
+  yClose: number;
+  yOpen: number;
 };
 
 type AxisTick = {
@@ -34,6 +37,8 @@ type TimeTick = {
   x: number;
 };
 
+type ChartView = "area" | "bars" | "candles" | "heikin-ashi" | "line" | "volume-profile";
+
 const INTERVALS: Array<{ interval: MarketInterval; label: string; enabled: boolean; note: string }> = [
   { enabled: false, interval: "1s", label: "1s", note: "trade aggregation" },
   { enabled: false, interval: "5s", label: "5s", note: "trade aggregation" },
@@ -43,6 +48,15 @@ const INTERVALS: Array<{ interval: MarketInterval; label: string; enabled: boole
   { enabled: true, interval: "15m", label: "15m", note: "Alpaca bars" },
   { enabled: true, interval: "1h", label: "1h", note: "Alpaca bars" },
   { enabled: true, interval: "1d", label: "1d", note: "historical" }
+];
+
+const CHART_VIEWS: Array<{ label: string; value: ChartView }> = [
+  { label: "Candles", value: "candles" },
+  { label: "Bars", value: "bars" },
+  { label: "Line", value: "line" },
+  { label: "Area", value: "area" },
+  { label: "Heikin Ashi", value: "heikin-ashi" },
+  { label: "Volume Profile", value: "volume-profile" }
 ];
 
 const CHART_HEIGHT = 520;
@@ -57,8 +71,7 @@ const PRICE_PLOT_HEIGHT = 342;
 const VOLUME_PLOT_TOP = 404;
 const VOLUME_PLOT_HEIGHT = 74;
 
-function getRenderedBars(snapshot: MarketDataSnapshot): RenderedBar[] {
-  const seriesData = snapshot.bars;
+function getRenderedBars(seriesData: NormalizedMarketBar[]): RenderedBar[] {
   const minValue = Math.min(...seriesData.map((bar) => bar.low));
   const maxValue = Math.max(...seriesData.map((bar) => bar.high));
   const valueRange = maxValue - minValue || 1;
@@ -90,7 +103,9 @@ function getRenderedBars(snapshot: MarketDataSnapshot): RenderedBar[] {
       vwapY: scaleY(bar.vwap ?? bar.close),
       wickY1: scaleY(bar.high),
       wickY2: scaleY(bar.low),
-      x
+      x,
+      yClose,
+      yOpen
     };
   });
 }
@@ -151,19 +166,60 @@ function formatSigned(value: number): string {
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
 }
 
+function getLinePoints(renderedBars: RenderedBar[]): string {
+  return renderedBars.map((bar) => `${bar.x.toFixed(2)},${bar.yClose.toFixed(2)}`).join(" ");
+}
+
+function getAreaPath(renderedBars: RenderedBar[]): string {
+  const pricePlotBottom = PLOT_PADDING.top + PRICE_PLOT_HEIGHT;
+  const linePoints = renderedBars.map((bar) => `L ${bar.x.toFixed(2)} ${bar.yClose.toFixed(2)}`).join(" ");
+  const firstBar = renderedBars[0];
+  const lastBar = renderedBars[renderedBars.length - 1];
+
+  return [
+    `M ${firstBar.x.toFixed(2)} ${pricePlotBottom}`,
+    `L ${firstBar.x.toFixed(2)} ${firstBar.yClose.toFixed(2)}`,
+    linePoints,
+    `L ${lastBar.x.toFixed(2)} ${pricePlotBottom}`,
+    "Z"
+  ].join(" ");
+}
+
+function getPriceY(seriesData: NormalizedMarketBar[], value: number): number {
+  const minValue = Math.min(...seriesData.map((bar) => bar.low));
+  const maxValue = Math.max(...seriesData.map((bar) => bar.high));
+  const valueRange = maxValue - minValue || 1;
+
+  return PLOT_PADDING.top + ((maxValue - value) / valueRange) * PRICE_PLOT_HEIGHT;
+}
+
 export function ChartWorkspace({ symbol }: { symbol: string }) {
   const [interval, setInterval] = useState<MarketInterval>("1m");
+  const [chartView, setChartView] = useState<ChartView>("candles");
   const providerCatalog = useMemo(() => getMarketProviderCatalog(), []);
   const snapshot = useMemo(() => createSimulatedMarketSnapshot(symbol, interval), [interval, symbol]);
-  const renderedBars = useMemo(() => getRenderedBars(snapshot), [snapshot]);
-  const priceTicks = useMemo(() => getPriceTicks(snapshot.bars), [snapshot.bars]);
+  const displayedBars = useMemo(
+    () => (chartView === "heikin-ashi" ? createHeikinAshiBars(snapshot.bars) : snapshot.bars),
+    [chartView, snapshot.bars]
+  );
+  const renderedBars = useMemo(() => getRenderedBars(displayedBars), [displayedBars]);
+  const priceTicks = useMemo(() => getPriceTicks(displayedBars), [displayedBars]);
   const timeTicks = useMemo(() => getTimeTicks(renderedBars, interval), [interval, renderedBars]);
+  const volumeProfileBins = useMemo(() => createVolumeProfileBins(displayedBars, 18), [displayedBars]);
   const lastBar = snapshot.bars[snapshot.bars.length - 1];
   const firstBar = snapshot.bars[0];
   const sessionChange = lastBar.close - firstBar.open;
   const sessionChangePercent = (sessionChange / firstBar.open) * 100;
   const range = snapshot.quote.dayHigh - snapshot.quote.dayLow;
   const vwap = lastBar.vwap ?? lastBar.close;
+  const linePoints = getLinePoints(renderedBars);
+  const areaPath = getAreaPath(renderedBars);
+  const showCandles = chartView === "candles" || chartView === "heikin-ashi" || chartView === "volume-profile";
+  const showBars = chartView === "bars";
+  const showLine = chartView === "line" || chartView === "area";
+  const showArea = chartView === "area";
+  const showVolumeProfile = chartView === "volume-profile";
+  const selectedViewLabel = CHART_VIEWS.find((view) => view.value === chartView)?.label ?? "Candles";
 
   return (
     <section className="chart-workspace">
@@ -188,7 +244,9 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
         </div>
         <div>
           <span>Mode</span>
-          <strong>Normalized {snapshot.interval}</strong>
+          <strong>
+            {selectedViewLabel} {snapshot.interval}
+          </strong>
         </div>
         <div>
           <span>Coverage</span>
@@ -221,19 +279,36 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
         ))}
       </div>
 
+      <div className="view-toolbar" aria-label="Chart view controls">
+        {CHART_VIEWS.map((view) => (
+          <button
+            className={view.value === chartView ? "view-mode active" : "view-mode"}
+            key={view.value}
+            onClick={() => setChartView(view.value)}
+            type="button"
+          >
+            {view.label}
+          </button>
+        ))}
+      </div>
+
       <div className="chart-shell">
-        <div className="chart-surface" aria-label={`${symbol} normalized candlestick chart`}>
+        <div className="chart-surface" aria-label={`${symbol} normalized ${chartView} chart`}>
           <svg
             className="candlestick-chart"
             role="img"
             viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
             xmlns="http://www.w3.org/2000/svg"
           >
-            <title>{symbol} normalized candlestick chart</title>
+            <title>{symbol} normalized {chartView} chart</title>
             <defs>
               <linearGradient id={`chartGlow-${symbol}`} x1="0" x2="0" y1="0" y2="1">
                 <stop offset="0%" stopColor="#172231" />
                 <stop offset="100%" stopColor="#0c1219" />
+              </linearGradient>
+              <linearGradient id={`areaFill-${symbol}`} x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor="rgba(79, 140, 255, 0.42)" />
+                <stop offset="100%" stopColor="rgba(79, 140, 255, 0.03)" />
               </linearGradient>
             </defs>
             <rect fill={`url(#chartGlow-${symbol})`} height={CHART_HEIGHT} width={CHART_WIDTH} />
@@ -257,36 +332,77 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
                 {tick.label}
               </text>
             ))}
+            {showArea ? <path className="area-fill" d={areaPath} fill={`url(#areaFill-${symbol})`} /> : null}
+            {showLine ? <polyline className="price-line" points={linePoints} /> : null}
+            {showCandles
+              ? renderedBars.map((bar) => (
+                  <g className={showVolumeProfile ? "candle muted" : "candle"} key={bar.timestamp}>
+                    <line
+                      className="candle-wick"
+                      stroke={bar.color}
+                      x1={bar.x}
+                      x2={bar.x}
+                      y1={bar.wickY1}
+                      y2={bar.wickY2}
+                    />
+                    <rect
+                      fill={bar.color}
+                      height={bar.bodyHeight}
+                      rx={bar.radius}
+                      ry={bar.radius}
+                      width={bar.bodyWidth}
+                      x={bar.x - bar.bodyWidth / 2}
+                      y={bar.bodyY}
+                    />
+                  </g>
+                ))
+              : null}
+            {showBars
+              ? renderedBars.map((bar) => {
+                  const tickWidth = Math.max(4, bar.bodyWidth * 1.8);
+
+                  return (
+                    <g className="ohlc-bar" key={bar.timestamp} stroke={bar.color}>
+                      <line x1={bar.x} x2={bar.x} y1={bar.wickY1} y2={bar.wickY2} />
+                      <line x1={bar.x - tickWidth} x2={bar.x} y1={bar.yOpen} y2={bar.yOpen} />
+                      <line x1={bar.x} x2={bar.x + tickWidth} y1={bar.yClose} y2={bar.yClose} />
+                    </g>
+                  );
+                })
+              : null}
             {renderedBars.map((bar) => (
-              <g className="candle" key={bar.timestamp}>
-                <line
-                  className="candle-wick"
-                  stroke={bar.color}
-                  x1={bar.x}
-                  x2={bar.x}
-                  y1={bar.wickY1}
-                  y2={bar.wickY2}
-                />
-                <rect
-                  fill={bar.color}
-                  height={bar.bodyHeight}
-                  rx={bar.radius}
-                  ry={bar.radius}
-                  width={bar.bodyWidth}
-                  x={bar.x - bar.bodyWidth / 2}
-                  y={bar.bodyY}
-                />
-                <rect
-                  className={bar.close >= bar.open ? "volume-bar positive" : "volume-bar negative"}
-                  height={bar.volumeHeight}
-                  rx="1.8"
-                  ry="1.8"
-                  width={Math.max(1.8, bar.bodyWidth)}
-                  x={bar.x - Math.max(1.8, bar.bodyWidth) / 2}
-                  y={bar.volumeY}
-                />
-              </g>
+              <rect
+                className={bar.close >= bar.open ? "volume-bar positive" : "volume-bar negative"}
+                height={bar.volumeHeight}
+                key={`volume-${bar.timestamp}`}
+                rx="1.8"
+                ry="1.8"
+                width={Math.max(1.8, bar.bodyWidth)}
+                x={bar.x - Math.max(1.8, bar.bodyWidth) / 2}
+                y={bar.volumeY}
+              />
             ))}
+            {showVolumeProfile
+              ? volumeProfileBins.map((bin) => {
+                  const yTop = getPriceY(displayedBars, bin.priceEnd);
+                  const yBottom = getPriceY(displayedBars, bin.priceStart);
+                  const width = 178 * bin.volumeShare;
+                  const x = CHART_WIDTH - PLOT_PADDING.right - width;
+
+                  return (
+                    <rect
+                      className="volume-profile-bin"
+                      height={Math.max(3, yBottom - yTop - 1)}
+                      key={`${bin.priceStart}-${bin.priceEnd}`}
+                      rx="2"
+                      ry="2"
+                      width={width}
+                      x={x}
+                      y={yTop}
+                    />
+                  );
+                })
+              : null}
             <polyline
               className="vwap-line"
               points={renderedBars.map((bar) => `${bar.x.toFixed(2)},${bar.vwapY.toFixed(2)}`).join(" ")}

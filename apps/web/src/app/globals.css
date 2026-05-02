@@ -332,7 +332,15 @@ button {
   margin-bottom: 10px;
 }
 
-.timeframe {
+.view-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.timeframe,
+.view-mode {
   min-width: 42px;
   min-height: 28px;
   color: #9eb0c2;
@@ -344,7 +352,12 @@ button {
   font-weight: 700;
 }
 
-.timeframe.active {
+.view-mode {
+  min-width: 74px;
+}
+
+.timeframe.active,
+.view-mode.active {
   color: #f2f6fa;
   background: #173052;
   border-color: #4f8cff;
@@ -409,6 +422,27 @@ button {
   stroke-width: 1.4;
 }
 
+.candle.muted {
+  opacity: 0.34;
+}
+
+.ohlc-bar line {
+  stroke-linecap: square;
+  stroke-width: 1.35;
+}
+
+.price-line {
+  fill: none;
+  stroke: #4f8cff;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.area-fill {
+  opacity: 0.92;
+}
+
 .volume-bar.positive {
   fill: rgba(51, 209, 122, 0.3);
 }
@@ -424,6 +458,12 @@ button {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.6;
+}
+
+.volume-profile-bin {
+  fill: rgba(79, 140, 255, 0.32);
+  stroke: rgba(116, 168, 255, 0.22);
+  stroke-width: 1;
 }
 
 .market-readout {

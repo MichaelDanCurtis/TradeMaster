@@ -50,6 +50,14 @@ export type NormalizedMarketBar = {
   vwap?: number;
 };
 
+export type VolumeProfileBin = {
+  priceStart: number;
+  priceEnd: number;
+  priceMid: number;
+  volume: number;
+  volumeShare: number;
+};
+
 export type NormalizedQuote = {
   symbol: string;
   provider: MarketProviderId;
@@ -236,6 +244,84 @@ export function createSimulatedMarketSnapshot(symbol: string, interval: MarketIn
     },
     symbol
   };
+}
+
+export function createHeikinAshiBars(sourceBars: NormalizedMarketBar[]): NormalizedMarketBar[] {
+  let previousHeikinAshiOpen: number | null = null;
+  let previousHeikinAshiClose: number | null = null;
+
+  return sourceBars.map((bar) => {
+    const heikinAshiClose = roundPrice((bar.open + bar.high + bar.low + bar.close) / 4);
+    const heikinAshiOpen = roundPrice(
+      previousHeikinAshiOpen === null || previousHeikinAshiClose === null
+        ? (bar.open + bar.close) / 2
+        : (previousHeikinAshiOpen + previousHeikinAshiClose) / 2
+    );
+    const heikinAshiHigh = roundPrice(Math.max(bar.high, heikinAshiOpen, heikinAshiClose));
+    const heikinAshiLow = roundPrice(Math.min(bar.low, heikinAshiOpen, heikinAshiClose));
+
+    previousHeikinAshiOpen = heikinAshiOpen;
+    previousHeikinAshiClose = heikinAshiClose;
+
+    return {
+      ...bar,
+      close: heikinAshiClose,
+      high: heikinAshiHigh,
+      low: heikinAshiLow,
+      open: heikinAshiOpen,
+      vwap: bar.vwap === undefined ? undefined : roundPrice(bar.vwap)
+    };
+  });
+}
+
+export function createVolumeProfileBins(sourceBars: NormalizedMarketBar[], binCount: number): VolumeProfileBin[] {
+  const safeBinCount = Math.max(1, Math.floor(binCount));
+  const minPrice = Math.min(...sourceBars.map((bar) => bar.low));
+  const maxPrice = Math.max(...sourceBars.map((bar) => bar.high));
+  const priceRange = maxPrice - minPrice || 1;
+  const binSize = priceRange / safeBinCount;
+  const bins = Array.from({ length: safeBinCount }, (_, index) => {
+    const priceStart = minPrice + index * binSize;
+    const priceEnd = index === safeBinCount - 1 ? maxPrice : priceStart + binSize;
+
+    return {
+      priceEnd,
+      priceMid: priceStart + (priceEnd - priceStart) / 2,
+      priceStart,
+      volume: 0,
+      volumeShare: 0
+    };
+  });
+
+  sourceBars.forEach((bar) => {
+    const barRange = bar.high - bar.low;
+
+    if (barRange <= 0) {
+      const target = bins.find((bin) => bar.close >= bin.priceStart && bar.close <= bin.priceEnd) ?? bins[0];
+      target.volume += bar.volume;
+      return;
+    }
+
+    bins.forEach((bin) => {
+      const overlapStart = Math.max(bar.low, bin.priceStart);
+      const overlapEnd = Math.min(bar.high, bin.priceEnd);
+      const overlap = Math.max(0, overlapEnd - overlapStart);
+
+      if (overlap > 0) {
+        bin.volume += bar.volume * (overlap / barRange);
+      }
+    });
+  });
+
+  const maxVolume = Math.max(...bins.map((bin) => bin.volume), 1);
+
+  return bins.map((bin) => ({
+    priceEnd: roundPrice(bin.priceEnd),
+    priceMid: roundPrice(bin.priceMid),
+    priceStart: roundPrice(bin.priceStart),
+    volume: Math.round(bin.volume),
+    volumeShare: Number((bin.volume / maxVolume).toFixed(4))
+  }));
 }
 
 function createSimulatedBars(symbol: string, interval: MarketInterval): NormalizedMarketBar[] {
