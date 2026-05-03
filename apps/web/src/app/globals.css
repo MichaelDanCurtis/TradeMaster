@@ -27,7 +27,7 @@ button {
 
 .terminal-shell {
   display: grid;
-  grid-template-rows: 44px 1fr;
+  grid-template-rows: 44px 42px 1fr;
   min-height: 100vh;
   background:
     linear-gradient(180deg, rgba(33, 42, 52, 0.32), transparent 160px),
@@ -84,6 +84,53 @@ button {
   gap: 8px;
 }
 
+.workspace-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  border-bottom: 1px solid #222b34;
+  background: #0a0f14;
+  padding: 6px 12px;
+}
+
+.workspace-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.workspace-tab,
+.settings-button {
+  min-height: 30px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #9eb0c2;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.workspace-tab:hover,
+.settings-button:hover {
+  border-color: #293848;
+  color: #e6edf3;
+  background: #101720;
+}
+
+.workspace-tab.active,
+.settings-button.active {
+  border-color: #4f8cff;
+  color: #f2f6fa;
+  background: #14233a;
+}
+
 .status-pill,
 .run-state,
 .ticket-status {
@@ -115,7 +162,15 @@ button {
 
 .market-shell {
   display: grid;
-  grid-template-columns: 250px minmax(440px, 1fr) 340px;
+  grid-template-columns: 250px minmax(440px, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dashboard-workspace {
+  display: grid;
+  grid-template-columns: minmax(440px, 1fr) 340px;
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
 }
@@ -134,6 +189,58 @@ button {
 
 .agent-cockpit {
   border-left: 1px solid #222b34;
+}
+
+.workspace-placeholder {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 24px;
+  overflow: auto;
+}
+
+.workspace-placeholder h1 {
+  margin: 0;
+  color: #f2f6fa;
+  font-size: 28px;
+  line-height: 1.1;
+}
+
+.workspace-placeholder p {
+  max-width: 640px;
+  margin: 0;
+  color: #9eb0c2;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.workspace-placeholder dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 180px));
+  gap: 8px;
+  margin: 8px 0 0;
+}
+
+.workspace-placeholder dl div {
+  border: 1px solid #202c38;
+  border-radius: 6px;
+  background: #0f151c;
+  padding: 10px;
+}
+
+.workspace-placeholder dt {
+  color: #8397aa;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.workspace-placeholder dd {
+  margin: 4px 0 0;
+  color: #f2f6fa;
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .panel-header,
@@ -357,6 +464,191 @@ button {
   color: #8397aa;
   background: #111b25;
   font-size: 10px;
+}
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: 1fr minmax(320px, 420px);
+}
+
+.settings-scrim {
+  width: 100%;
+  min-height: 100%;
+  border: 0;
+  background: rgba(2, 6, 10, 0.58);
+  cursor: pointer;
+}
+
+.settings-drawer {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+  border-left: 1px solid #2a3744;
+  background: #0c1117;
+  box-shadow: -20px 0 48px rgba(0, 0, 0, 0.36);
+}
+
+.settings-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #222b34;
+  padding: 14px;
+}
+
+.settings-drawer-header h2 {
+  margin: 2px 0 0;
+  color: #f2f6fa;
+  font-size: 18px;
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid #2a3744;
+  border-radius: 5px;
+  color: #dbe5ee;
+  background: #111821;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.settings-section {
+  min-height: 0;
+  padding: 12px;
+  overflow: auto;
+}
+
+.settings-provider-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.settings-provider {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #202c38;
+  border-radius: 7px;
+  background: #101720;
+  padding: 10px;
+}
+
+.settings-provider-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.settings-provider-heading strong {
+  display: block;
+  color: #f2f6fa;
+  font-size: 13px;
+}
+
+.settings-provider-heading span:not(.provider-status) {
+  display: block;
+  margin-top: 3px;
+  color: #8397aa;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.settings-role-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.settings-role-row span {
+  border: 1px solid #263545;
+  border-radius: 4px;
+  color: #9eb0c2;
+  background: #0d141c;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 5px;
+  text-transform: uppercase;
+}
+
+.toast-stack {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 40;
+  display: grid;
+  gap: 8px;
+  width: min(380px, calc(100vw - 28px));
+}
+
+.toast-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  border: 1px solid #2a3744;
+  border-left-width: 4px;
+  border-radius: 7px;
+  background: #101720;
+  padding: 10px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
+}
+
+.toast-item.info {
+  border-left-color: #4f8cff;
+}
+
+.toast-item.success {
+  border-left-color: #33d17a;
+}
+
+.toast-item.warning {
+  border-left-color: #e7c75f;
+}
+
+.toast-item.critical {
+  border-left-color: #ff6b6b;
+}
+
+.toast-item span {
+  display: block;
+  color: #8397aa;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.toast-item strong {
+  display: block;
+  margin-top: 3px;
+  color: #f2f6fa;
+  font-size: 13px;
+}
+
+.toast-item p {
+  margin: 4px 0 0;
+  color: #b3c2d0;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.toast-item button {
+  align-self: start;
+  width: 24px;
+  height: 24px;
+  border: 1px solid #2a3744;
+  border-radius: 5px;
+  color: #b3c2d0;
+  background: #0d141c;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .chart-workspace {
@@ -931,7 +1223,11 @@ button {
 
 @media (max-width: 1120px) {
   .market-shell {
-    grid-template-columns: 220px minmax(320px, 1fr) 300px;
+    grid-template-columns: 220px minmax(320px, 1fr);
+  }
+
+  .dashboard-workspace {
+    grid-template-columns: minmax(320px, 1fr) 300px;
   }
 
   .market-readout {
@@ -945,16 +1241,18 @@ button {
 
 @media (max-width: 900px) {
   .terminal-shell {
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto auto 1fr;
   }
 
   .terminal-topbar,
-  .topbar-status {
+  .topbar-status,
+  .workspace-nav {
     align-items: flex-start;
     flex-direction: column;
   }
 
-  .terminal-topbar {
+  .terminal-topbar,
+  .workspace-nav {
     gap: 8px;
     padding: 10px 12px;
   }
@@ -968,10 +1266,28 @@ button {
     overflow: auto;
   }
 
+  .dashboard-workspace {
+    grid-template-columns: 1fr;
+    overflow: visible;
+  }
+
   .watchlist-rail,
   .agent-cockpit {
     border: 0;
     border-bottom: 1px solid #222b34;
+  }
+
+  .settings-overlay {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-scrim {
+    display: none;
+  }
+
+  .settings-drawer {
+    min-height: 100vh;
+    border-left: 0;
   }
 
   .watchlist-list {
