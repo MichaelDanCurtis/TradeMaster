@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { AgentsWorkspace } from "@/components/AgentsWorkspace";
 import { DashboardWorkspace } from "@/components/DashboardWorkspace";
 import { DeepResearchWorkspace } from "@/components/DeepResearchWorkspace";
 import { SettingsDrawer } from "@/components/SettingsDrawer";
@@ -13,14 +14,9 @@ import { getInitialNotifications, type TerminalNotification, type WorkspaceId } 
 import { dismissNotification, selectSymbol, setWorkspace, toggleSettings, type WorkspaceShellState } from "@/lib/workspace-state";
 
 const WORKSPACE_PLACEHOLDERS: Record<
-  Exclude<WorkspaceId, "dashboard" | "research">,
+  Exclude<WorkspaceId, "dashboard" | "research" | "agents">,
   { eyebrow: string; title: string; body: string }
 > = {
-  agents: {
-    eyebrow: "Agent messaging",
-    title: "Agents workspace",
-    body: "The persistent watchlist and selected symbol are ready; the messenger console will replace this placeholder."
-  },
   historicals: {
     eyebrow: "Prediction review",
     title: "Historicals workspace",
@@ -113,6 +109,10 @@ function WorkspaceContent({
 
   if (activeWorkspace === "research") {
     return <DeepResearchWorkspace symbol={selectedSymbol} />;
+  }
+
+  if (activeWorkspace === "agents") {
+    return <AgentsWorkspace symbol={selectedSymbol} />;
   }
 
   const placeholder = WORKSPACE_PLACEHOLDERS[activeWorkspace];

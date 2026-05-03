@@ -3,6 +3,8 @@ import { describe, it } from "node:test";
 
 import {
   getAgentConversations,
+  getAgentMessages,
+  getConversationActions,
   getDashboardNewsEvents,
   getHistoricalOutcomes,
   getResearchReports,
@@ -39,6 +41,14 @@ describe("workspace seeded domain data", () => {
     assert.ok(ids.includes("platform-alerts"));
     assert.ok(conversations.some((conversation) => conversation.type === "group"));
     assert.ok(conversations.every((conversation) => conversation.symbol === "NVDA" || conversation.symbol === null));
+  });
+
+  it("returns durable agent messages and approval-gated actions for a conversation", () => {
+    const messages = getAgentMessages("research-lead-nvda");
+    const actions = getConversationActions("research-lead-nvda");
+
+    assert.ok(messages.some((message) => message.a2uiSurface === "event-chart"));
+    assert.ok(actions.some((action) => action.type === "preview-order" && action.requiresApproval === true));
   });
 
   it("returns an approval-gated paper transaction snapshot", () => {

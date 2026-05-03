@@ -1,6 +1,10 @@
 export type WorkspaceId = "dashboard" | "research" | "agents" | "transactions" | "historicals";
 export type NewsSentiment = "positive" | "neutral" | "negative";
 export type AgentConversationType = "agent" | "group" | "platform";
+export type AgentMessageAuthorType = "agent" | "human" | "system";
+export type AgentMessageSurface = "event-chart";
+export type ActionRequestType = "proceed" | "ask-follow-up" | "create-report" | "preview-order";
+export type ActionRequestStatus = "available" | "requires-approval" | "queued" | "complete";
 export type NotificationSeverity = "info" | "success" | "warning" | "critical";
 
 export type NewsEvent = {
@@ -24,6 +28,28 @@ export type AgentConversation = {
   unreadCount: number;
   lastActivity: string;
   summary: string;
+};
+
+export type AgentMessage = {
+  id: string;
+  conversationId: string;
+  author: {
+    type: AgentMessageAuthorType;
+    name: string;
+  };
+  body: string;
+  timestamp: string;
+  a2uiSurface?: AgentMessageSurface;
+};
+
+export type ActionRequest = {
+  id: string;
+  conversationId: string;
+  type: ActionRequestType;
+  label: string;
+  requiresApproval: boolean;
+  status: ActionRequestStatus;
+  backendIntentId?: string;
 };
 
 export type TransactionPosition = {
@@ -104,6 +130,13 @@ type NewsTemplate = Omit<NewsEvent, "id" | "symbol" | "url">;
 type HistoricalTemplate = Omit<HistoricalOutcome, "symbol" | "reportId">;
 type ResearchReportTemplate = Omit<ResearchReport, "id" | "symbol" | "title"> & {
   titleTemplate: string;
+};
+type AgentMessageTemplate = Omit<AgentMessage, "id" | "conversationId" | "body"> & {
+  bodyTemplate: string;
+};
+type ActionRequestTemplate = Omit<ActionRequest, "id" | "conversationId" | "label" | "backendIntentId"> & {
+  labelTemplate: string;
+  backendIntentIdTemplate?: string;
 };
 
 const NEWS_TEMPLATES: NewsTemplate[] = [
@@ -410,6 +443,135 @@ const RESEARCH_REPORT_TEMPLATES: ResearchReportTemplate[] = [
   }
 ];
 
+const CONVERSATION_MESSAGE_TEMPLATES: Record<string, AgentMessageTemplate[]> = {
+  "research-lead": [
+    {
+      author: { type: "agent", name: "Research Lead" },
+      bodyTemplate:
+        "{symbol} evidence is converging around demand revision, breadth improvement, and a still-defined invalidation level.",
+      timestamp: "2026-05-02T20:21:00.000Z"
+    },
+    {
+      author: { type: "agent", name: "News Analyst" },
+      bodyTemplate:
+        "I pinned the highest-relevance demand, options, and supply events into the chart context for review.",
+      timestamp: "2026-05-02T20:24:00.000Z",
+      a2uiSurface: "event-chart"
+    },
+    {
+      author: { type: "agent", name: "Research Lead" },
+      bodyTemplate:
+        "Recommendation is proceed to report refresh first, then preview the staged paper order before any approval.",
+      timestamp: "2026-05-02T20:32:00.000Z"
+    }
+  ],
+  "portfolio-manager": [
+    {
+      author: { type: "agent", name: "Portfolio Manager" },
+      bodyTemplate:
+        "{symbol} paper intent is staged below full allocation while the risk room waits on volume confirmation.",
+      timestamp: "2026-05-02T20:13:00.000Z"
+    },
+    {
+      author: { type: "system", name: "Paper Broker" },
+      bodyTemplate: "Buying power and concentration checks are clear for a preview-only ticket.",
+      timestamp: "2026-05-02T20:18:00.000Z"
+    }
+  ],
+  "risk-room": [
+    {
+      author: { type: "agent", name: "Risk Manager" },
+      bodyTemplate:
+        "Entry can remain conditional: staged add above support, no escalation if policy headlines widen the scenario band.",
+      timestamp: "2026-05-02T20:02:00.000Z"
+    },
+    {
+      author: { type: "agent", name: "Execution Agent" },
+      bodyTemplate: "Preview order is available, but approval must stay human-gated in paper mode.",
+      timestamp: "2026-05-02T20:10:00.000Z"
+    }
+  ],
+  "platform-alerts": [
+    {
+      author: { type: "system", name: "Platform Alerts" },
+      bodyTemplate: "Local workspace data is online and serving deterministic agent snapshots.",
+      timestamp: "2026-05-02T19:58:00.000Z"
+    },
+    {
+      author: { type: "system", name: "Paper Broker" },
+      bodyTemplate: "Routing health is green. Approval-required intents remain blocked until explicit confirmation.",
+      timestamp: "2026-05-02T20:05:00.000Z"
+    }
+  ]
+};
+
+const CONVERSATION_ACTION_TEMPLATES: Record<string, ActionRequestTemplate[]> = {
+  "research-lead": [
+    {
+      type: "proceed",
+      labelTemplate: "Proceed with {symbol} synthesis",
+      requiresApproval: false,
+      status: "available"
+    },
+    {
+      type: "ask-follow-up",
+      labelTemplate: "Ask follow-up about policy risk",
+      requiresApproval: false,
+      status: "available"
+    },
+    {
+      type: "create-report",
+      labelTemplate: "Create refreshed research report",
+      requiresApproval: false,
+      status: "queued"
+    },
+    {
+      type: "preview-order",
+      labelTemplate: "Preview staged {symbol} paper order",
+      requiresApproval: true,
+      status: "requires-approval",
+      backendIntentIdTemplate: "{slug}-approval-intent"
+    }
+  ],
+  "portfolio-manager": [
+    {
+      type: "preview-order",
+      labelTemplate: "Preview {symbol} paper ticket",
+      requiresApproval: true,
+      status: "requires-approval",
+      backendIntentIdTemplate: "{slug}-approval-intent"
+    },
+    {
+      type: "ask-follow-up",
+      labelTemplate: "Ask about allocation sizing",
+      requiresApproval: false,
+      status: "available"
+    }
+  ],
+  "risk-room": [
+    {
+      type: "ask-follow-up",
+      labelTemplate: "Ask risk room for invalidation check",
+      requiresApproval: false,
+      status: "available"
+    },
+    {
+      type: "create-report",
+      labelTemplate: "Create risk addendum",
+      requiresApproval: false,
+      status: "available"
+    }
+  ],
+  "platform-alerts": [
+    {
+      type: "proceed",
+      labelTemplate: "Open linked platform notice",
+      requiresApproval: false,
+      status: "available"
+    }
+  ]
+};
+
 export function getDashboardNewsEvents(symbol: string): NewsEvent[] {
   const normalizedSymbol = normalizeSymbol(symbol);
 
@@ -464,6 +626,37 @@ export function getAgentConversations(symbol: string): AgentConversation[] {
       summary: "Paper brokerage routing is healthy; one notification is linked to the transactions workspace."
     }
   ];
+}
+
+export function getAgentMessages(conversationId: string): AgentMessage[] {
+  const conversationKey = getConversationTemplateKey(conversationId);
+  const symbol = getSymbolFromConversationId(conversationId);
+  const slug = symbol.toLowerCase();
+  const templates = CONVERSATION_MESSAGE_TEMPLATES[conversationKey] ?? CONVERSATION_MESSAGE_TEMPLATES["platform-alerts"];
+
+  return templates.map((message, index) => ({
+    ...message,
+    id: `${conversationId}-message-${String(index + 1).padStart(2, "0")}`,
+    conversationId,
+    body: message.bodyTemplate.replaceAll("{symbol}", symbol).replaceAll("{slug}", slug)
+  }));
+}
+
+export function getConversationActions(conversationId: string): ActionRequest[] {
+  const conversationKey = getConversationTemplateKey(conversationId);
+  const symbol = getSymbolFromConversationId(conversationId);
+  const slug = symbol.toLowerCase();
+  const templates = CONVERSATION_ACTION_TEMPLATES[conversationKey] ?? CONVERSATION_ACTION_TEMPLATES["platform-alerts"];
+
+  return templates.map((action, index) => ({
+    ...action,
+    id: `${conversationId}-action-${String(index + 1).padStart(2, "0")}`,
+    conversationId,
+    label: action.labelTemplate.replaceAll("{symbol}", symbol).replaceAll("{slug}", slug),
+    backendIntentId: action.backendIntentIdTemplate
+      ?.replaceAll("{symbol}", symbol)
+      .replaceAll("{slug}", slug)
+  }));
 }
 
 export function getTransactionSnapshot(symbol: string): TransactionSnapshot {
@@ -584,4 +777,21 @@ export function getInitialNotifications(symbol: string): TerminalNotification[] 
 
 function normalizeSymbol(symbol: string): string {
   return symbol.trim().toUpperCase();
+}
+
+function getConversationTemplateKey(conversationId: string): string {
+  if (conversationId.startsWith("research-lead-")) return "research-lead";
+  if (conversationId.startsWith("portfolio-manager-")) return "portfolio-manager";
+  if (conversationId.startsWith("risk-room-")) return "risk-room";
+
+  return "platform-alerts";
+}
+
+function getSymbolFromConversationId(conversationId: string): string {
+  const parts = conversationId.split("-");
+  const lastPart = parts[parts.length - 1] ?? "NVDA";
+
+  if (conversationId === "platform-alerts") return "SYSTEM";
+
+  return normalizeSymbol(lastPart);
 }
