@@ -60,14 +60,16 @@ export function AgentCockpit({ symbol, showTradeTicket = true }: AgentCockpitPro
       if (requestIdRef.current !== requestId) return;
       revealEvents(nextEvents, requestId);
 
-      const tradePreview = await previewTrade({
-        runId: created.run_id,
-        symbol: requestedSymbol,
-        side: "buy",
-        notional: 1000
-      });
-      if (requestIdRef.current !== requestId) return;
-      setPreview(tradePreview);
+      if (showTradeTicket) {
+        const tradePreview = await previewTrade({
+          runId: created.run_id,
+          symbol: requestedSymbol,
+          side: "buy",
+          notional: 1000
+        });
+        if (requestIdRef.current !== requestId) return;
+        setPreview(tradePreview);
+      }
     } catch (caught) {
       if (requestIdRef.current !== requestId) return;
       setError(caught instanceof Error ? caught.message : "Run failed");
