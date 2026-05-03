@@ -6,7 +6,8 @@ export type MarketProviderId =
   | "massive"
   | "plaid"
   | "simulated"
-  | "tradier";
+  | "tradier"
+  | "webull";
 
 export type MarketProviderRole = "brokerage" | "market-data" | "portfolio";
 
@@ -183,6 +184,14 @@ const PROVIDER_CATALOG: Record<MarketProviderId, MarketProviderDescriptor> = {
     capabilities: ["delayed-bars", "live-quotes", "paper-trading", "trade-execution"],
     status: "planned",
     primaryUse: "Future broker adapter with sandbox support, especially if options workflows expand."
+  },
+  webull: {
+    id: "webull",
+    name: "Webull OpenAPI",
+    roles: ["market-data", "brokerage"],
+    capabilities: ["historical-bars", "live-quotes", "real-time-bars", "trade-execution"],
+    status: "planned",
+    primaryUse: "Primary trading surface integration path: market data first, account/order automation later behind approvals."
   }
 };
 

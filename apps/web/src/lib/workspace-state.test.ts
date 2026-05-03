@@ -4,6 +4,12 @@ import { describe, it } from "node:test";
 import { dismissNotification, selectSymbol, setWorkspace, toggleSettings } from "./workspace-state.ts";
 
 describe("workspace state helpers", () => {
+  it("keeps agents as a valid workspace home state", () => {
+    const state = { activeWorkspace: "agents" as const, selectedSymbol: "NVDA", settingsOpen: false };
+
+    assert.equal(state.activeWorkspace, "agents");
+  });
+
   it("changes workspace without changing selected symbol", () => {
     const next = setWorkspace({ activeWorkspace: "dashboard", selectedSymbol: "NVDA", settingsOpen: false }, "agents");
 

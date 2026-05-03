@@ -813,7 +813,7 @@ export function getInitialNotifications(symbol: string): TerminalNotification[] 
       id: `${slug}-news-notification`,
       severity: "info",
       title: `${normalizedSymbol} news refresh complete`,
-      body: "Dashboard events were reseeded for the current research session.",
+      body: "Market context events were reseeded for the current research session.",
       linkedWorkspace: "dashboard",
       linkedEntityId: `${slug}-news-01`,
       ttl: 900

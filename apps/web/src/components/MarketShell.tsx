@@ -18,7 +18,7 @@ import { dismissNotification, selectSymbol, setWorkspace, toggleSettings, type W
 
 export function MarketShell() {
   const [shellState, setShellState] = useState<WorkspaceShellState>({
-    activeWorkspace: "dashboard",
+    activeWorkspace: "agents",
     selectedSymbol: WATCHLIST[0].symbol,
     settingsOpen: false
   });

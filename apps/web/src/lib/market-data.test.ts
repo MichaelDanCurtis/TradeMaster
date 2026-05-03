@@ -126,6 +126,9 @@ describe("market data normalization", () => {
 
     assert.ok(catalog.alpaca.roles.includes("market-data"));
     assert.ok(catalog.alpaca.roles.includes("brokerage"));
+    assert.ok(catalog.webull.roles.includes("market-data"));
+    assert.ok(catalog.webull.roles.includes("brokerage"));
+    assert.ok(catalog.webull.capabilities.includes("trade-execution"));
     assert.deepEqual(catalog.massive.roles, ["market-data"]);
     assert.deepEqual(catalog.plaid.roles, ["portfolio"]);
     assert.ok(catalog.databento.capabilities.includes("tick-history"));

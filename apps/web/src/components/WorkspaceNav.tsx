@@ -3,11 +3,11 @@
 import type { WorkspaceId } from "@/lib/workspace-data";
 
 const WORKSPACES: Array<{ id: WorkspaceId; label: string }> = [
-  { id: "dashboard", label: "Dashboard" },
-  { id: "research", label: "Deep Research" },
   { id: "agents", label: "Agents" },
-  { id: "transactions", label: "Transactions" },
-  { id: "historicals", label: "Historicals" }
+  { id: "research", label: "Deep Research" },
+  { id: "dashboard", label: "Market Context" },
+  { id: "historicals", label: "Historicals" },
+  { id: "transactions", label: "Webull Handoff" }
 ];
 
 export function WorkspaceNav({

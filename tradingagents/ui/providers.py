@@ -56,6 +56,21 @@ PROVIDERS: tuple[ProviderDescriptor, ...] = (
         primary_use="Institutional-grade historical and tick data.",
     ),
     ProviderDescriptor(
+        id="webull-market-data",
+        name="Webull Market Data",
+        role="market-data",
+        status="planned",
+        capabilities=[
+            "historical-bars",
+            "snapshot-quotes",
+            "real-time-streaming",
+            "crypto",
+        ],
+        primary_use=(
+            "Primary trading-surface data adapter for Webull-backed market context."
+        ),
+    ),
+    ProviderDescriptor(
         id="plaid-investments",
         name="Plaid Investments",
         role="portfolio",
@@ -94,6 +109,17 @@ PROVIDERS: tuple[ProviderDescriptor, ...] = (
         status="planned",
         capabilities=["multi-asset", "order-submit", "account-context"],
         primary_use="Future advanced broker adapter for broader asset coverage.",
+    ),
+    ProviderDescriptor(
+        id="webull-broker",
+        name="Webull Broker",
+        role="brokerage",
+        status="planned",
+        capabilities=["account-context", "order-preview", "order-submit"],
+        primary_use=(
+            "Future Webull account and order adapter, disabled until approval "
+            "policies and API credentials are configured."
+        ),
     ),
     ProviderDescriptor(
         id="openai-llm",

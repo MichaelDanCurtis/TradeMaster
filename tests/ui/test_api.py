@@ -28,6 +28,9 @@ def test_provider_registry_endpoint_returns_roles_and_capabilities(tmp_path: Pat
     assert by_id["simulated-market-data"]["status"] == "available"
     assert by_id["simulated-market-data"]["role"] == "market-data"
     assert "historical-bars" in by_id["alpaca-market-data"]["capabilities"]
+    assert by_id["webull-market-data"]["status"] == "planned"
+    assert "historical-bars" in by_id["webull-market-data"]["capabilities"]
+    assert by_id["webull-broker"]["role"] == "brokerage"
     assert by_id["fake-paper-broker"]["role"] == "brokerage"
     assert by_id["plaid-investments"]["status"] == "needs_key"
     assert by_id["openai-llm"]["role"] == "llm"

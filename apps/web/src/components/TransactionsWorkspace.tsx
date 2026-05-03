@@ -10,7 +10,7 @@ export function TransactionsWorkspace({ symbol }: { symbol: string }) {
   const paperCashBalance = snapshot.portfolioValue - investedValue;
 
   return (
-    <section className="transactions-workspace" aria-label="Transactions workspace">
+    <section className="transactions-workspace" aria-label="Webull handoff workspace">
       <div className="transactions-main">
         <header className="workspace-header transactions-header">
           <div>
