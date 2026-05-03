@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { AgentCockpit } from "@/components/AgentCockpit";
-import { ChartWorkspace } from "@/components/ChartWorkspace";
+import { DashboardWorkspace } from "@/components/DashboardWorkspace";
 import { SettingsDrawer } from "@/components/SettingsDrawer";
 import { ToastStack } from "@/components/ToastStack";
 import { WatchlistRail } from "@/components/WatchlistRail";
@@ -110,12 +109,7 @@ function WorkspaceContent({
   selectedSymbol: string;
 }) {
   if (activeWorkspace === "dashboard") {
-    return (
-      <section className="dashboard-workspace" aria-label="Dashboard workspace">
-        <ChartWorkspace symbol={selectedSymbol} />
-        <AgentCockpit symbol={selectedSymbol} />
-      </section>
-    );
+    return <DashboardWorkspace symbol={selectedSymbol} />;
   }
 
   const placeholder = WORKSPACE_PLACEHOLDERS[activeWorkspace];

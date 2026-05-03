@@ -23,6 +23,13 @@ describe("workspace seeded domain data", () => {
     );
   });
 
+  it("provides event marker labels for chart rendering", () => {
+    const events = getDashboardNewsEvents("NVDA");
+
+    assert.ok(events.every((event) => event.markerLabel.length >= 1));
+    assert.ok(events.every((event) => event.relevance >= 0 && event.relevance <= 100));
+  });
+
   it("returns symbol conversations and platform alerts for the agents workspace", () => {
     const conversations = getAgentConversations("NVDA");
     const ids = conversations.map((conversation) => conversation.id);

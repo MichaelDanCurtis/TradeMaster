@@ -15,6 +15,7 @@ import {
   type MarketRange,
   type NormalizedMarketBar
 } from "@/lib/market-data";
+import type { NewsEvent } from "@/lib/workspace-data";
 
 type RenderedBar = NormalizedMarketBar & {
   bodyHeight: number;
@@ -40,6 +41,14 @@ type AxisTick = {
 type TimeTick = {
   label: string;
   x: number;
+};
+
+type ChartEventMarker = {
+  event: NewsEvent;
+  labelX: number;
+  showLabel: boolean;
+  x: number;
+  y: number;
 };
 
 type ChartView =
@@ -86,6 +95,12 @@ const PLOT_PADDING = {
 const PRICE_PLOT_HEIGHT = 342;
 const VOLUME_PLOT_TOP = 404;
 const VOLUME_PLOT_HEIGHT = 74;
+const MAX_CHART_EVENTS = 20;
+const LABELED_CHART_EVENTS = 5;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
 
 function getRenderedBars(seriesData: NormalizedMarketBar[]): RenderedBar[] {
   const minValue = Math.min(...seriesData.map((bar) => bar.low));
@@ -270,7 +285,45 @@ function downsampleBars(bars: NormalizedMarketBar[], maxCount: number): Normaliz
   return bars.filter((_, index) => index % stride === 0).slice(0, maxCount);
 }
 
-export function ChartWorkspace({ symbol }: { symbol: string }) {
+function getClosestRenderedBar(event: NewsEvent, renderedBars: RenderedBar[]): RenderedBar {
+  const eventTime = new Date(event.timestamp).getTime();
+
+  return renderedBars.reduce((closestBar, currentBar) => {
+    const closestDistance = Math.abs(new Date(closestBar.timestamp).getTime() - eventTime);
+    const currentDistance = Math.abs(new Date(currentBar.timestamp).getTime() - eventTime);
+
+    return currentDistance < closestDistance ? currentBar : closestBar;
+  });
+}
+
+function getEventMarkers(newsEvents: NewsEvent[], renderedBars: RenderedBar[]): ChartEventMarker[] {
+  return newsEvents
+    .slice(0, MAX_CHART_EVENTS)
+    .map((event, index) => {
+      const closestBar = getClosestRenderedBar(event, renderedBars);
+      const labelOffset = index % LABELED_CHART_EVENTS;
+      const markerY = clamp(closestBar.wickY1 - 12 - labelOffset * 14, PLOT_PADDING.top + 14, PRICE_PLOT_HEIGHT);
+
+      return {
+        event,
+        labelX: clamp(closestBar.x + (labelOffset - 2) * 18, 58, CHART_WIDTH - PLOT_PADDING.right - 42),
+        showLabel: index < LABELED_CHART_EVENTS,
+        x: closestBar.x,
+        y: markerY
+      };
+    });
+}
+
+function formatEventTimestamp(timestamp: string): string {
+  return new Date(timestamp).toLocaleString("en-US", {
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    month: "short"
+  });
+}
+
+export function ChartWorkspace({ newsEvents = [], symbol }: { newsEvents?: NewsEvent[]; symbol: string }) {
   const [chartRange, setChartRange] = useState<MarketRange>("1M");
   const [chartView, setChartView] = useState<ChartView>("candles");
   const [compareEnabled, setCompareEnabled] = useState(false);
@@ -293,6 +346,7 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
   const renderedBars = useMemo(() => getRenderedBars(renderBars), [renderBars]);
   const priceTicks = useMemo(() => getPriceTicks(renderBars), [renderBars]);
   const timeTicks = useMemo(() => getTimeTicks(renderedBars, chartRange), [chartRange, renderedBars]);
+  const eventMarkers = useMemo(() => getEventMarkers(newsEvents, renderedBars), [newsEvents, renderedBars]);
   const volumeProfileBins = useMemo(() => createVolumeProfileBins(renderBars, 18), [renderBars]);
   const performanceSeries = useMemo(() => normalizePerformanceSeries(snapshot.bars), [snapshot.bars]);
   const comparisonSeries = useMemo(
@@ -571,6 +625,27 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
               className="vwap-line"
               points={renderedBars.map((bar) => `${bar.x.toFixed(2)},${bar.vwapY.toFixed(2)}`).join(" ")}
             /> : null}
+            {!performanceMode
+              ? eventMarkers.map((marker) => (
+                  <g
+                    aria-label={`${marker.event.markerLabel}: ${marker.event.title}`}
+                    className={`news-marker ${marker.event.sentiment}`}
+                    key={marker.event.id}
+                    role="img"
+                  >
+                    <title>
+                      {marker.event.title} from {marker.event.source}. Relevance {marker.event.relevance}.
+                    </title>
+                    <line className="news-marker-stem" x1={marker.x} x2={marker.x} y1={marker.y + 5} y2={marker.y + 18} />
+                    <circle className="news-marker-dot" cx={marker.x} cy={marker.y} r="4.4" />
+                    {marker.showLabel ? (
+                      <text className="news-marker-label" x={marker.labelX} y={marker.y - 8}>
+                        {marker.event.markerLabel}
+                      </text>
+                    ) : null}
+                  </g>
+                ))
+              : null}
             {timeTicks.map((tick) => (
               <text className="chart-time-label" key={`${tick.x}-${tick.label}`} x={tick.x} y={CHART_HEIGHT - 16}>
                 {tick.label}
@@ -636,6 +711,30 @@ export function ChartWorkspace({ symbol }: { symbol: string }) {
         </div>
         <p>Run the analyst team from the cockpit to populate a decision, trace, and approval-gated paper order.</p>
       </section>
+
+      {newsEvents.length > 0 ? (
+        <section className="news-event-feed" aria-label={`${symbol} news and events`}>
+          <div className="section-title">
+            <span>News / events</span>
+            <span>{Math.min(newsEvents.length, MAX_CHART_EVENTS)} mapped</span>
+          </div>
+          <div className="news-event-list">
+            {newsEvents.slice(0, MAX_CHART_EVENTS).map((event) => (
+              <article className="news-event-item" key={event.id}>
+                <div className="news-event-heading">
+                  <strong>{event.title}</strong>
+                  <span className={`sentiment-badge ${event.sentiment}`}>{event.sentiment}</span>
+                </div>
+                <div className="news-event-meta">
+                  <span>{event.source}</span>
+                  <span>{formatEventTimestamp(event.timestamp)}</span>
+                  <span>{event.relevance}% relevance</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </section>
   );
 }
