@@ -243,6 +243,10 @@ button {
   overflow: hidden;
 }
 
+.market-shell.watchlist-collapsed {
+  grid-template-columns: 72px minmax(440px, 1fr);
+}
+
 .dashboard-workspace {
   display: grid;
   grid-template-columns: minmax(440px, 1fr) 340px;
@@ -298,6 +302,15 @@ button {
 
 .watchlist-rail {
   border-right: 1px solid #222b34;
+}
+
+.watchlist-rail.collapsed {
+  padding: 10px 8px;
+}
+
+.watchlist-rail.collapsed .panel-header,
+.watchlist-rail.collapsed .rail-micro-panel {
+  display: none;
 }
 
 .research-report-rail {
@@ -415,6 +428,10 @@ button {
   gap: 6px;
 }
 
+.watchlist-rail.collapsed .watchlist-list {
+  gap: 8px;
+}
+
 .watchlist-item {
   display: flex;
   align-items: center;
@@ -428,6 +445,13 @@ button {
   border-radius: 6px;
   cursor: pointer;
   text-align: left;
+}
+
+.watchlist-rail.collapsed .watchlist-item {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  padding: 0;
 }
 
 .watchlist-item:hover {
@@ -464,6 +488,12 @@ button {
 .watchlist-quote {
   justify-items: end;
   font-variant-numeric: tabular-nums;
+}
+
+.watchlist-compact-symbol {
+  color: #dbe5ee;
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .positive {

@@ -5,14 +5,16 @@ import type { WatchlistItem } from "@/lib/types";
 export function WatchlistRail({
   items,
   selectedSymbol,
+  collapsed = false,
   onSelect
 }: {
   items: WatchlistItem[];
   selectedSymbol: string;
+  collapsed?: boolean;
   onSelect: (symbol: string) => void;
 }) {
   return (
-    <aside className="watchlist-rail" aria-label="Watchlist">
+    <aside className={collapsed ? "watchlist-rail collapsed" : "watchlist-rail"} aria-label="Watchlist">
       <header className="panel-header">
         <div>
           <span className="panel-kicker">Markets</span>
@@ -27,18 +29,25 @@ export function WatchlistRail({
             key={item.symbol}
             onClick={() => onSelect(item.symbol)}
             type="button"
+            title={collapsed ? `${item.symbol} ${item.name}` : undefined}
           >
-            <span className="watchlist-symbol">
-              <strong>{item.symbol}</strong>
-              <small>{item.name}</small>
-            </span>
-            <span className="watchlist-quote">
-              <span>{item.price.toFixed(2)}</span>
-              <span className={item.changePercent >= 0 ? "positive" : "negative"}>
-                {item.changePercent >= 0 ? "+" : ""}
-                {item.changePercent.toFixed(2)}%
-              </span>
-            </span>
+            {collapsed ? (
+              <span className="watchlist-compact-symbol">{item.symbol}</span>
+            ) : (
+              <>
+                <span className="watchlist-symbol">
+                  <strong>{item.symbol}</strong>
+                  <small>{item.name}</small>
+                </span>
+                <span className="watchlist-quote">
+                  <span>{item.price.toFixed(2)}</span>
+                  <span className={item.changePercent >= 0 ? "positive" : "negative"}>
+                    {item.changePercent >= 0 ? "+" : ""}
+                    {item.changePercent.toFixed(2)}%
+                  </span>
+                </span>
+              </>
+            )}
           </button>
         ))}
       </div>

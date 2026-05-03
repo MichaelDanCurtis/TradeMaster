@@ -50,16 +50,16 @@ export function MarketShell() {
     <main className="terminal-shell">
       <header className="terminal-topbar">
         <div className="brand-lockup">
-          <span className="brand-mark">TA</span>
+          <span className="brand-mark">WA</span>
           <div>
-            <strong>TradingAgents</strong>
-            <span>Operator Terminal</span>
+            <strong>Wealth Agents</strong>
+            <span>Private Office</span>
           </div>
         </div>
         <div className="topbar-status">
-          <span className="status-pill online">API online</span>
-          <span className="status-pill paper">Paper mode</span>
-          <span className="session-clock">Local research session</span>
+          <span className="status-pill online">Local server</span>
+          <span className="status-pill paper">Approval gated</span>
+          <span className="session-clock">MacBook private office</span>
         </div>
       </header>
       <MarketTicker />
@@ -69,8 +69,13 @@ export function MarketShell() {
         onSelectWorkspace={handleSelectWorkspace}
         onToggleSettings={handleToggleSettings}
       />
-      <div className="market-shell">
-        <WatchlistRail items={WATCHLIST} selectedSymbol={shellState.selectedSymbol} onSelect={handleSelectSymbol} />
+      <div className={shellState.activeWorkspace === "research" ? "market-shell watchlist-collapsed" : "market-shell"}>
+        <WatchlistRail
+          collapsed={shellState.activeWorkspace === "research"}
+          items={WATCHLIST}
+          selectedSymbol={shellState.selectedSymbol}
+          onSelect={handleSelectSymbol}
+        />
         <WorkspaceContent activeWorkspace={shellState.activeWorkspace} selectedSymbol={shellState.selectedSymbol} />
       </div>
       <SettingsDrawer open={shellState.settingsOpen} onClose={handleCloseSettings} />
