@@ -8,6 +8,9 @@ import {
   getDashboardNewsEvents,
   getHistoricalOutcomes,
   getMarketTickerItems,
+  getPrivateOfficeBrief,
+  getPrivateOfficeRunQueue,
+  getPrivateOfficeTeams,
   getResearchReports,
   getTransactionSnapshot
 } from "./workspace-data.ts";
@@ -121,5 +124,42 @@ describe("workspace seeded domain data", () => {
     assert.ok(!freshReports[0].ledgerState.includes("mutated ledger entry"));
     assert.ok(!freshReports[0].riskNotes.includes("mutated risk note"));
     assert.ok(!freshReports[0].synthesisSteps.includes("mutated synthesis step"));
+  });
+
+  it("returns the Wealth Agents private-office team hierarchy", () => {
+    const teams = getPrivateOfficeTeams("NVDA");
+    const ids = teams.map((team) => team.id);
+
+    assert.ok(ids.includes("goals"));
+    assert.ok(ids.includes("advisor"));
+    assert.ok(ids.includes("capital-committee"));
+    assert.ok(ids.includes("property"));
+    assert.ok(ids.includes("communications"));
+    assert.ok(teams.some((team) => team.riskClass === "approval-gated"));
+    assert.ok(teams.every((team) => team.a2uiSurfaces.length > 0));
+  });
+
+  it("returns a symbol-scoped private-office morning brief", () => {
+    const brief = getPrivateOfficeBrief("NVDA");
+
+    assert.equal(brief.symbol, "NVDA");
+    assert.ok(brief.headline.includes("Private Office"));
+    assert.ok(brief.priorityItems.length >= 4);
+    assert.ok(brief.goalSignals.some((signal) => signal.goalName.toLowerCase().includes("yacht")));
+    assert.ok(brief.controlSignals.some((signal) => signal.team === "Communications Team"));
+  });
+
+  it("returns independent private-office arrays", () => {
+    const teams = getPrivateOfficeTeams("NVDA");
+    const brief = getPrivateOfficeBrief("NVDA");
+    const queue = getPrivateOfficeRunQueue("NVDA");
+
+    teams[0].responsibilities.push("mutated responsibility");
+    brief.priorityItems.push("mutated priority");
+    queue[0].steps[0].status = "waiting";
+
+    assert.ok(!getPrivateOfficeTeams("NVDA")[0].responsibilities.includes("mutated responsibility"));
+    assert.ok(!getPrivateOfficeBrief("NVDA").priorityItems.includes("mutated priority"));
+    assert.notEqual(getPrivateOfficeRunQueue("NVDA")[0].steps[0].status, "waiting");
   });
 });

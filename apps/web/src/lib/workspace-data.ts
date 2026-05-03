@@ -125,6 +125,57 @@ export type ResearchReport = {
   synthesisSteps: string[];
 };
 
+export type PrivateOfficeRiskClass = "information" | "recommendation" | "paper" | "approval-gated";
+export type PrivateOfficeTeamKind =
+  | "goals"
+  | "advisor"
+  | "research"
+  | "capital"
+  | "control"
+  | "property"
+  | "communications";
+
+export type PrivateOfficeTeam = {
+  id: string;
+  kind: PrivateOfficeTeamKind;
+  name: string;
+  mission: string;
+  cadence: string;
+  riskClass: PrivateOfficeRiskClass;
+  responsibilities: string[];
+  a2uiSurfaces: string[];
+  currentFocus: string;
+};
+
+export type PrivateOfficeBrief = {
+  symbol: string;
+  headline: string;
+  generatedAt: string;
+  priorityItems: string[];
+  goalSignals: Array<{
+    goalName: string;
+    status: string;
+    detail: string;
+  }>;
+  controlSignals: Array<{
+    team: string;
+    severity: "info" | "watch" | "urgent";
+    detail: string;
+  }>;
+};
+
+export type PrivateOfficeRunQueueItem = {
+  id: string;
+  title: string;
+  team: string;
+  status: "running" | "queued" | "waiting" | "complete";
+  startedAt: string;
+  steps: Array<{
+    label: string;
+    status: "running" | "queued" | "waiting" | "complete";
+  }>;
+};
+
 export type TerminalNotification = {
   id: string;
   severity: NotificationSeverity;
@@ -140,6 +191,7 @@ type HistoricalTemplate = Omit<HistoricalOutcome, "symbol" | "reportId">;
 type ResearchReportTemplate = Omit<ResearchReport, "id" | "symbol" | "title"> & {
   titleTemplate: string;
 };
+type PrivateOfficeBriefTemplate = Omit<PrivateOfficeBrief, "symbol">;
 type AgentMessageTemplate = Omit<AgentMessage, "id" | "conversationId" | "body"> & {
   bodyTemplate: string;
 };
@@ -503,6 +555,194 @@ const RESEARCH_REPORT_TEMPLATES: ResearchReportTemplate[] = [
   }
 ];
 
+const PRIVATE_OFFICE_TEAMS: PrivateOfficeTeam[] = [
+  {
+    id: "goals",
+    kind: "goals",
+    name: "Goals Team",
+    mission: "Translate Michael's material goals into measurable funding paths, blockers, and decision gates.",
+    cadence: "Daily brief, monthly goal dossier, quarterly plan review",
+    riskClass: "recommendation",
+    responsibilities: [
+      "Track yacht, property, liquidity, business-capital, and lifestyle goals against portfolio trajectory.",
+      "Convert {symbol} opportunity changes into goal-progress impact rather than isolated trade excitement.",
+      "Request tax, legal, insurance, and capital committee reviews when a goal becomes actionable."
+    ],
+    a2uiSurfaces: ["goal-progress view", "capital path planner", "decision gate card"],
+    currentFocus: "{symbol} concentration can accelerate the yacht goal, but only if risk and tax drag stay inside policy."
+  },
+  {
+    id: "advisor",
+    kind: "advisor",
+    name: "Advisor Synthesis Team",
+    mission: "Create the morning private-office synopsis from every team without flooding Michael with raw agent chatter.",
+    cadence: "Pre-market, urgent escalation, weekly management packet",
+    riskClass: "information",
+    responsibilities: [
+      "Summarize research, property, tax, capital, and communication signals into one operator brief.",
+      "Rank what needs attention now, what can wait, and what should stay in the archive.",
+      "Route {symbol} evidence to the correct report, goal, and capital committee surface."
+    ],
+    a2uiSurfaces: ["morning brief", "evidence board", "advisor memo"],
+    currentFocus: "Morning brief is prioritizing {symbol} research, Webull readiness, and private-office setup work."
+  },
+  {
+    id: "research-bodies",
+    kind: "research",
+    name: "Always-On Research Bodies",
+    mission: "Watch markets, smart money, filings, options flow, news, macro, and company evidence on a schedule.",
+    cadence: "Pre-market scan, intraday alerts, post-market wrap",
+    riskClass: "information",
+    responsibilities: [
+      "Track smart-money signals, congressional disclosure lag, unusual options flow, and issuer news.",
+      "Trigger deep research when {symbol} events meaningfully affect goals or portfolio risk.",
+      "Grade data quality before a signal reaches the capital committee."
+    ],
+    a2uiSurfaces: ["event markers", "source pack", "research trigger card"],
+    currentFocus: "{symbol} signal stack is queued for company intelligence, market watch, and options-flow review."
+  },
+  {
+    id: "capital-committee",
+    kind: "capital",
+    name: "TradingAgents / Capital Committee",
+    mission: "Act as CFO-style stewards deciding whether an opportunity deserves capital and under what guardrails.",
+    cadence: "On-demand for proposals, end-of-day P&L, weekly allocation review",
+    riskClass: "approval-gated",
+    responsibilities: [
+      "Weigh cash, buying power, loss history, goal impact, taxes, opportunity cost, and downside.",
+      "Compare {symbol} proposals against SPY, treasuries, cash, debt paydown, and waiting.",
+      "Stage paper or live-preview intents only after policy, risk, and human approval gates are satisfied."
+    ],
+    a2uiSurfaces: ["capital committee memo", "approval card", "risk-adjusted allocation panel"],
+    currentFocus: "{symbol} remains report-first until Webull data and approval policy are configured."
+  },
+  {
+    id: "property",
+    kind: "property",
+    name: "Asset & Property Management Team",
+    mission: "Maintain non-portfolio asset records, documents, maintenance, insurance, and liability reminders.",
+    cadence: "Daily exceptions, weekly document audit, monthly valuation review",
+    riskClass: "recommendation",
+    responsibilities: [
+      "Track houses, cars, boats, firearms, equipment, titles, registrations, insurance, and service records.",
+      "Flag missing documents, expiring registrations, insurance mismatches, and entity-ownership issues.",
+      "Connect major purchase goals to document, insurance, tax, and liability requirements."
+    ],
+    a2uiSurfaces: ["asset dossier", "document checklist", "liability issue card"],
+    currentFocus: "Yacht ownership dossier needs Hawaii insurance, moorage, entity, and operating-cost inputs."
+  },
+  {
+    id: "tax-structure",
+    kind: "control",
+    name: "Tax & Structure Body",
+    mission: "Surface tax drag, entity structure, holding period, wash-sale, and CPA-reviewable implications.",
+    cadence: "Trade proposal review, monthly tax issue scan, quarterly estimated-tax packet",
+    riskClass: "recommendation",
+    responsibilities: [
+      "Review realized and unrealized gains, option assignment risk, dividend treatment, and loss-harvesting candidates.",
+      "Translate outside CPA and attorney guidance into dated, source-linked notes.",
+      "Block any {symbol} action from being presented as tax advice without professional review language."
+    ],
+    a2uiSurfaces: ["tax issue card", "advisor guidance memo", "structure comparison table"],
+    currentFocus: "{symbol} concentration and future yacht-goal funding need tax drag visibility before capital decisions."
+  },
+  {
+    id: "communications",
+    kind: "communications",
+    name: "Communications Team",
+    mission: "Triage agent messages, route inbound notes, suppress noise, and mirror important communications into records.",
+    cadence: "Always on, digest by urgency",
+    riskClass: "information",
+    responsibilities: [
+      "Decide whether an event becomes internal inbox only, notification, email, or iMessage-style message.",
+      "Allow Hermes to route sanitized messages without giving Hermes financial system-of-record access.",
+      "Record important approvals and outside-advisor statements in the decision journal."
+    ],
+    a2uiSurfaces: ["inbox triage", "notification policy card", "decision journal entry"],
+    currentFocus: "Team identities are drafted, but outbound messaging remains stubbed until the router is designed."
+  }
+];
+
+const PRIVATE_OFFICE_BRIEF: PrivateOfficeBriefTemplate = {
+  headline: "Private Office Morning Brief",
+  generatedAt: "2026-05-03T06:30:00.000Z",
+  priorityItems: [
+    "{symbol} research is report-first: Webull remains the trading cockpit and Wealth Agents records the thesis.",
+    "Capital Committee should compare any {symbol} opportunity against cash, SPY, treasuries, and the yacht goal.",
+    "Property Team has an open yacht dossier for Hawaii liability, moorage, insurance, and ownership structure.",
+    "Communications Team is the gate for agent outreach; Hermes can route sanitized messages but not vault data.",
+    "Backup design is now a control issue because the MacBook server becomes a private-office record system."
+  ],
+  goalSignals: [
+    {
+      goalName: "Absolute / Navetta 68 yacht acquisition",
+      status: "planning",
+      detail: "Funding path depends on portfolio trajectory, Hawaii operating liabilities, tax structure, insurance, and entity review."
+    },
+    {
+      goalName: "MacBook private-office server",
+      status: "build-ready",
+      detail: "Needs encrypted local snapshot, off-machine backup target, and restore test before production documents land."
+    }
+  ],
+  controlSignals: [
+    {
+      team: "Communications Team",
+      severity: "watch",
+      detail: "Agent emails and iMessage-style routing should flow through one triage layer to prevent alert fatigue."
+    },
+    {
+      team: "Security & Access Team",
+      severity: "urgent",
+      detail: "Hermes must remain separated from broker, banking, and document-vault authority."
+    },
+    {
+      team: "Tax & Structure Body",
+      severity: "info",
+      detail: "Tax and entity memos should remain CPA/attorney-reviewable recommendations, not final advice."
+    }
+  ]
+};
+
+const PRIVATE_OFFICE_RUN_QUEUE: PrivateOfficeRunQueueItem[] = [
+  {
+    id: "private-office-morning-brief",
+    title: "{symbol} private-office morning synthesis",
+    team: "Advisor Synthesis Team",
+    status: "running",
+    startedAt: "2026-05-03T06:30:00.000Z",
+    steps: [
+      { label: "Collect research body updates", status: "complete" },
+      { label: "Merge goal and capital signals", status: "running" },
+      { label: "Prepare A2UI brief", status: "queued" }
+    ]
+  },
+  {
+    id: "capital-committee-preview",
+    title: "{symbol} capital committee readiness review",
+    team: "TradingAgents / Capital Committee",
+    status: "waiting",
+    startedAt: "2026-05-03T06:38:00.000Z",
+    steps: [
+      { label: "Wait for Webull provider keys", status: "waiting" },
+      { label: "Compare opportunity cost", status: "queued" },
+      { label: "Create approval-gated memo", status: "queued" }
+    ]
+  },
+  {
+    id: "property-yacht-dossier",
+    title: "Yacht ownership liability and document checklist",
+    team: "Asset & Property Management Team",
+    status: "queued",
+    startedAt: "2026-05-03T06:45:00.000Z",
+    steps: [
+      { label: "Collect ownership structure questions", status: "queued" },
+      { label: "List insurance and moorage documents", status: "queued" },
+      { label: "Escalate CPA and attorney review items", status: "queued" }
+    ]
+  }
+];
+
 const CONVERSATION_MESSAGE_TEMPLATES: Record<string, AgentMessageTemplate[]> = {
   "research-lead": [
     {
@@ -802,6 +1042,41 @@ export function getResearchReports(symbol: string): ResearchReport[] {
     riskNotes: [...report.riskNotes],
     synthesisSteps: [...report.synthesisSteps]
   })).filter((report) => report.symbol === normalizedSymbol);
+}
+
+export function getPrivateOfficeTeams(symbol: string): PrivateOfficeTeam[] {
+  const normalizedSymbol = normalizeSymbol(symbol);
+
+  return PRIVATE_OFFICE_TEAMS.map((team) => ({
+    ...team,
+    responsibilities: team.responsibilities.map((responsibility) =>
+      responsibility.replaceAll("{symbol}", normalizedSymbol)
+    ),
+    a2uiSurfaces: [...team.a2uiSurfaces],
+    currentFocus: team.currentFocus.replaceAll("{symbol}", normalizedSymbol)
+  }));
+}
+
+export function getPrivateOfficeBrief(symbol: string): PrivateOfficeBrief {
+  const normalizedSymbol = normalizeSymbol(symbol);
+
+  return {
+    ...PRIVATE_OFFICE_BRIEF,
+    symbol: normalizedSymbol,
+    priorityItems: PRIVATE_OFFICE_BRIEF.priorityItems.map((item) => item.replaceAll("{symbol}", normalizedSymbol)),
+    goalSignals: PRIVATE_OFFICE_BRIEF.goalSignals.map((signal) => ({ ...signal })),
+    controlSignals: PRIVATE_OFFICE_BRIEF.controlSignals.map((signal) => ({ ...signal }))
+  };
+}
+
+export function getPrivateOfficeRunQueue(symbol: string): PrivateOfficeRunQueueItem[] {
+  const normalizedSymbol = normalizeSymbol(symbol);
+
+  return PRIVATE_OFFICE_RUN_QUEUE.map((item) => ({
+    ...item,
+    title: item.title.replaceAll("{symbol}", normalizedSymbol),
+    steps: item.steps.map((step) => ({ ...step }))
+  }));
 }
 
 export function getInitialNotifications(symbol: string): TerminalNotification[] {
