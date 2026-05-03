@@ -408,6 +408,7 @@ button {
 .approval-intent-panel,
 .historical-timeline-panel,
 .historical-panel,
+.seeded-paper-ticket,
 .trade-ticket {
   border: 1px solid #202c38;
   border-radius: 7px;
@@ -437,6 +438,7 @@ button {
 .return-bar-row > span,
 .stance-review-row p,
 .feedback-note p,
+.seeded-paper-ticket dt,
 .trade-ticket dt,
 .decision-panel p,
 .report-strip p {
@@ -2017,6 +2019,7 @@ button {
 .cockpit-section,
 .agent-graph-panel,
 .decision-panel,
+.seeded-paper-ticket,
 .trade-ticket {
   margin-top: 12px;
   padding: 10px;
@@ -2189,7 +2192,8 @@ button {
   border-radius: 6px;
 }
 
-.trade-ticket {
+.trade-ticket,
+.seeded-paper-ticket {
   border-color: #31513a;
   background: #0e1812;
 }
@@ -2210,18 +2214,21 @@ button {
   font-weight: 800;
 }
 
-.trade-ticket dl {
+.trade-ticket dl,
+.seeded-paper-ticket dl {
   margin: 0 0 12px;
 }
 
-.trade-ticket dl div {
+.trade-ticket dl div,
+.seeded-paper-ticket dl div {
   display: flex;
   justify-content: space-between;
   padding: 6px 0;
   border-bottom: 1px solid #22352a;
 }
 
-.trade-ticket dd {
+.trade-ticket dd,
+.seeded-paper-ticket dd {
   margin: 0;
   color: #f2f6fa;
   font-variant-numeric: tabular-nums;

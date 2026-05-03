@@ -1,12 +1,11 @@
 "use client";
 
-import { TradeTicket } from "@/components/TradeTicket";
+import { useState } from "react";
+
 import { getTransactionSnapshot, type TransactionOrder, type TransactionOrderIntent, type TransactionPosition } from "@/lib/workspace-data";
-import type { OrderPreview } from "@/lib/types";
 
 export function TransactionsWorkspace({ symbol }: { symbol: string }) {
   const snapshot = getTransactionSnapshot(symbol);
-  const seededPreview = toSeededOrderPreview(snapshot.orderIntent);
   const investedValue = snapshot.positions.reduce((total, position) => total + position.marketValue, 0);
   const paperCashBalance = snapshot.portfolioValue - investedValue;
 
@@ -76,7 +75,7 @@ export function TransactionsWorkspace({ symbol }: { symbol: string }) {
           </span>
         </section>
 
-        <TradeTicket preview={seededPreview} />
+        <SeededPaperTicket intent={snapshot.orderIntent} />
       </aside>
     </section>
   );
@@ -137,17 +136,46 @@ function OrderRow({ order }: { order: TransactionOrder }) {
   );
 }
 
-function toSeededOrderPreview(intent: TransactionOrderIntent): OrderPreview {
-  return {
-    intent_id: intent.id,
-    broker: "seeded-paper",
-    environment: "paper",
-    symbol: intent.symbol,
-    side: intent.side,
-    notional: intent.notional,
-    estimated_price: intent.limitPrice,
-    estimated_quantity: Number((intent.notional / intent.limitPrice).toFixed(4))
-  };
+function SeededPaperTicket({ intent }: { intent: TransactionOrderIntent }) {
+  const [status, setStatus] = useState<"previewed" | "staged">("previewed");
+  const estimatedQuantity = intent.notional / intent.limitPrice;
+  const isStaged = status === "staged";
+
+  return (
+    <section className="seeded-paper-ticket">
+      <header className="ticket-header">
+        <div>
+          <span className="mode-pill">Paper preview</span>
+          <h2>Seeded paper ticket</h2>
+        </div>
+        <span className={isStaged ? "ticket-status submitted" : "ticket-status"}>{isStaged ? "staged" : status}</span>
+      </header>
+      <dl>
+        <div>
+          <dt>Symbol</dt>
+          <dd>{intent.symbol}</dd>
+        </div>
+        <div>
+          <dt>Side</dt>
+          <dd>{intent.side.toUpperCase()}</dd>
+        </div>
+        <div>
+          <dt>Notional</dt>
+          <dd>{formatCurrency(intent.notional)}</dd>
+        </div>
+        <div>
+          <dt>Estimated quantity</dt>
+          <dd>{estimatedQuantity.toFixed(4)}</dd>
+        </div>
+      </dl>
+      <button className="primary-button" type="button" onClick={() => setStatus("staged")} disabled={isStaged}>
+        {isStaged ? "Paper order staged locally" : "Stage paper order"}
+      </button>
+      <p className="muted">
+        Local seeded preview only. This control does not contact a broker or submit through the trading API.
+      </p>
+    </section>
+  );
 }
 
 function formatCurrency(value: number): string {
