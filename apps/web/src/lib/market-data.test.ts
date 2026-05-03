@@ -73,6 +73,18 @@ describe("market data normalization", () => {
     assert.equal(tenYear.quote.timestamp, tenYear.bars.at(-1)?.timestamp);
   });
 
+  it("creates historical candles with visible bodies for chart rendering", () => {
+    const snapshot = createSimulatedHistoricalSnapshot("NVDA", "1M");
+    const bodyShare = snapshot.bars.reduce((sum, bar) => {
+      const body = Math.abs(bar.close - bar.open);
+      const fullRange = Math.max(bar.high - bar.low, 0.01);
+
+      return sum + body / fullRange;
+    }, 0) / snapshot.bars.length;
+
+    assert.ok(bodyShare >= 0.24, `expected visible candle bodies, got ${bodyShare.toFixed(3)}`);
+  });
+
   it("normalizes bars into percent performance from the first close", () => {
     const series = normalizePerformanceSeries([
       makeBar({ close: 100, timestamp: "2026-01-01T00:00:00.000Z" }),

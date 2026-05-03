@@ -14,13 +14,15 @@ import {
   LineSeries,
   LineStyle,
   LineType,
-  type IChartApi
+  type IChartApi,
+  type Time
 } from "lightweight-charts";
 
 import {
   CHART_DOWN_COLOR,
   CHART_NEUTRAL_COLOR,
   CHART_UP_COLOR,
+  getInitialVisibleLogicalRange,
   toBarSeriesData,
   toCandlestickSeriesData,
   toComparisonLineData,
@@ -90,27 +92,42 @@ export function EvidenceChart({
         mode: CrosshairMode.Normal
       },
       grid: {
-        horzLines: { color: "rgba(105, 128, 150, 0.16)" },
-        vertLines: { color: "rgba(105, 128, 150, 0.12)" }
+        horzLines: { color: "rgba(105, 128, 150, 0.2)" },
+        vertLines: { color: "rgba(105, 128, 150, 0.16)" }
+      },
+      handleScale: {
+        axisDoubleClickReset: true,
+        axisPressedMouseMove: true,
+        mouseWheel: true,
+        pinch: true
+      },
+      handleScroll: {
+        horzTouchDrag: true,
+        mouseWheel: false,
+        pressedMouseMove: true,
+        vertTouchDrag: true
       },
       layout: {
         attributionLogo: false,
         background: { color: "#0c1219", type: ColorType.Solid },
         fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        textColor: "#70869b"
+        textColor: "#9fb2c6"
       },
       localization: {
         priceFormatter: (value: number) => (performanceMode ? `${value.toFixed(2)}%` : value.toFixed(2))
       },
       rightPriceScale: {
-        borderColor: "rgba(105, 128, 150, 0.2)",
+        borderColor: "rgba(126, 148, 170, 0.32)",
         scaleMargins: performanceMode ? { bottom: 0.12, top: 0.08 } : { bottom: 0.26, top: 0.08 }
       },
       timeScale: {
-        borderColor: "rgba(105, 128, 150, 0.2)",
+        barSpacing: chartRange === "1M" ? 22 : 8,
+        borderColor: "rgba(126, 148, 170, 0.32)",
+        minBarSpacing: 4,
         rightOffset: 8,
         secondsVisible: chartRange === "1M",
-        timeVisible: true
+        timeVisible: true,
+        tickMarkFormatter: (time: Time) => formatTickMark(String(time), chartRange)
       }
     });
 
@@ -133,7 +150,7 @@ export function EvidenceChart({
       });
     }
 
-    chart.timeScale().fitContent();
+    chart.timeScale().setVisibleLogicalRange(getInitialVisibleLogicalRange(bars.length, chartRange));
 
     return () => {
       chart.remove();
@@ -184,7 +201,9 @@ function renderPriceChart(
   if (chartView === "bars") {
     const priceSeries = chart.addSeries(BarSeries, {
       downColor: CHART_DOWN_COLOR,
+      openVisible: true,
       priceLineColor,
+      thinBars: false,
       title: symbol,
       upColor: CHART_UP_COLOR
     });
@@ -229,10 +248,12 @@ function renderPriceChart(
     const priceSeries = chart.addSeries(CandlestickSeries, {
       borderDownColor: CHART_DOWN_COLOR,
       borderUpColor: CHART_UP_COLOR,
+      borderVisible: true,
       downColor: CHART_DOWN_COLOR,
       priceLineColor,
       title: symbol,
       upColor: CHART_UP_COLOR,
+      wickVisible: true,
       wickDownColor: CHART_DOWN_COLOR,
       wickUpColor: CHART_UP_COLOR
     });
@@ -338,4 +359,19 @@ function VolumeProfileOverlay({ bins }: { bins: VolumeProfileBin[] }) {
       ))}
     </div>
   );
+}
+
+function formatTickMark(time: string, range: MarketRange): string {
+  const numericTime = Number(time);
+  const date = Number.isFinite(numericTime) ? new Date(numericTime * 1000) : new Date(time);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  if (range === "1M" || range === "YTD") {
+    return date.toLocaleDateString("en-US", { day: "numeric", month: "short" });
+  }
+
+  return date.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
 }

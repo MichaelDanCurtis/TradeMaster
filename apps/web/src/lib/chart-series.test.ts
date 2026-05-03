@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import type { NormalizedMarketBar } from "./market-data.ts";
 import {
+  getInitialVisibleLogicalRange,
   toBarSeriesData,
   toCandlestickSeriesData,
   toComparisonLineData,
@@ -88,6 +89,30 @@ describe("chart series adapters", () => {
       ]
     );
   });
+
+  it("limits marker text so labels remain readable on dense event clusters", () => {
+    const bars = [makeBar({ high: 101, timestamp: "2026-05-01T14:30:00.000Z" })];
+    const events = Array.from({ length: 8 }, (_, index) =>
+      makeNews({
+        id: `news-${index}`,
+        markerLabel: `N${index + 1}`,
+        timestamp: "2026-05-01T14:30:00.000Z"
+      })
+    );
+
+    const markers = toNewsSeriesMarkers(events, bars, 20, 4);
+
+    assert.deepEqual(
+      markers.map((marker) => marker.text),
+      ["N1", "N2", "N3", "N4", undefined, undefined, undefined, undefined]
+    );
+  });
+
+  it("chooses an initial logical range that fills sparse one-month charts", () => {
+    assert.deepEqual(getInitialVisibleLogicalRange(22, "1M"), { from: -1, to: 24 });
+    assert.deepEqual(getInitialVisibleLogicalRange(2520, "10Y"), { from: 2297, to: 2522 });
+  });
+
 });
 
 function makeBar(overrides: Partial<NormalizedMarketBar>): NormalizedMarketBar {

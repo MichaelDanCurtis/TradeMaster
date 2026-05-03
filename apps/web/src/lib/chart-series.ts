@@ -2,12 +2,13 @@ import type {
   BarData,
   CandlestickData,
   HistogramData,
+  IRange,
   LineData,
   SeriesMarker,
   UTCTimestamp
 } from "lightweight-charts";
 
-import type { ComparisonPoint, NormalizedMarketBar, PerformancePoint } from "./market-data.ts";
+import type { ComparisonPoint, MarketRange, NormalizedMarketBar, PerformancePoint } from "./market-data.ts";
 import type { NewsEvent } from "./workspace-data.ts";
 
 export const CHART_UP_COLOR = "#33d17a";
@@ -98,7 +99,8 @@ export function toVolumeHistogramData(bars: NormalizedMarketBar[]): HistogramDat
 export function toNewsSeriesMarkers(
   newsEvents: NewsEvent[],
   bars: NormalizedMarketBar[],
-  maxMarkers = 20
+  maxMarkers = 20,
+  maxLabeledMarkers = 5
 ): SeriesMarker<UTCTimestamp>[] {
   const sortedBars = sortBarsByTime(bars);
 
@@ -106,21 +108,40 @@ export function toNewsSeriesMarkers(
     return [];
   }
 
-  return newsEvents.slice(0, maxMarkers).map((event) => {
+  return newsEvents.slice(0, maxMarkers).map((event, index) => {
     const closestBar = getClosestBar(event.timestamp, sortedBars);
     const color = getSentimentColor(event.sentiment);
 
     return {
       color,
       id: event.id,
-      position: "inBar",
+      position: "aboveBar",
       price: roundPrice(closestBar.high * 1.01),
       shape: "circle",
       size: 1.25,
-      text: event.markerLabel,
+      text: index < maxLabeledMarkers ? event.markerLabel : undefined,
       time: toChartTime(closestBar.timestamp)
     };
   });
+}
+
+export function getInitialVisibleLogicalRange(totalBars: number, range: MarketRange): IRange<number> {
+  const safeTotal = Math.max(1, totalBars);
+  const visibleBarsByRange: Record<MarketRange, number> = {
+    "1M": 25,
+    "1Y": 150,
+    "3Y": 190,
+    "5Y": 210,
+    "10Y": 225,
+    YTD: 110
+  };
+  const visibleBars = Math.min(Math.max(visibleBarsByRange[range], 1), Math.max(safeTotal, visibleBarsByRange[range]));
+  const to = safeTotal + 2;
+
+  return {
+    from: to - visibleBars,
+    to
+  };
 }
 
 export function toChartTime(timestamp: string): UTCTimestamp {

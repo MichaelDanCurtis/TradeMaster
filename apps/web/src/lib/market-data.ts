@@ -445,8 +445,8 @@ function createSimulatedHistoricalBars(symbol: string, range: MarketRange, prior
     const mediumWave = Math.cos((index + seed) / 11) * profile.volatility * 0.22;
     const noise = (pseudoRandom(seed + index * 19) - 0.5) * profile.volatility * 0.7;
     const open = previousClose;
-    const close = Math.max(1, open + trend + longWave * 0.12 + mediumWave * 0.1 + noise * 0.12);
-    const wick = profile.volatility * (0.24 + pseudoRandom(seed + index * 29) * 0.48);
+    const close = Math.max(1, open + trend + longWave * 0.48 + mediumWave * 0.36 + noise * 0.56);
+    const wick = profile.volatility * (0.07 + pseudoRandom(seed + index * 29) * 0.16);
     const high = Math.max(open, close) + wick;
     const low = Math.max(0.01, Math.min(open, close) - wick);
     const timestamp = new Date(endTime - (config.count - 1 - index) * 86_400_000);
