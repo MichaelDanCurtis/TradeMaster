@@ -75,7 +75,7 @@ export function TransactionsWorkspace({ symbol }: { symbol: string }) {
           </span>
         </section>
 
-        <SeededPaperTicket intent={snapshot.orderIntent} />
+        <SeededPaperTicket key={snapshot.orderIntent.id} intent={snapshot.orderIntent} />
       </aside>
     </section>
   );

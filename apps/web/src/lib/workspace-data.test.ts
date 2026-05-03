@@ -79,6 +79,15 @@ describe("workspace seeded domain data", () => {
     assert.ok(outcomes.some((outcome) => outcome.reviewTags.includes("directionally-correct")));
   });
 
+  it("returns independent historical outcome review tags", () => {
+    const outcomes = getHistoricalOutcomes("NVDA");
+    outcomes[0].reviewTags.push("mutated-review-tag");
+
+    const freshOutcomes = getHistoricalOutcomes("NVDA");
+
+    assert.ok(!freshOutcomes[0].reviewTags.includes("mutated-review-tag"));
+  });
+
   it("returns deep research reports for the requested symbol", () => {
     const reports = getResearchReports("NVDA");
 

@@ -725,7 +725,8 @@ export function getHistoricalOutcomes(symbol: string): HistoricalOutcome[] {
   return HISTORICAL_TEMPLATES.map((outcome, index) => ({
     ...outcome,
     symbol: normalizedSymbol,
-    reportId: `${normalizedSymbol.toLowerCase()}-outcome-${String(index + 1).padStart(2, "0")}`
+    reportId: `${normalizedSymbol.toLowerCase()}-outcome-${String(index + 1).padStart(2, "0")}`,
+    reviewTags: [...outcome.reviewTags]
   })).filter((outcome) => outcome.symbol === normalizedSymbol);
 }
 
