@@ -1,0 +1,181 @@
+"use client";
+
+import { TradeTicket } from "@/components/TradeTicket";
+import { getTransactionSnapshot, type TransactionOrder, type TransactionOrderIntent, type TransactionPosition } from "@/lib/workspace-data";
+import type { OrderPreview } from "@/lib/types";
+
+export function TransactionsWorkspace({ symbol }: { symbol: string }) {
+  const snapshot = getTransactionSnapshot(symbol);
+  const seededPreview = toSeededOrderPreview(snapshot.orderIntent);
+  const investedValue = snapshot.positions.reduce((total, position) => total + position.marketValue, 0);
+  const paperCashBalance = snapshot.portfolioValue - investedValue;
+
+  return (
+    <section className="transactions-workspace" aria-label="Transactions workspace">
+      <div className="transactions-main">
+        <header className="workspace-header transactions-header">
+          <div>
+            <span className="panel-kicker">Paper portfolio</span>
+            <h1>{snapshot.symbol} transactions</h1>
+          </div>
+          <span className="status-pill paper">Approval gated</span>
+        </header>
+
+        <section className="transaction-balance-strip" aria-label="Paper account snapshot">
+          <Metric label="Portfolio value" value={formatCurrency(snapshot.portfolioValue)} />
+          <Metric label="Paper cash balance" value={formatCurrency(paperCashBalance)} />
+          <Metric label="Buying power" value={formatCurrency(snapshot.buyingPower)} />
+          <Metric label="Mode" value={snapshot.mode} />
+        </section>
+
+        <div className="transaction-grid">
+          <section className="transaction-panel">
+            <PanelHeading kicker="Holdings" title="Top positions" count={snapshot.positions.length} />
+            <div className="position-list">
+              {snapshot.positions.map((position) => (
+                <PositionRow key={position.symbol} position={position} />
+              ))}
+            </div>
+          </section>
+
+          <section className="transaction-panel">
+            <PanelHeading kicker="Activity" title="Recent orders" count={snapshot.recentOrders.length} />
+            <div className="order-list">
+              {snapshot.recentOrders.map((order) => (
+                <OrderRow key={order.id} order={order} />
+              ))}
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <aside className="transaction-approval-rail">
+        <section className="approval-intent-panel">
+          <PanelHeading kicker="Open intent" title="Paper approval request" />
+          <dl className="intent-detail-list">
+            <div>
+              <dt>Intent</dt>
+              <dd>{snapshot.orderIntent.id}</dd>
+            </div>
+            <div>
+              <dt>Side</dt>
+              <dd>{snapshot.orderIntent.side.toUpperCase()}</dd>
+            </div>
+            <div>
+              <dt>Limit reference</dt>
+              <dd>{formatCurrency(snapshot.orderIntent.limitPrice)}</dd>
+            </div>
+            <div>
+              <dt>Confidence</dt>
+              <dd>{formatPercent(snapshot.orderIntent.confidence)}</dd>
+            </div>
+          </dl>
+          <p>{snapshot.orderIntent.rationale}</p>
+          <span className="approval-badge required">
+            {snapshot.orderIntent.requiresApproval ? "Approval required" : "Preview only"}
+          </span>
+        </section>
+
+        <TradeTicket preview={seededPreview} />
+      </aside>
+    </section>
+  );
+}
+
+function PanelHeading({ kicker, title, count }: { kicker: string; title: string; count?: number }) {
+  return (
+    <header className="panel-header">
+      <div>
+        <span className="panel-kicker">{kicker}</span>
+        <h2>{title}</h2>
+      </div>
+      {typeof count === "number" ? <span className="panel-count">{count}</span> : null}
+    </header>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function PositionRow({ position }: { position: TransactionPosition }) {
+  return (
+    <article className="position-row">
+      <div>
+        <strong>{position.symbol}</strong>
+        <span>{position.quantity.toLocaleString()} shares</span>
+      </div>
+      <div>
+        <strong>{formatCurrency(position.marketValue)}</strong>
+        <span className={position.dayChangePercent >= 0 ? "positive" : "negative"}>
+          {formatSignedPercent(position.dayChangePercent)}
+        </span>
+      </div>
+    </article>
+  );
+}
+
+function OrderRow({ order }: { order: TransactionOrder }) {
+  return (
+    <article className="order-row">
+      <div>
+        <strong>
+          {order.side.toUpperCase()} {order.symbol}
+        </strong>
+        <span>{formatDateTime(order.submittedAt)}</span>
+      </div>
+      <div>
+        <strong>{order.quantity.toLocaleString()} sh</strong>
+        <span className={`order-status ${order.status}`}>{order.status}</span>
+      </div>
+    </article>
+  );
+}
+
+function toSeededOrderPreview(intent: TransactionOrderIntent): OrderPreview {
+  return {
+    intent_id: intent.id,
+    broker: "seeded-paper",
+    environment: "paper",
+    symbol: intent.symbol,
+    side: intent.side,
+    notional: intent.notional,
+    estimated_price: intent.limitPrice,
+    estimated_quantity: Number((intent.notional / intent.limitPrice).toFixed(4))
+  };
+}
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0
+  }).format(value);
+}
+
+function formatPercent(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "percent",
+    maximumFractionDigits: 0
+  }).format(value);
+}
+
+function formatSignedPercent(value: number): string {
+  const formatted = `${Math.abs(value).toFixed(1)}%`;
+
+  return value >= 0 ? `+${formatted}` : `-${formatted}`;
+}
+
+function formatDateTime(value: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
+}

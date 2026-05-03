@@ -5,29 +5,15 @@ import { useEffect, useState } from "react";
 import { AgentsWorkspace } from "@/components/AgentsWorkspace";
 import { DashboardWorkspace } from "@/components/DashboardWorkspace";
 import { DeepResearchWorkspace } from "@/components/DeepResearchWorkspace";
+import { HistoricalsWorkspace } from "@/components/HistoricalsWorkspace";
 import { SettingsDrawer } from "@/components/SettingsDrawer";
 import { ToastStack } from "@/components/ToastStack";
+import { TransactionsWorkspace } from "@/components/TransactionsWorkspace";
 import { WatchlistRail } from "@/components/WatchlistRail";
 import { WorkspaceNav } from "@/components/WorkspaceNav";
 import { WATCHLIST } from "@/data/watchlist";
 import { getInitialNotifications, type TerminalNotification, type WorkspaceId } from "@/lib/workspace-data";
 import { dismissNotification, selectSymbol, setWorkspace, toggleSettings, type WorkspaceShellState } from "@/lib/workspace-state";
-
-const WORKSPACE_PLACEHOLDERS: Record<
-  Exclude<WorkspaceId, "dashboard" | "research" | "agents">,
-  { eyebrow: string; title: string; body: string }
-> = {
-  historicals: {
-    eyebrow: "Prediction review",
-    title: "Historicals workspace",
-    body: "Historical outcomes and feedback loops will land here without changing the shell navigation contract."
-  },
-  transactions: {
-    eyebrow: "Paper execution",
-    title: "Transactions workspace",
-    body: "Portfolio, balances, approvals, and paper ticket controls will replace this placeholder."
-  }
-};
 
 export function MarketShell() {
   const [shellState, setShellState] = useState<WorkspaceShellState>({
@@ -115,23 +101,9 @@ function WorkspaceContent({
     return <AgentsWorkspace symbol={selectedSymbol} />;
   }
 
-  const placeholder = WORKSPACE_PLACEHOLDERS[activeWorkspace];
+  if (activeWorkspace === "transactions") {
+    return <TransactionsWorkspace symbol={selectedSymbol} />;
+  }
 
-  return (
-    <section className="workspace-placeholder" aria-label={`${placeholder.title} placeholder`}>
-      <span className="panel-kicker">{placeholder.eyebrow}</span>
-      <h1>{placeholder.title}</h1>
-      <p>{placeholder.body}</p>
-      <dl>
-        <div>
-          <dt>Selected symbol</dt>
-          <dd>{selectedSymbol}</dd>
-        </div>
-        <div>
-          <dt>Workspace</dt>
-          <dd>{activeWorkspace}</dd>
-        </div>
-      </dl>
-    </section>
-  );
+  return <HistoricalsWorkspace symbol={selectedSymbol} />;
 }
