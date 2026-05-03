@@ -956,6 +956,66 @@ button {
   padding: 1px;
 }
 
+.evidence-chart-frame {
+  position: relative;
+  min-height: clamp(420px, 56vh, 560px);
+  border-radius: 4px 4px 22px 22px;
+  background:
+    linear-gradient(180deg, rgba(13, 21, 30, 0.18), rgba(7, 10, 14, 0.36)),
+    #0c1219;
+  overflow: hidden;
+}
+
+.evidence-chart {
+  position: absolute;
+  inset: 0;
+}
+
+.chart-engine-legend {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  pointer-events: none;
+}
+
+.chart-engine-legend span {
+  border: 1px solid rgba(91, 111, 132, 0.34);
+  border-radius: 5px;
+  color: #c8d4df;
+  background: rgba(12, 18, 25, 0.76);
+  padding: 4px 7px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.volume-profile-overlay {
+  position: absolute;
+  top: 9%;
+  right: 56px;
+  bottom: 28%;
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: stretch;
+  width: min(180px, 22%);
+  gap: 2px;
+  pointer-events: none;
+}
+
+.volume-profile-overlay span {
+  align-self: flex-end;
+  flex: 1;
+  min-height: 3px;
+  border: 1px solid rgba(116, 168, 255, 0.2);
+  border-radius: 4px;
+  background: rgba(79, 140, 255, 0.22);
+  box-shadow: 0 0 18px rgba(79, 140, 255, 0.08);
+}
+
 .chart-surface {
   height: clamp(380px, 52vh, 520px);
   border-radius: 4px 4px 22px 22px;
