@@ -51,7 +51,7 @@ export function AgentCockpit({ symbol, showTradeTicket = true }: AgentCockpitPro
       const created = await createRun({
         ticker: requestedSymbol,
         tradeDate: new Date().toISOString().slice(0, 10),
-        brokerMode: "paper"
+        brokerMode: showTradeTicket ? "paper" : "disabled"
       });
       if (requestIdRef.current !== requestId) return;
       setRunId(created.run_id);
