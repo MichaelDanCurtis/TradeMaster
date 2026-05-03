@@ -51,6 +51,17 @@ describe("workspace seeded domain data", () => {
     assert.ok(actions.some((action) => action.type === "preview-order" && action.requiresApproval === true));
   });
 
+  it("returns independent agent message authors", () => {
+    const messages = getAgentMessages("research-lead-nvda");
+    messages[0].author.name = "Mutated Author";
+    messages[0].author.type = "human";
+
+    const freshMessages = getAgentMessages("research-lead-nvda");
+
+    assert.notEqual(freshMessages[0].author.name, "Mutated Author");
+    assert.notEqual(freshMessages[0].author.type, "human");
+  });
+
   it("returns an approval-gated paper transaction snapshot", () => {
     const snapshot = getTransactionSnapshot("NVDA");
 

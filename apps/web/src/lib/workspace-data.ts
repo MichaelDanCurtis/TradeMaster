@@ -636,6 +636,7 @@ export function getAgentMessages(conversationId: string): AgentMessage[] {
 
   return templates.map((message, index) => ({
     ...message,
+    author: { ...message.author },
     id: `${conversationId}-message-${String(index + 1).padStart(2, "0")}`,
     conversationId,
     body: message.bodyTemplate.replaceAll("{symbol}", symbol).replaceAll("{slug}", slug)

@@ -1861,6 +1861,8 @@ button {
 
   .agents-workspace {
     grid-template-columns: minmax(250px, 300px) minmax(360px, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(180px, auto);
+    overflow: auto;
   }
 
   .agents-action-panel {
