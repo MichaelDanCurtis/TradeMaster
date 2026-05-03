@@ -76,6 +76,20 @@ export type HistoricalOutcome = {
   notes: string;
 };
 
+export type ResearchReport = {
+  id: string;
+  symbol: string;
+  title: string;
+  createdAt: string;
+  horizon: string;
+  stance: "bullish" | "neutral" | "bearish";
+  confidence: number;
+  summary: string;
+  ledgerState: string[];
+  riskNotes: string[];
+  synthesisSteps: string[];
+};
+
 export type TerminalNotification = {
   id: string;
   severity: NotificationSeverity;
@@ -88,6 +102,9 @@ export type TerminalNotification = {
 
 type NewsTemplate = Omit<NewsEvent, "id" | "symbol" | "url">;
 type HistoricalTemplate = Omit<HistoricalOutcome, "symbol" | "reportId">;
+type ResearchReportTemplate = Omit<ResearchReport, "id" | "symbol" | "title"> & {
+  titleTemplate: string;
+};
 
 const NEWS_TEMPLATES: NewsTemplate[] = [
   {
@@ -315,6 +332,84 @@ const HISTORICAL_TEMPLATES: HistoricalTemplate[] = [
   }
 ];
 
+const RESEARCH_REPORT_TEMPLATES: ResearchReportTemplate[] = [
+  {
+    titleTemplate: "{symbol} accelerator demand and breadth synthesis",
+    createdAt: "2026-05-02T20:48:00.000Z",
+    horizon: "10 trading days",
+    stance: "bullish",
+    confidence: 0.74,
+    summary:
+      "Channel checks, options positioning, and semiconductor breadth all point to a constructive short-horizon setup, with confirmation still tied to follow-through above the weekly volume shelf.",
+    ledgerState: [
+      "Demand checks raised second-half accelerator backlog assumptions.",
+      "Options desk observed upside call spreads clustered near weekly resistance.",
+      "Market breadth improved across the chip leadership basket after the open.",
+      "Final stance favors a staged overweight while preserving invalidation near prior breakout support."
+    ],
+    riskNotes: [
+      "Policy headlines can still compress multiples intraday.",
+      "Dealer gamma remains a friction point near the upper weekly band.",
+      "Position size should stay below full allocation until volume confirms the breakout."
+    ],
+    synthesisSteps: [
+      "News analyst normalized event relevance across issuer, peer, and policy feeds.",
+      "Market analyst compared spot action against volume profile and breadth.",
+      "Risk manager checked invalidation levels against current paper exposure."
+    ]
+  },
+  {
+    titleTemplate: "{symbol} policy sensitivity review",
+    createdAt: "2026-05-01T21:35:00.000Z",
+    horizon: "20 trading days",
+    stance: "neutral",
+    confidence: 0.62,
+    summary:
+      "The base case remains intact, but recent regulatory language keeps the medium-horizon stance balanced until shipment assumptions and customer concentration risk are rechecked.",
+    ledgerState: [
+      "Policy desk found no immediate change to current-quarter shipment assumptions.",
+      "Historical review flagged that policy-driven drawdowns have tended to reverse when demand checks stay firm.",
+      "Fundamentals agent kept margin durability unchanged but widened the scenario band.",
+      "Final stance holds exposure steady until the next supplier confirmation window."
+    ],
+    riskNotes: [
+      "Export-control language can change faster than the local model refresh cadence.",
+      "Multiple expansion is vulnerable if gross margin assumptions stop improving.",
+      "Neutral stance should not auto-stage a paper ticket."
+    ],
+    synthesisSteps: [
+      "Policy analyst scored current restrictions against prior report assumptions.",
+      "Fundamentals analyst updated bull, base, and bear revenue sensitivities.",
+      "Portfolio manager reconciled stance with existing position concentration."
+    ]
+  },
+  {
+    titleTemplate: "{symbol} support-zone reversal memo",
+    createdAt: "2026-04-30T18:15:00.000Z",
+    horizon: "5 trading days",
+    stance: "bullish",
+    confidence: 0.68,
+    summary:
+      "The prior breakout zone held through a risk-off headline, creating a tactical rebound setup supported by reduced volatility premium and improving short-term positioning.",
+    ledgerState: [
+      "Technical desk confirmed price held the prior breakout support zone.",
+      "Volatility monitor saw implied premium compress after spot recovered.",
+      "Positioning lab recorded modest short covering into the close.",
+      "Final stance supports a tactical add only if support remains intact."
+    ],
+    riskNotes: [
+      "A break below support invalidates the tactical setup.",
+      "Compressed volatility can reverse quickly around macro events.",
+      "Short-covering evidence is modest, not a durable demand signal by itself."
+    ],
+    synthesisSteps: [
+      "Market analyst aligned support, VWAP, and volume-profile evidence.",
+      "Sentiment analyst separated headline shock from persistent negative revisions.",
+      "Risk manager converted invalidation into a clear no-trade boundary."
+    ]
+  }
+];
+
 export function getDashboardNewsEvents(symbol: string): NewsEvent[] {
   const normalizedSymbol = normalizeSymbol(symbol);
 
@@ -438,6 +533,17 @@ export function getHistoricalOutcomes(symbol: string): HistoricalOutcome[] {
     symbol: normalizedSymbol,
     reportId: `${normalizedSymbol.toLowerCase()}-outcome-${String(index + 1).padStart(2, "0")}`
   })).filter((outcome) => outcome.symbol === normalizedSymbol);
+}
+
+export function getResearchReports(symbol: string): ResearchReport[] {
+  const normalizedSymbol = normalizeSymbol(symbol);
+
+  return RESEARCH_REPORT_TEMPLATES.map((report, index) => ({
+    ...report,
+    id: `${normalizedSymbol.toLowerCase()}-research-${String(index + 1).padStart(2, "0")}`,
+    symbol: normalizedSymbol,
+    title: report.titleTemplate.replace("{symbol}", normalizedSymbol)
+  })).filter((report) => report.symbol === normalizedSymbol);
 }
 
 export function getInitialNotifications(symbol: string): TerminalNotification[] {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { DashboardWorkspace } from "@/components/DashboardWorkspace";
+import { DeepResearchWorkspace } from "@/components/DeepResearchWorkspace";
 import { SettingsDrawer } from "@/components/SettingsDrawer";
 import { ToastStack } from "@/components/ToastStack";
 import { WatchlistRail } from "@/components/WatchlistRail";
@@ -11,7 +12,10 @@ import { WATCHLIST } from "@/data/watchlist";
 import { getInitialNotifications, type TerminalNotification, type WorkspaceId } from "@/lib/workspace-data";
 import { dismissNotification, selectSymbol, setWorkspace, toggleSettings, type WorkspaceShellState } from "@/lib/workspace-state";
 
-const WORKSPACE_PLACEHOLDERS: Record<Exclude<WorkspaceId, "dashboard">, { eyebrow: string; title: string; body: string }> = {
+const WORKSPACE_PLACEHOLDERS: Record<
+  Exclude<WorkspaceId, "dashboard" | "research">,
+  { eyebrow: string; title: string; body: string }
+> = {
   agents: {
     eyebrow: "Agent messaging",
     title: "Agents workspace",
@@ -21,11 +25,6 @@ const WORKSPACE_PLACEHOLDERS: Record<Exclude<WorkspaceId, "dashboard">, { eyebro
     eyebrow: "Prediction review",
     title: "Historicals workspace",
     body: "Historical outcomes and feedback loops will land here without changing the shell navigation contract."
-  },
-  research: {
-    eyebrow: "Deep Research",
-    title: "Deep Research workspace",
-    body: "Run controls, report lists, and decision ledgers will move into this workspace in a later task."
   },
   transactions: {
     eyebrow: "Paper execution",
@@ -110,6 +109,10 @@ function WorkspaceContent({
 }) {
   if (activeWorkspace === "dashboard") {
     return <DashboardWorkspace symbol={selectedSymbol} />;
+  }
+
+  if (activeWorkspace === "research") {
+    return <DeepResearchWorkspace symbol={selectedSymbol} />;
   }
 
   const placeholder = WORKSPACE_PLACEHOLDERS[activeWorkspace];

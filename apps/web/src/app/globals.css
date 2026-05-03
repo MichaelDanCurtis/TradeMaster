@@ -175,7 +175,16 @@ button {
   overflow: hidden;
 }
 
+.deep-research-workspace {
+  display: grid;
+  grid-template-columns: 292px minmax(440px, 1fr) 340px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .watchlist-rail,
+.research-report-rail,
 .agent-cockpit {
   min-width: 0;
   background: #0c1117;
@@ -184,6 +193,10 @@ button {
 }
 
 .watchlist-rail {
+  border-right: 1px solid #222b34;
+}
+
+.research-report-rail {
   border-right: 1px solid #222b34;
 }
 
@@ -1091,6 +1104,205 @@ button {
   background: #211010;
 }
 
+.research-report-list {
+  display: grid;
+  gap: 7px;
+}
+
+.research-report-item {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  min-height: 116px;
+  border: 1px solid #202c38;
+  border-radius: 6px;
+  color: #dbe5ee;
+  background: #101720;
+  cursor: pointer;
+  padding: 10px;
+  text-align: left;
+}
+
+.research-report-item:hover {
+  border-color: #3a5168;
+  background: #132031;
+}
+
+.research-report-item.selected {
+  border-color: #4f8cff;
+  background: #14233a;
+  box-shadow: inset 3px 0 0 #4f8cff;
+}
+
+.research-report-item > span,
+.research-report-item small,
+.research-meta-strip,
+.research-list-panel li {
+  color: #8397aa;
+  font-size: 12px;
+}
+
+.research-report-item strong {
+  color: #f2f6fa;
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.research-report-item div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #9eb0c2;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.research-detail {
+  min-width: 0;
+  padding: 14px;
+  overflow: auto;
+}
+
+.research-detail-header {
+  align-items: flex-start;
+}
+
+.research-meta-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.research-meta-strip span {
+  border: 1px solid #263545;
+  border-radius: 999px;
+  background: #0f151c;
+  padding: 4px 8px;
+}
+
+.research-summary-panel,
+.research-ledger-panel,
+.research-list-panel {
+  border: 1px solid #202c38;
+  border-radius: 7px;
+  background: #101720;
+}
+
+.research-summary-panel {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 12px;
+}
+
+.research-summary-panel h2 {
+  margin: 7px 0 0;
+  color: #f2f6fa;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.research-summary-panel p {
+  margin: 0;
+  color: #b3c2d0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.stance-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  border: 1px solid #2a3744;
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: #9eb0c2;
+  background: #111821;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.stance-badge.bullish {
+  border-color: #28543a;
+  color: #b8f7ca;
+  background: #0e2116;
+}
+
+.stance-badge.neutral {
+  border-color: #5b4a22;
+  color: #f4d68b;
+  background: #20190d;
+}
+
+.stance-badge.bearish {
+  border-color: #5a2c2c;
+  color: #ffb4b4;
+  background: #211010;
+}
+
+.research-ledger-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+  gap: 10px;
+}
+
+.research-ledger-panel,
+.research-list-panel {
+  padding: 10px;
+}
+
+.decision-ledger-list {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.decision-ledger-list li {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 8px;
+  border: 1px solid #1f2b37;
+  border-radius: 6px;
+  background: #0d141c;
+  padding: 9px;
+}
+
+.decision-ledger-list span {
+  color: #8fb7ff;
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.decision-ledger-list p {
+  margin: 0;
+  color: #dbe5ee;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.research-side-panels {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.research-list-panel ul {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding-left: 16px;
+}
+
+.research-list-panel li {
+  line-height: 1.4;
+}
+
 .run-control-panel {
   display: grid;
   gap: 10px;
@@ -1350,6 +1562,14 @@ button {
     grid-template-columns: minmax(320px, 1fr) 300px;
   }
 
+  .deep-research-workspace {
+    grid-template-columns: 260px minmax(320px, 1fr) 300px;
+  }
+
+  .research-ledger-grid {
+    grid-template-columns: 1fr;
+  }
+
   .market-readout {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -1391,7 +1611,13 @@ button {
     overflow: visible;
   }
 
+  .deep-research-workspace {
+    grid-template-columns: 1fr;
+    overflow: visible;
+  }
+
   .watchlist-rail,
+  .research-report-rail,
   .agent-cockpit {
     border: 0;
     border-bottom: 1px solid #222b34;
@@ -1424,5 +1650,13 @@ button {
 
   .report-strip {
     flex-direction: column;
+  }
+
+  .research-detail-header {
+    display: grid;
+  }
+
+  .research-meta-strip {
+    justify-content: flex-start;
   }
 }

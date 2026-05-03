@@ -5,6 +5,7 @@ import {
   getAgentConversations,
   getDashboardNewsEvents,
   getHistoricalOutcomes,
+  getResearchReports,
   getTransactionSnapshot
 } from "./workspace-data.ts";
 
@@ -55,5 +56,13 @@ describe("workspace seeded domain data", () => {
     assert.ok(outcomes.length >= 3);
     assert.ok(outcomes.every((outcome) => outcome.symbol === "NVDA"));
     assert.ok(outcomes.some((outcome) => outcome.reviewTags.includes("directionally-correct")));
+  });
+
+  it("returns deep research reports for the requested symbol", () => {
+    const reports = getResearchReports("NVDA");
+
+    assert.ok(reports.length >= 3);
+    assert.ok(reports.every((report) => report.symbol === "NVDA"));
+    assert.ok(reports.every((report) => report.ledgerState.length > 0));
   });
 });

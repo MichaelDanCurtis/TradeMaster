@@ -8,7 +8,12 @@ import { TradeTicket } from "@/components/TradeTicket";
 import { createRun, listRunEvents, previewTrade } from "@/lib/api";
 import type { OrderPreview, RunEvent } from "@/lib/types";
 
-export function AgentCockpit({ symbol }: { symbol: string }) {
+type AgentCockpitProps = {
+  symbol: string;
+  showTradeTicket?: boolean;
+};
+
+export function AgentCockpit({ symbol, showTradeTicket = true }: AgentCockpitProps) {
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [runId, setRunId] = useState<string | null>(null);
   const [preview, setPreview] = useState<OrderPreview | null>(null);
@@ -123,7 +128,7 @@ export function AgentCockpit({ symbol }: { symbol: string }) {
         <strong>{events.some((event) => event.type === "decision.created") ? "Overweight / Buy" : "No decision yet"}</strong>
         <p>Final reports will land here before any paper ticket can be approved.</p>
       </section>
-      {activePreview ? <TradeTicket key={activePreview.intent_id} preview={activePreview} /> : null}
+      {showTradeTicket && activePreview ? <TradeTicket key={activePreview.intent_id} preview={activePreview} /> : null}
     </aside>
   );
 }
