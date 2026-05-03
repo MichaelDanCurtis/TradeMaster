@@ -23,8 +23,8 @@ export type MarketProviderCapability =
   | "trade-execution"
   | "trade-stream";
 
-export type MarketInterval = "1s" | "5s" | "10s" | "1m" | "5m" | "15m" | "1h" | "1d";
-export type MarketRange = "1M" | "YTD" | "1Y" | "3Y" | "5Y" | "10Y";
+export type MarketInterval = "1s" | "5s" | "10s" | "1m" | "5m" | "15m" | "1h" | "1d" | "1wk" | "1mo";
+export type MarketRange = "1D" | "5D" | "1M" | "YTD" | "1Y" | "3Y" | "5Y" | "10Y";
 
 export type MarketFeed = "boats" | "iex" | "otc" | "sandbox" | "sip" | "simulated";
 
@@ -210,16 +210,20 @@ const INTERVAL_CONFIG: Record<MarketInterval, { count: number; minutes: number }
   "5m": { count: 156, minutes: 5 },
   "15m": { count: 104, minutes: 15 },
   "1h": { count: 96, minutes: 60 },
-  "1d": { count: 160, minutes: 390 }
+  "1d": { count: 160, minutes: 390 },
+  "1mo": { count: 120, minutes: 390 * 21 },
+  "1wk": { count: 160, minutes: 390 * 5 }
 };
 
-const RANGE_CONFIG: Record<MarketRange, { count: number; label: string }> = {
-  "1M": { count: 22, label: "1 month" },
-  "YTD": { count: 86, label: "year to date" },
-  "1Y": { count: 252, label: "1 year" },
-  "3Y": { count: 756, label: "3 years" },
-  "5Y": { count: 1260, label: "5 years" },
-  "10Y": { count: 2520, label: "10 years" }
+const RANGE_CONFIG: Record<MarketRange, { count: number; interval: MarketInterval; label: string; stepMs: number }> = {
+  "1D": { count: 78, interval: "5m", label: "1 day", stepMs: 5 * 60_000 },
+  "5D": { count: 130, interval: "15m", label: "5 days", stepMs: 15 * 60_000 },
+  "1M": { count: 22, interval: "1d", label: "1 month", stepMs: 86_400_000 },
+  "YTD": { count: 86, interval: "1d", label: "year to date", stepMs: 86_400_000 },
+  "1Y": { count: 252, interval: "1d", label: "1 year", stepMs: 86_400_000 },
+  "3Y": { count: 756, interval: "1d", label: "3 years", stepMs: 86_400_000 },
+  "5Y": { count: 1260, interval: "1d", label: "5 years", stepMs: 86_400_000 },
+  "10Y": { count: 2520, interval: "1d", label: "10 years", stepMs: 86_400_000 }
 };
 
 const SIMULATED_SESSION_END = Date.UTC(2026, 4, 1, 20, 0, 0);
@@ -295,7 +299,7 @@ export function createSimulatedHistoricalSnapshot(symbol: string, range: MarketR
     bars,
     feed: "simulated",
     generatedAt: lastBar.timestamp,
-    interval: "1d",
+    interval: bars[0]?.interval ?? "1d",
     provider: "simulated",
     quote: {
       ask: roundPrice(lastBar.close + spread),
@@ -449,15 +453,15 @@ function createSimulatedHistoricalBars(symbol: string, range: MarketRange, prior
     const wick = profile.volatility * (0.07 + pseudoRandom(seed + index * 29) * 0.16);
     const high = Math.max(open, close) + wick;
     const low = Math.max(0.01, Math.min(open, close) - wick);
-    const timestamp = new Date(endTime - (config.count - 1 - index) * 86_400_000);
+    const timestamp = new Date(endTime - (config.count - 1 - index) * config.stepMs);
     const volumePulse = 0.74 + Math.abs(Math.sin((index + seed) / 21)) * 0.82;
-    const volume = Math.round(profile.volumeBase * volumePulse * 210);
+    const volume = Math.round(profile.volumeBase * volumePulse * intervalVolumeMultiplier(config.interval));
 
     bars.push({
       close: roundPrice(close),
       feed: "simulated",
       high: roundPrice(high),
-      interval: "1d",
+      interval: config.interval,
       low: roundPrice(low),
       open: roundPrice(open),
       provider: "simulated",
@@ -533,6 +537,10 @@ function intervalVolumeMultiplier(interval: MarketInterval): number {
       return 32;
     case "1d":
       return 210;
+    case "1mo":
+      return 4200;
+    case "1wk":
+      return 1050;
     default:
       return 1;
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { EvidenceChart, type EvidenceChartView } from "@/components/EvidenceChart";
 import {
@@ -12,6 +12,7 @@ import {
   createVolumeProfileBins,
   getMarketProviderCatalog,
   normalizePerformanceSeries,
+  type MarketDataSnapshot,
   type MarketRange
 } from "@/lib/market-data";
 import type { NewsEvent } from "@/lib/workspace-data";
@@ -29,6 +30,8 @@ const CHART_VIEWS: Array<{ label: string; value: EvidenceChartView }> = [
 ];
 
 const RANGE_OPTIONS: Array<{ label: string; value: MarketRange }> = [
+  { label: "1D", value: "1D" },
+  { label: "5D", value: "5D" },
   { label: "1M", value: "1M" },
   { label: "YTD", value: "YTD" },
   { label: "1Y", value: "1Y" },
@@ -39,6 +42,13 @@ const RANGE_OPTIONS: Array<{ label: string; value: MarketRange }> = [
 
 const COMPARE_OPTIONS = ["SPY", "AAPL", "MSFT", "NVDA"];
 const MAX_CHART_EVENTS = 20;
+
+type LiveDataState = {
+  comparisonSnapshot: MarketDataSnapshot | null;
+  error: string | null;
+  snapshot: MarketDataSnapshot | null;
+  status: "fallback" | "loading" | "live";
+};
 
 function formatVolume(value: number): string {
   if (value >= 1_000_000_000) {
@@ -78,11 +88,60 @@ export function ChartWorkspace({ newsEvents = [], symbol }: { newsEvents?: NewsE
   const providerCatalog = useMemo(() => getMarketProviderCatalog(), []);
   const effectiveCompareSymbol =
     compareSymbol === symbol ? (COMPARE_OPTIONS.find((option) => option !== symbol) ?? "SPY") : compareSymbol;
-  const snapshot = useMemo(() => createSimulatedHistoricalSnapshot(symbol, chartRange), [chartRange, symbol]);
-  const comparisonSnapshot = useMemo(
+  const simulatedSnapshot = useMemo(() => createSimulatedHistoricalSnapshot(symbol, chartRange), [chartRange, symbol]);
+  const simulatedComparisonSnapshot = useMemo(
     () => createSimulatedHistoricalSnapshot(effectiveCompareSymbol, chartRange),
     [chartRange, effectiveCompareSymbol]
   );
+  const [liveData, setLiveData] = useState<LiveDataState>({
+    comparisonSnapshot: null,
+    error: null,
+    snapshot: null,
+    status: "loading"
+  });
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    setLiveData({
+      comparisonSnapshot: null,
+      error: null,
+      snapshot: null,
+      status: "loading"
+    });
+
+    Promise.all([
+      fetchMarketSnapshot(symbol, chartRange, controller.signal),
+      fetchMarketSnapshot(effectiveCompareSymbol, chartRange, controller.signal)
+    ])
+      .then(([nextSnapshot, nextComparisonSnapshot]) => {
+        setLiveData({
+          comparisonSnapshot: nextComparisonSnapshot,
+          error: null,
+          snapshot: nextSnapshot,
+          status: "live"
+        });
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setLiveData({
+          comparisonSnapshot: null,
+          error: error instanceof Error ? error.message : "Live data request failed",
+          snapshot: null,
+          status: "fallback"
+        });
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [chartRange, effectiveCompareSymbol, symbol]);
+
+  const snapshot = liveData.snapshot ?? simulatedSnapshot;
+  const comparisonSnapshot = liveData.comparisonSnapshot ?? simulatedComparisonSnapshot;
   const priorPeriodBars = useMemo(() => createPriorPeriodBars(symbol, chartRange), [chartRange, symbol]);
   const displayedBars = useMemo(
     () => (chartView === "heikin-ashi" ? createHeikinAshiBars(snapshot.bars) : snapshot.bars),
@@ -132,7 +191,13 @@ export function ChartWorkspace({ newsEvents = [], symbol }: { newsEvents?: NewsE
         </div>
         <div>
           <span>Coverage</span>
-          <strong>OHLC, volume, VWAP, events</strong>
+          <strong>
+            {liveData.status === "loading"
+              ? "Loading real bars"
+              : liveData.status === "live"
+                ? "Real OHLCV, delayed"
+                : "Simulated fallback"}
+          </strong>
         </div>
       </div>
 
@@ -246,7 +311,11 @@ export function ChartWorkspace({ newsEvents = [], symbol }: { newsEvents?: NewsE
           <span className="panel-kicker">Research stance</span>
           <strong>Awaiting latest agent report</strong>
         </div>
-        <p>Run the analyst team from the cockpit to populate a decision, trace, and approval-gated paper order.</p>
+        <p>
+          {liveData.status === "fallback" && liveData.error
+            ? `Live market data unavailable: ${liveData.error}. Simulated bars remain active.`
+            : "Run the analyst team from the cockpit to populate a decision, trace, and approval-gated paper order."}
+        </p>
       </section>
 
       {newsEvents.length > 0 ? (
@@ -274,4 +343,21 @@ export function ChartWorkspace({ newsEvents = [], symbol }: { newsEvents?: NewsE
       ) : null}
     </section>
   );
+}
+
+async function fetchMarketSnapshot(
+  symbol: string,
+  range: MarketRange,
+  signal: AbortSignal
+): Promise<MarketDataSnapshot> {
+  const response = await fetch(`/api/market-data?symbol=${encodeURIComponent(symbol)}&range=${range}`, {
+    signal
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(payload?.error ?? `Market data request failed: ${response.status}`);
+  }
+
+  return response.json() as Promise<MarketDataSnapshot>;
 }

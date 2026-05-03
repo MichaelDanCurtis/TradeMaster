@@ -125,7 +125,7 @@ export function EvidenceChart({
         borderColor: "rgba(126, 148, 170, 0.32)",
         minBarSpacing: 4,
         rightOffset: 8,
-        secondsVisible: chartRange === "1M",
+        secondsVisible: chartRange === "1D" || chartRange === "5D",
         timeVisible: true,
         tickMarkFormatter: (time: Time) => formatTickMark(String(time), chartRange)
       }

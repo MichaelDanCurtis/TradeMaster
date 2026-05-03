@@ -62,10 +62,13 @@ describe("market data normalization", () => {
   });
 
   it("creates deterministic historical snapshots for standard return ranges", () => {
+    const oneDay = createSimulatedHistoricalSnapshot("NVDA", "1D");
     const oneMonth = createSimulatedHistoricalSnapshot("NVDA", "1M");
     const tenYear = createSimulatedHistoricalSnapshot("NVDA", "10Y");
     const repeated = createSimulatedHistoricalSnapshot("NVDA", "10Y");
 
+    assert.equal(oneDay.bars.length, 78);
+    assert.equal(oneDay.interval, "5m");
     assert.equal(oneMonth.bars.length, 22);
     assert.equal(tenYear.bars.length, 2520);
     assert.deepEqual(tenYear.bars, repeated.bars);
@@ -141,6 +144,7 @@ describe("market data normalization", () => {
     assert.ok(catalog.webull.roles.includes("market-data"));
     assert.ok(catalog.webull.roles.includes("brokerage"));
     assert.ok(catalog.webull.capabilities.includes("trade-execution"));
+    assert.ok(!("yahoo" in catalog));
     assert.deepEqual(catalog.massive.roles, ["market-data"]);
     assert.deepEqual(catalog.plaid.roles, ["portfolio"]);
     assert.ok(catalog.databento.capabilities.includes("tick-history"));
