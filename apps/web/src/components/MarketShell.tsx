@@ -6,6 +6,7 @@ import { AgentsWorkspace } from "@/components/AgentsWorkspace";
 import { DashboardWorkspace } from "@/components/DashboardWorkspace";
 import { DeepResearchWorkspace } from "@/components/DeepResearchWorkspace";
 import { HistoricalsWorkspace } from "@/components/HistoricalsWorkspace";
+import { MarketTicker } from "@/components/MarketTicker";
 import { SettingsDrawer } from "@/components/SettingsDrawer";
 import { ToastStack } from "@/components/ToastStack";
 import { TransactionsWorkspace } from "@/components/TransactionsWorkspace";
@@ -61,6 +62,7 @@ export function MarketShell() {
           <span className="session-clock">Local research session</span>
         </div>
       </header>
+      <MarketTicker />
       <WorkspaceNav
         activeWorkspace={shellState.activeWorkspace}
         settingsOpen={shellState.settingsOpen}

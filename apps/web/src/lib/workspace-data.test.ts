@@ -7,11 +7,25 @@ import {
   getConversationActions,
   getDashboardNewsEvents,
   getHistoricalOutcomes,
+  getMarketTickerItems,
   getResearchReports,
   getTransactionSnapshot
 } from "./workspace-data.ts";
 
 describe("workspace seeded domain data", () => {
+  it("returns market ticker items with compact sparkline data", () => {
+    const tickerItems = getMarketTickerItems();
+
+    assert.equal(tickerItems.length, 6);
+    assert.deepEqual(
+      tickerItems.map((item) => item.label),
+      ["S&P 500", "Dow Jones", "Nasdaq", "TipRanks 50", "Bitcoin", "Ethereum"]
+    );
+    assert.ok(tickerItems.every((item) => item.sparkline.length >= 8));
+    assert.ok(tickerItems.some((item) => item.changePercent < 0));
+    assert.ok(tickerItems.some((item) => item.changePercent > 0));
+  });
+
   it("returns relevant NVDA dashboard news events in descending order", () => {
     const events = getDashboardNewsEvents("NVDA");
 

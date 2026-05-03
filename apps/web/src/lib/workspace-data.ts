@@ -7,6 +7,15 @@ export type ActionRequestType = "proceed" | "ask-follow-up" | "create-report" | 
 export type ActionRequestStatus = "available" | "requires-approval" | "queued" | "complete";
 export type NotificationSeverity = "info" | "success" | "warning" | "critical";
 
+export type MarketTickerItem = {
+  id: string;
+  label: string;
+  value: number;
+  change: number;
+  changePercent: number;
+  sparkline: number[];
+};
+
 export type NewsEvent = {
   id: string;
   symbol: string;
@@ -138,6 +147,57 @@ type ActionRequestTemplate = Omit<ActionRequest, "id" | "conversationId" | "labe
   labelTemplate: string;
   backendIntentIdTemplate?: string;
 };
+
+const MARKET_TICKER_ITEMS: MarketTickerItem[] = [
+  {
+    id: "spx",
+    label: "S&P 500",
+    value: 7230.12,
+    change: 21.11,
+    changePercent: 0.29,
+    sparkline: [7196, 7211, 7238, 7224, 7244, 7237, 7250, 7231, 7229, 7236, 7221, 7230]
+  },
+  {
+    id: "dji",
+    label: "Dow Jones",
+    value: 49499.27,
+    change: -152.871,
+    changePercent: -0.31,
+    sparkline: [49780, 49712, 49682, 49610, 49592, 49541, 49588, 49520, 49498, 49430, 49475, 49499]
+  },
+  {
+    id: "ndx",
+    label: "Nasdaq",
+    value: 27710.36,
+    change: 258.238,
+    changePercent: 0.94,
+    sparkline: [27380, 27520, 27618, 27692, 27736, 27688, 27780, 27715, 27742, 27708, 27732, 27710]
+  },
+  {
+    id: "tipranks50",
+    label: "TipRanks 50",
+    value: 3520.06,
+    change: 3.88,
+    changePercent: 0.11,
+    sparkline: [3508, 3516, 3522, 3519, 3527, 3521, 3526, 3518, 3524, 3519, 3523, 3520]
+  },
+  {
+    id: "btc",
+    label: "Bitcoin",
+    value: 78113.19,
+    change: -556.365,
+    changePercent: -0.71,
+    sparkline: [78680, 78420, 78560, 78210, 78330, 78190, 78288, 78070, 78152, 77980, 78240, 78113]
+  },
+  {
+    id: "eth",
+    label: "Ethereum",
+    value: 2297.6,
+    change: -19.048,
+    changePercent: -0.82,
+    sparkline: [2322, 2314, 2328, 2310, 2304, 2312, 2298, 2306, 2291, 2300, 2294, 2297.6]
+  }
+];
 
 const NEWS_TEMPLATES: NewsTemplate[] = [
   {
@@ -775,6 +835,13 @@ export function getInitialNotifications(symbol: string): TerminalNotification[] 
       ttl: 1200
     }
   ];
+}
+
+export function getMarketTickerItems(): MarketTickerItem[] {
+  return MARKET_TICKER_ITEMS.map((item) => ({
+    ...item,
+    sparkline: [...item.sparkline]
+  }));
 }
 
 function normalizeSymbol(symbol: string): string {
