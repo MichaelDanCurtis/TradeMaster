@@ -65,4 +65,17 @@ describe("workspace seeded domain data", () => {
     assert.ok(reports.every((report) => report.symbol === "NVDA"));
     assert.ok(reports.every((report) => report.ledgerState.length > 0));
   });
+
+  it("returns independent deep research report arrays", () => {
+    const reports = getResearchReports("NVDA");
+    reports[0].ledgerState.push("mutated ledger entry");
+    reports[0].riskNotes.push("mutated risk note");
+    reports[0].synthesisSteps.push("mutated synthesis step");
+
+    const freshReports = getResearchReports("NVDA");
+
+    assert.ok(!freshReports[0].ledgerState.includes("mutated ledger entry"));
+    assert.ok(!freshReports[0].riskNotes.includes("mutated risk note"));
+    assert.ok(!freshReports[0].synthesisSteps.includes("mutated synthesis step"));
+  });
 });

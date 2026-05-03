@@ -542,7 +542,10 @@ export function getResearchReports(symbol: string): ResearchReport[] {
     ...report,
     id: `${normalizedSymbol.toLowerCase()}-research-${String(index + 1).padStart(2, "0")}`,
     symbol: normalizedSymbol,
-    title: report.titleTemplate.replace("{symbol}", normalizedSymbol)
+    title: report.titleTemplate.replace("{symbol}", normalizedSymbol),
+    ledgerState: [...report.ledgerState],
+    riskNotes: [...report.riskNotes],
+    synthesisSteps: [...report.synthesisSteps]
   })).filter((report) => report.symbol === normalizedSymbol);
 }
 
