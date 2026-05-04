@@ -9,6 +9,10 @@ import {
   getHistoricalOutcomes,
   getMarketTickerItems,
   getPrivateOfficeBrief,
+  getPrivateOfficeChannelActions,
+  getPrivateOfficeChannelMessages,
+  getPrivateOfficeChannels,
+  getPrivateOfficeGoalDossier,
   getPrivateOfficeRunQueue,
   getPrivateOfficeTeams,
   getResearchReports,
@@ -161,5 +165,40 @@ describe("workspace seeded domain data", () => {
     assert.ok(!getPrivateOfficeTeams("NVDA")[0].responsibilities.includes("mutated responsibility"));
     assert.ok(!getPrivateOfficeBrief("NVDA").priorityItems.includes("mutated priority"));
     assert.notEqual(getPrivateOfficeRunQueue("NVDA")[0].steps[0].status, "waiting");
+  });
+
+  it("returns private-office team channels with triage metadata", () => {
+    const channels = getPrivateOfficeChannels("NVDA");
+    const ids = channels.map((channel) => channel.id);
+
+    assert.deepEqual(ids.slice(0, 4), ["advisor", "goals", "capital-committee", "communications"]);
+    assert.ok(channels.some((channel) => channel.notifyMichael === true));
+    assert.ok(channels.some((channel) => channel.delivery === "internal"));
+    assert.ok(channels.every((channel) => channel.a2uiSurface.length > 0));
+  });
+
+  it("returns private-office channel messages and actions", () => {
+    const messages = getPrivateOfficeChannelMessages("goals", "NVDA");
+    const actions = getPrivateOfficeChannelActions("goals", "NVDA");
+
+    assert.ok(messages.some((message) => message.author === "Goal Steward"));
+    assert.ok(actions.some((action) => action.status === "requires-approval"));
+    assert.ok(actions.some((action) => action.delivery === "internal"));
+  });
+
+  it("returns independent yacht goal dossier data", () => {
+    const dossier = getPrivateOfficeGoalDossier("NVDA");
+
+    assert.ok(dossier.goalName.toLowerCase().includes("yacht"));
+    assert.ok(dossier.assetTarget.includes("68"));
+    assert.ok(dossier.blockers.some((blocker) => blocker.owner === "Tax & Structure Body"));
+    assert.ok(dossier.capitalPath.some((item) => item.includes("NVDA")));
+
+    dossier.blockers[0].detail = "mutated";
+    dossier.capitalPath.push("mutated");
+
+    const fresh = getPrivateOfficeGoalDossier("NVDA");
+    assert.notEqual(fresh.blockers[0].detail, "mutated");
+    assert.ok(!fresh.capitalPath.includes("mutated"));
   });
 });

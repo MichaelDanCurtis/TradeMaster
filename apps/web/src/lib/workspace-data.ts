@@ -176,6 +176,60 @@ export type PrivateOfficeRunQueueItem = {
   }>;
 };
 
+export type PrivateOfficeChannelUrgency = "low" | "normal" | "watch" | "urgent";
+export type PrivateOfficeChannelDelivery = "internal" | "digest" | "notify";
+export type PrivateOfficeChannel = {
+  id: string;
+  teamId: string;
+  label: string;
+  description: string;
+  urgency: PrivateOfficeChannelUrgency;
+  delivery: PrivateOfficeChannelDelivery;
+  notifyMichael: boolean;
+  unreadCount: number;
+  lastActivity: string;
+  a2uiSurface: string;
+};
+
+export type PrivateOfficeChannelMessage = {
+  id: string;
+  channelId: string;
+  author: string;
+  role: string;
+  body: string;
+  timestamp: string;
+  surface?: "morning-brief" | "goal-dossier" | "approval-triage" | "document-checklist";
+};
+
+export type PrivateOfficeChannelAction = {
+  id: string;
+  channelId: string;
+  label: string;
+  detail: string;
+  status: "available" | "queued" | "requires-approval" | "complete";
+  delivery: PrivateOfficeChannelDelivery;
+  requiresApproval: boolean;
+};
+
+export type PrivateOfficeGoalDossier = {
+  id: string;
+  goalName: string;
+  assetTarget: string;
+  status: string;
+  desiredLocation: string;
+  targetWindow: string;
+  fundingProgress: number;
+  estimatedAcquisitionCost: string;
+  operatingCostWatch: string;
+  capitalPath: string[];
+  blockers: Array<{
+    owner: string;
+    severity: "info" | "watch" | "urgent";
+    detail: string;
+  }>;
+  advisorDependencies: string[];
+};
+
 export type TerminalNotification = {
   id: string;
   severity: NotificationSeverity;
@@ -192,6 +246,16 @@ type ResearchReportTemplate = Omit<ResearchReport, "id" | "symbol" | "title"> & 
   titleTemplate: string;
 };
 type PrivateOfficeBriefTemplate = Omit<PrivateOfficeBrief, "symbol">;
+type PrivateOfficeChannelTemplate = Omit<PrivateOfficeChannel, "description"> & {
+  descriptionTemplate: string;
+};
+type PrivateOfficeChannelMessageTemplate = Omit<PrivateOfficeChannelMessage, "body" | "channelId" | "id"> & {
+  bodyTemplate: string;
+};
+type PrivateOfficeChannelActionTemplate = Omit<PrivateOfficeChannelAction, "channelId" | "detail" | "id" | "label"> & {
+  detailTemplate: string;
+  labelTemplate: string;
+};
 type AgentMessageTemplate = Omit<AgentMessage, "id" | "conversationId" | "body"> & {
   bodyTemplate: string;
 };
@@ -743,6 +807,321 @@ const PRIVATE_OFFICE_RUN_QUEUE: PrivateOfficeRunQueueItem[] = [
   }
 ];
 
+const PRIVATE_OFFICE_CHANNELS: PrivateOfficeChannelTemplate[] = [
+  {
+    id: "advisor",
+    teamId: "advisor",
+    label: "Advisor Synthesis",
+    descriptionTemplate: "Daily private-office summary across goals, capital, documents, and {symbol} research.",
+    urgency: "watch",
+    delivery: "digest",
+    notifyMichael: true,
+    unreadCount: 4,
+    lastActivity: "2026-05-03T07:08:00.000Z",
+    a2uiSurface: "Morning brief"
+  },
+  {
+    id: "goals",
+    teamId: "goals",
+    label: "Goals Team",
+    descriptionTemplate: "Material goal tracking, including the yacht acquisition path and {symbol} funding implications.",
+    urgency: "watch",
+    delivery: "digest",
+    notifyMichael: true,
+    unreadCount: 3,
+    lastActivity: "2026-05-03T07:01:00.000Z",
+    a2uiSurface: "Goal dossier"
+  },
+  {
+    id: "capital-committee",
+    teamId: "capital-committee",
+    label: "Capital Committee",
+    descriptionTemplate: "CFO-style review of cash, risk, losses, opportunity cost, and {symbol} capital allocation.",
+    urgency: "urgent",
+    delivery: "notify",
+    notifyMichael: true,
+    unreadCount: 2,
+    lastActivity: "2026-05-03T06:55:00.000Z",
+    a2uiSurface: "Approval triage"
+  },
+  {
+    id: "communications",
+    teamId: "communications",
+    label: "Communications Team",
+    descriptionTemplate: "Routes internal agent notes, Hermes-sanitized messages, and external advisor records.",
+    urgency: "normal",
+    delivery: "internal",
+    notifyMichael: false,
+    unreadCount: 1,
+    lastActivity: "2026-05-03T06:48:00.000Z",
+    a2uiSurface: "Inbox triage"
+  },
+  {
+    id: "property",
+    teamId: "property",
+    label: "Asset & Property",
+    descriptionTemplate: "Asset registry, documents, insurance, maintenance, and liability checks for houses, vehicles, boats, and firearms.",
+    urgency: "normal",
+    delivery: "internal",
+    notifyMichael: false,
+    unreadCount: 2,
+    lastActivity: "2026-05-03T06:41:00.000Z",
+    a2uiSurface: "Document checklist"
+  },
+  {
+    id: "tax-structure",
+    teamId: "tax-structure",
+    label: "Tax & Structure",
+    descriptionTemplate: "CPA-reviewable tax, entity, ownership, wash-sale, and holding-period notes.",
+    urgency: "watch",
+    delivery: "digest",
+    notifyMichael: true,
+    unreadCount: 2,
+    lastActivity: "2026-05-03T06:39:00.000Z",
+    a2uiSurface: "Tax issue card"
+  },
+  {
+    id: "research-bodies",
+    teamId: "research-bodies",
+    label: "Research Bodies",
+    descriptionTemplate: "Always-on market, smart-money, company, macro, filings, news, and options-flow watchers for {symbol}.",
+    urgency: "normal",
+    delivery: "internal",
+    notifyMichael: false,
+    unreadCount: 5,
+    lastActivity: "2026-05-03T06:33:00.000Z",
+    a2uiSurface: "Evidence board"
+  },
+  {
+    id: "documents",
+    teamId: "documents",
+    label: "Document Vault",
+    descriptionTemplate: "Missing-document queue, advisor guidance notes, backup readiness, and source/date/confidence metadata.",
+    urgency: "low",
+    delivery: "internal",
+    notifyMichael: false,
+    unreadCount: 0,
+    lastActivity: "2026-05-03T06:20:00.000Z",
+    a2uiSurface: "Vault checklist"
+  }
+];
+
+const PRIVATE_OFFICE_CHANNEL_MESSAGES: Record<string, PrivateOfficeChannelMessageTemplate[]> = {
+  advisor: [
+    {
+      author: "Advisor Synthesis",
+      role: "Chief of staff",
+      bodyTemplate:
+        "This morning's priority is turning Wealth Agents from market terminal into private-office console. {symbol} remains research context, not the center of the product.",
+      timestamp: "2026-05-03T07:08:00.000Z",
+      surface: "morning-brief"
+    },
+    {
+      author: "Advisor Synthesis",
+      role: "Digest router",
+      bodyTemplate:
+        "I am holding low-priority market chatter inside the internal inbox and only escalating goal, capital, backup, and Hermes-boundary items.",
+      timestamp: "2026-05-03T07:09:00.000Z"
+    }
+  ],
+  goals: [
+    {
+      author: "Goal Steward",
+      role: "Material goals",
+      bodyTemplate:
+        "The yacht goal is now a real dossier. {symbol} can help fund it, but the funding path needs tax, legal, insurance, and operating-cost checkpoints before action.",
+      timestamp: "2026-05-03T07:01:00.000Z",
+      surface: "goal-dossier"
+    },
+    {
+      author: "Capital Path Planner",
+      role: "Goal feasibility",
+      bodyTemplate:
+        "I need Capital Committee to provide a conservative six-month and twelve-month trajectory before this goal moves from planning to shopping.",
+      timestamp: "2026-05-03T07:03:00.000Z"
+    }
+  ],
+  "capital-committee": [
+    {
+      author: "Chief Capital Officer",
+      role: "Capital committee",
+      bodyTemplate:
+        "No live money movement should be attached to {symbol} until Webull data is configured and the approval policy can show max loss, opportunity cost, tax drag, and goal impact.",
+      timestamp: "2026-05-03T06:55:00.000Z",
+      surface: "approval-triage"
+    }
+  ],
+  communications: [
+    {
+      author: "Communications Lead",
+      role: "Attention router",
+      bodyTemplate:
+        "Hermes may route sanitized messages, but Wealth Agents remains the canonical journal for approvals, advisor notes, and material decisions.",
+      timestamp: "2026-05-03T06:48:00.000Z"
+    }
+  ],
+  property: [
+    {
+      author: "Document Custodian",
+      role: "Asset records",
+      bodyTemplate:
+        "The property registry should start with categories only: houses, cars, boats, firearms, equipment, insurance, registrations, and maintenance events.",
+      timestamp: "2026-05-03T06:41:00.000Z",
+      surface: "document-checklist"
+    }
+  ],
+  "tax-structure": [
+    {
+      author: "Tax CFO",
+      role: "Tax review",
+      bodyTemplate:
+        "Yacht ownership structure needs CPA and attorney review before the system presents any entity recommendation as actionable.",
+      timestamp: "2026-05-03T06:39:00.000Z"
+    }
+  ],
+  "research-bodies": [
+    {
+      author: "Smart Money Body",
+      role: "Always-on watcher",
+      bodyTemplate:
+        "{symbol} research should mark source quality and disclosure lag before it reaches the Capital Committee.",
+      timestamp: "2026-05-03T06:33:00.000Z"
+    }
+  ],
+  documents: [
+    {
+      author: "Vault Steward",
+      role: "Document vault",
+      bodyTemplate:
+        "The next document-vault slice should store document categories, missing status, source date, advisor source, and backup state before uploads are added.",
+      timestamp: "2026-05-03T06:20:00.000Z"
+    }
+  ]
+};
+
+const PRIVATE_OFFICE_CHANNEL_ACTIONS: Record<string, PrivateOfficeChannelActionTemplate[]> = {
+  advisor: [
+    {
+      labelTemplate: "Create morning digest",
+      detailTemplate: "Package Goals, Capital Committee, Property, Tax, and Communications signals into one A2UI morning brief.",
+      status: "available",
+      delivery: "digest",
+      requiresApproval: false
+    }
+  ],
+  goals: [
+    {
+      labelTemplate: "Open yacht goal dossier",
+      detailTemplate: "Review funding path, blockers, advisor dependencies, and {symbol} capital impact.",
+      status: "available",
+      delivery: "internal",
+      requiresApproval: false
+    },
+    {
+      labelTemplate: "Request Capital Committee trajectory",
+      detailTemplate: "Ask the CFO team for conservative six-month and twelve-month funding estimates.",
+      status: "requires-approval",
+      delivery: "internal",
+      requiresApproval: true
+    }
+  ],
+  "capital-committee": [
+    {
+      labelTemplate: "Draft approval policy",
+      detailTemplate: "Define max loss, concentration, opportunity cost, and paper/live gates for future {symbol} recommendations.",
+      status: "requires-approval",
+      delivery: "notify",
+      requiresApproval: true
+    }
+  ],
+  communications: [
+    {
+      labelTemplate: "Keep Hermes boundary internal",
+      detailTemplate: "Record Hermes as a router only, without broker, banking, vault, or approval authority.",
+      status: "complete",
+      delivery: "internal",
+      requiresApproval: false
+    }
+  ],
+  property: [
+    {
+      labelTemplate: "Create asset registry shell",
+      detailTemplate: "Prepare categories for houses, cars, boats, firearms, equipment, insurance, and maintenance.",
+      status: "queued",
+      delivery: "internal",
+      requiresApproval: false
+    }
+  ],
+  "tax-structure": [
+    {
+      labelTemplate: "Record CPA-review dependency",
+      detailTemplate: "Mark yacht ownership and {symbol} liquidation tax planning as professional-review items.",
+      status: "available",
+      delivery: "digest",
+      requiresApproval: false
+    }
+  ],
+  "research-bodies": [
+    {
+      labelTemplate: "Grade source quality",
+      detailTemplate: "Classify smart-money and news evidence by recency, disclosure lag, and confidence before capital review.",
+      status: "available",
+      delivery: "internal",
+      requiresApproval: false
+    }
+  ],
+  documents: [
+    {
+      labelTemplate: "Create missing-doc checklist",
+      detailTemplate: "List document categories before accepting uploads into the vault.",
+      status: "queued",
+      delivery: "internal",
+      requiresApproval: false
+    }
+  ]
+};
+
+const PRIVATE_OFFICE_GOAL_DOSSIER: PrivateOfficeGoalDossier = {
+  id: "absolute-navetta-68-yacht",
+  goalName: "Acquire a 68-foot yacht",
+  assetTarget: "Absolute / Navetta 68 class yacht",
+  status: "Planning and feasibility",
+  desiredLocation: "Hawaii",
+  targetWindow: "6-12 month feasibility window after Capital Committee review",
+  fundingProgress: 42,
+  estimatedAcquisitionCost: "Market price, survey, delivery, registration, taxes, insurance, outfitting, and reserve still need source-backed estimates.",
+  operatingCostWatch: "Moorage, insurance, crew/management, fuel, maintenance, haul-outs, storm exposure, and entity operating costs are unresolved.",
+  capitalPath: [
+    "{symbol} upside may accelerate the goal, but only under concentration, liquidity, and tax-drag limits.",
+    "Capital Committee must compare yacht funding against cash reserves, treasuries, SPY/QQQ exposure, and business capital needs.",
+    "Treasury Team should define a reserve floor before any shopping or financing step.",
+    "Goal remains planning-only until CPA, attorney, insurance, and yacht broker inputs are recorded."
+  ],
+  blockers: [
+    {
+      owner: "Tax & Structure Body",
+      severity: "urgent",
+      detail: "Ownership model needs CPA and attorney review before personal, LLC, trust, operating-company, or charter structures are compared."
+    },
+    {
+      owner: "Insurance & Liability Team",
+      severity: "watch",
+      detail: "Hawaii moorage, storm exposure, operator coverage, umbrella limits, and exclusions need policy quotes."
+    },
+    {
+      owner: "Property Team",
+      severity: "watch",
+      detail: "Survey, title, registration, marina agreement, maintenance reserve, and operating checklist are not yet in the vault."
+    }
+  ],
+  advisorDependencies: [
+    "CPA guidance on entity ownership, business use, depreciation, and tax reporting.",
+    "Attorney guidance on liability separation, maritime ownership, contracts, and estate/trust alignment.",
+    "Insurance broker guidance on yacht, umbrella, crew, charter, and Hawaii-specific exclusions.",
+    "Yacht broker guidance on acquisition cost, survey, delivery, moorage, and maintenance expectations."
+  ]
+};
+
 const CONVERSATION_MESSAGE_TEMPLATES: Record<string, AgentMessageTemplate[]> = {
   "research-lead": [
     {
@@ -1077,6 +1456,59 @@ export function getPrivateOfficeRunQueue(symbol: string): PrivateOfficeRunQueueI
     title: item.title.replaceAll("{symbol}", normalizedSymbol),
     steps: item.steps.map((step) => ({ ...step }))
   }));
+}
+
+export function getPrivateOfficeChannels(symbol: string): PrivateOfficeChannel[] {
+  const normalizedSymbol = normalizeSymbol(symbol);
+
+  return PRIVATE_OFFICE_CHANNELS.map((channel) => ({
+    ...channel,
+    description: channel.descriptionTemplate.replaceAll("{symbol}", normalizedSymbol)
+  }));
+}
+
+export function getPrivateOfficeChannelMessages(
+  channelId: string,
+  symbol: string
+): PrivateOfficeChannelMessage[] {
+  const normalizedSymbol = normalizeSymbol(symbol);
+  const templates = PRIVATE_OFFICE_CHANNEL_MESSAGES[channelId] ?? PRIVATE_OFFICE_CHANNEL_MESSAGES.advisor ?? [];
+
+  return templates.map((message, index) => ({
+    ...message,
+    id: `${channelId}-message-${String(index + 1).padStart(2, "0")}`,
+    channelId,
+    body: message.bodyTemplate.replaceAll("{symbol}", normalizedSymbol)
+  }));
+}
+
+export function getPrivateOfficeChannelActions(
+  channelId: string,
+  symbol: string
+): PrivateOfficeChannelAction[] {
+  const normalizedSymbol = normalizeSymbol(symbol);
+  const templates = PRIVATE_OFFICE_CHANNEL_ACTIONS[channelId] ?? [];
+
+  return templates.map((action, index) => ({
+    ...action,
+    id: `${channelId}-action-${String(index + 1).padStart(2, "0")}`,
+    channelId,
+    detail: action.detailTemplate.replaceAll("{symbol}", normalizedSymbol),
+    label: action.labelTemplate.replaceAll("{symbol}", normalizedSymbol)
+  }));
+}
+
+export function getPrivateOfficeGoalDossier(symbol: string): PrivateOfficeGoalDossier {
+  const normalizedSymbol = normalizeSymbol(symbol);
+
+  return {
+    ...PRIVATE_OFFICE_GOAL_DOSSIER,
+    capitalPath: PRIVATE_OFFICE_GOAL_DOSSIER.capitalPath.map((item) =>
+      item.replaceAll("{symbol}", normalizedSymbol)
+    ),
+    blockers: PRIVATE_OFFICE_GOAL_DOSSIER.blockers.map((blocker) => ({ ...blocker })),
+    advisorDependencies: [...PRIVATE_OFFICE_GOAL_DOSSIER.advisorDependencies]
+  };
 }
 
 export function getInitialNotifications(symbol: string): TerminalNotification[] {
