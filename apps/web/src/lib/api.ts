@@ -1,4 +1,14 @@
-import type { BrokerMode, OrderPreview, OrderSide, ProviderCatalog, RunCreated, RunEvent } from "./types";
+import type {
+  BrokerMode,
+  OrderPreview,
+  OrderSide,
+  ProviderCatalog,
+  ProviderConfig,
+  ProviderConfigCatalog,
+  RunCreated,
+  RunEvent,
+  SnapshotManifestRecord
+} from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8787";
 
@@ -39,6 +49,59 @@ export async function listProviders(): Promise<ProviderCatalog> {
 
   if (!response.ok) {
     throw new Error(`Failed to list providers: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function listProviderConfigs(): Promise<ProviderConfigCatalog> {
+  const response = await fetch(`${API_BASE}/api/provider-configs`);
+
+  if (!response.ok) {
+    throw new Error(`Failed to list provider configs: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function updateProviderConfig(
+  providerId: string,
+  input: {
+    enabled?: boolean;
+    secretRef?: string | null;
+  }
+): Promise<ProviderConfig> {
+  const response = await fetch(`${API_BASE}/api/provider-configs/${providerId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      enabled: input.enabled,
+      secret_ref: input.secretRef
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to update provider config: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function createSnapshot(input: {
+  encryptionMode: string;
+  offsiteTarget?: string | null;
+}): Promise<SnapshotManifestRecord> {
+  const response = await fetch(`${API_BASE}/api/snapshots`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      encryption_mode: input.encryptionMode,
+      offsite_target: input.offsiteTarget ?? null
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to create snapshot: ${response.status}`);
   }
 
   return response.json();
