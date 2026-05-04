@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Literal
+from urllib.parse import unquote
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,6 +17,7 @@ from tradingagents.ui.events import RunConfig, RunCreated, RunEvent
 from tradingagents.ui.providers import ProviderCatalog, get_provider_catalog
 from tradingagents.ui.repository import UiRepository
 from tradingagents.ui.runner import TradingRunService
+from tradingagents.ui.snapshots import create_snapshot_manifest
 
 
 class TradePreviewRequest(BaseModel):
@@ -26,6 +29,27 @@ class TradePreviewRequest(BaseModel):
 
 class ApprovalRequest(BaseModel):
     actor: str = "local-user"
+
+
+class ProviderConfigUpdateRequest(BaseModel):
+    enabled: bool | None = None
+    secret_ref: str | None = None
+    config: dict[str, object] | None = None
+    health: dict[str, object] | None = None
+    status: str | None = None
+
+
+class PrivateOfficeEventRequest(BaseModel):
+    event_type: str
+    summary: str
+    actor: str
+    entity_id: str | None = None
+    payload: dict[str, object] = Field(default_factory=dict)
+
+
+class SnapshotRequest(BaseModel):
+    encryption_mode: str = "none"
+    offsite_target: str | None = None
 
 
 def create_app(database_url: str | None = None) -> FastAPI:
@@ -64,6 +88,63 @@ def create_app(database_url: str | None = None) -> FastAPI:
     @app.get("/api/providers", response_model=ProviderCatalog)
     def list_providers() -> ProviderCatalog:
         return get_provider_catalog()
+
+    @app.get("/api/provider-configs")
+    def list_provider_configs(repo: UiRepository = Depends(repository)):
+        return {"providers": repo.list_provider_configs()}
+
+    @app.post("/api/provider-configs/{provider_id}")
+    def update_provider_config(
+        provider_id: str,
+        request: ProviderConfigUpdateRequest,
+        repo: UiRepository = Depends(repository),
+    ):
+        try:
+            return repo.upsert_provider_config(
+                provider_id=provider_id,
+                enabled=request.enabled,
+                secret_ref=request.secret_ref,
+                config=request.config,
+                health=request.health,
+                status=request.status,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Provider not found") from exc
+
+    @app.post("/api/private-office/events")
+    def append_private_office_event(
+        request: PrivateOfficeEventRequest,
+        repo: UiRepository = Depends(repository),
+    ):
+        return repo.append_private_office_event(
+            event_type=request.event_type,
+            summary=request.summary,
+            actor=request.actor,
+            entity_id=request.entity_id,
+            payload=request.payload,
+        )
+
+    @app.post("/api/snapshots")
+    def create_snapshot(
+        request: SnapshotRequest,
+        repo: UiRepository = Depends(repository),
+    ):
+        try:
+            database_path = _sqlite_database_path(resolved_database_url)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        manifest = create_snapshot_manifest(
+            database_path=database_path,
+            encryption_mode=request.encryption_mode,
+            offsite_target=request.offsite_target,
+        )
+        return repo.store_snapshot_manifest(
+            snapshot_id=manifest["snapshot_id"],
+            storage_profile=manifest["storage_profile"],
+            encryption_mode=manifest["encryption_mode"],
+            offsite_target=manifest["offsite_target"],
+            manifest=manifest,
+        )
 
     @app.post("/api/runs", response_model=RunCreated)
     def create_run(
@@ -145,3 +226,10 @@ def create_app(database_url: str | None = None) -> FastAPI:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     return app
+
+
+def _sqlite_database_path(database_url: str) -> Path:
+    prefix = "sqlite:///"
+    if not database_url.startswith(prefix):
+        raise ValueError("snapshot endpoint currently supports sqlite:/// database URLs")
+    return Path(unquote(database_url.removeprefix(prefix)))

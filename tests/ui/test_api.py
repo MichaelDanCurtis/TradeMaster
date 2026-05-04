@@ -36,6 +36,61 @@ def test_provider_registry_endpoint_returns_roles_and_capabilities(tmp_path: Pat
     assert by_id["openai-llm"]["role"] == "llm"
 
 
+def test_provider_config_endpoint_updates_secret_reference(tmp_path: Path):
+    client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
+
+    updated = client.post(
+        "/api/provider-configs/alpaca-market-data",
+        json={
+            "enabled": True,
+            "secret_ref": "keychain:alpaca:paper",
+            "config": {"feed": "iex", "raw_secret": "must-not-survive"},
+        },
+    )
+    listed = client.get("/api/provider-configs")
+    by_id = {provider["provider_id"]: provider for provider in listed.json()["providers"]}
+
+    assert updated.status_code == 200
+    assert updated.json()["secret_ref"] == "keychain:alpaca:paper"
+    assert "raw_secret" not in updated.json()["config"]
+    assert by_id["alpaca-market-data"]["enabled"] is True
+
+
+def test_private_office_event_endpoint_appends_ledger_event(tmp_path: Path):
+    client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
+
+    response = client.post(
+        "/api/private-office/events",
+        json={
+            "event_type": "agent.message.created",
+            "summary": "Goals team updated the yacht dossier.",
+            "actor": "Goal Steward",
+            "entity_id": "goal_yacht",
+            "payload": {"surface": "goal-dossier"},
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["event_type"] == "agent.message.created"
+    assert response.json()["payload"] == {"surface": "goal-dossier"}
+
+
+def test_snapshot_endpoint_creates_manifest_for_local_sqlite(tmp_path: Path):
+    database_url = f"sqlite:///{tmp_path / 'ui.db'}"
+    client = TestClient(create_app(database_url))
+
+    response = client.post(
+        "/api/snapshots",
+        json={"encryption_mode": "age", "offsite_target": "backblaze-b2"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["storage_profile"] == "sqlite-local"
+    assert response.json()["encryption_mode"] == "age"
+    assert response.json()["manifest"]["files"][0]["path"] == str(tmp_path / "ui.db")
+    assert len(response.json()["manifest"]["files"][0]["sha256"]) == 64
+
+
 def test_create_run_and_fetch_events(tmp_path: Path):
     client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
 
