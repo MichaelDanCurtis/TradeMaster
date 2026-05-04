@@ -60,6 +60,58 @@ def test_provider_config_endpoint_updates_secret_reference(tmp_path: Path):
     assert by_id["alpaca-market-data"]["enabled"] is True
 
 
+def test_provider_secret_health_check_reports_availability_and_audits(
+    tmp_path: Path,
+    monkeypatch,
+):
+    database_url = f"sqlite:///{tmp_path / 'ui.db'}"
+    client = TestClient(create_app(database_url))
+    _, session_factory = create_session_factory(database_url)
+    repo = UiRepository(session_factory)
+    monkeypatch.setenv("TRADEMASTER_ALPACA_CREDS", "not-returned")
+    client.post(
+        "/api/provider-configs/alpaca-market-data",
+        json={
+            "enabled": True,
+            "secret_ref": "env:TRADEMASTER_ALPACA_CREDS",
+        },
+    )
+
+    response = client.post("/api/provider-configs/alpaca-market-data/health-check")
+    events = repo.list_private_office_events()
+
+    assert response.status_code == 200
+    assert response.json()["health"]["secret"] == {
+        "backend": "env",
+        "available": True,
+    }
+    assert "not-returned" not in str(response.json())
+    assert events[-1].event_type == "provider.health_checked"
+    assert events[-1].actor == "Provider Registry"
+    assert events[-1].entity_id == "provider_alpaca_market_data"
+    assert events[-1].payload["secret_available"] is True
+
+
+def test_provider_secret_health_check_reports_missing_secret(tmp_path: Path):
+    client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
+    client.post(
+        "/api/provider-configs/alpaca-market-data",
+        json={
+            "enabled": True,
+            "secret_ref": "env:MISSING_TRADEMASTER_ALPACA_CREDS",
+        },
+    )
+
+    response = client.post("/api/provider-configs/alpaca-market-data/health-check")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "needs_key"
+    assert response.json()["health"]["secret"] == {
+        "backend": "env",
+        "available": False,
+    }
+
+
 def test_private_office_event_endpoint_appends_ledger_event(tmp_path: Path):
     client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
 

@@ -87,6 +87,18 @@ export async function updateProviderConfig(
   return response.json();
 }
 
+export async function checkProviderHealth(providerId: string): Promise<ProviderConfig> {
+  const response = await fetch(`${API_BASE}/api/provider-configs/${providerId}/health-check`, {
+    method: "POST"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to check provider health: ${response.status}`);
+  }
+
+  return response.json();
+}
+
 export async function createSnapshot(input: {
   encryptionMode: string;
   offsiteTarget?: string | null;
