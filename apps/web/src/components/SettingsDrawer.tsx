@@ -9,6 +9,7 @@ const ROLE_LABELS: Record<ProviderRole, string> = {
   brokerage: "Brokerage",
   llm: "LLM",
   "market-data": "Market data",
+  observability: "Observability",
   portfolio: "Portfolio"
 };
 

@@ -71,6 +71,24 @@ class RunEventRecord(SQLModel, table=True):
     )
 
 
+class ObservabilityTraceRecord(SQLModel, table=True):
+    __tablename__ = "observability_traces"
+
+    trace_id: str = Field(default_factory=lambda: new_id("trace"), primary_key=True)
+    run_id: str = Field(index=True, unique=True)
+    provider: str = Field(default="local", index=True)
+    status: str = Field(default="running", index=True)
+    external_trace_id: str | None = Field(default=None, index=True)
+    metadata_payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    cost: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
 class DecisionRecord(SQLModel, table=True):
     __tablename__ = "ui_decisions"
 

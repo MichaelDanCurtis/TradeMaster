@@ -34,12 +34,25 @@ class TradingRunService:
 
     def start_run(self, config: RunConfig) -> RunCreated:
         run = self._repository.create_run(config)
+        self._repository.start_observability_trace(
+            run_id=run.run_id,
+            metadata=self._trace_metadata(config),
+        )
         if config.execution_mode == "real":
             if self._real_runner is None:
                 self._append_real_run_not_configured_events(run.run_id, config)
+                self._repository.update_observability_trace(
+                    run.run_id,
+                    status=RunStatus.FAILED.value,
+                    metadata={"failure_reason": "real_runner_not_configured"},
+                )
                 return RunCreated(run_id=run.run_id, status=RunStatus.FAILED)
             return self._append_real_run_events(run.run_id, config)
         self._append_fake_events(run.run_id, config)
+        self._repository.update_observability_trace(
+            run.run_id,
+            status=RunStatus.COMPLETED.value,
+        )
         return RunCreated(run_id=run.run_id, status=RunStatus.COMPLETED)
 
     def list_events(self, run_id: str) -> list[RunEvent]:
@@ -104,6 +117,14 @@ class TradingRunService:
                 start_sequence=next_sequence,
             )
             self._repository.set_run_status(run_id, RunStatus.FAILED)
+            self._repository.update_observability_trace(
+                run_id,
+                status=RunStatus.FAILED.value,
+                metadata={
+                    "failure_reason": "real_runner_exception",
+                    "error": str(exc),
+                },
+            )
             return RunCreated(run_id=run_id, status=RunStatus.FAILED)
 
         next_sequence = self._append_events(
@@ -133,6 +154,14 @@ class TradingRunService:
             start_sequence=next_sequence,
         )
         self._repository.set_run_status(run_id, RunStatus.COMPLETED)
+        self._repository.update_observability_trace(
+            run_id,
+            status=RunStatus.COMPLETED.value,
+            metadata={
+                "final_rating": result.rating,
+                "final_action": result.action,
+            },
+        )
         return RunCreated(run_id=run_id, status=RunStatus.COMPLETED)
 
     def _append_real_run_not_configured_events(self, run_id: str, config: RunConfig) -> None:
@@ -382,4 +411,18 @@ class TradingRunService:
             "message": event.message,
             "payload": event.payload,
             "created_at": created_at.isoformat().replace("+00:00", "Z"),
+        }
+
+    @staticmethod
+    def _trace_metadata(config: RunConfig) -> dict[str, Any]:
+        return {
+            "ticker": config.ticker,
+            "trade_date": config.trade_date,
+            "execution_mode": config.execution_mode,
+            "llm_provider": config.llm_provider,
+            "quick_model": config.quick_model,
+            "deep_model": config.deep_model,
+            "broker_mode": config.broker_mode,
+            "checkpoint": config.checkpoint,
+            "analysts": list(config.analysts),
         }
