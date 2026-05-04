@@ -121,6 +121,19 @@ requirements, position concentration, sector concentration, daily turnover, and
 drawdown circuit breakers. The broker service accepts the engine as an optional
 gate; wiring it to durable portfolio mandates is the next step.
 
+## Portfolio Mandates
+
+Portfolio mandates describe who controls a portfolio and which guardrails apply.
+This is where Webull human-assisted strategy and the Alpaca AI high-risk paper
+harness become explicit durable records.
+
+- `GET /api/portfolio-mandates`
+- `GET /api/portfolio-mandates?control_mode=ai-managed-high-risk`
+- `POST /api/portfolio-mandates`
+
+High-risk AI mandates are rejected unless paper proving and the kill switch are
+enabled.
+
 ## Requirements
 
 These are still useful to run manually in a fresh checkout, but `npm run dev:local` will bootstrap them if they are missing:

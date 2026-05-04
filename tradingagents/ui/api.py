@@ -92,6 +92,20 @@ class AssetRequest(BaseModel):
     payload: dict[str, object] = Field(default_factory=dict)
 
 
+class PortfolioMandateRequest(BaseModel):
+    name: str
+    control_mode: str
+    account_ref: str
+    funding_limit: float = Field(gt=0)
+    max_position_percent: float = Field(gt=0)
+    max_drawdown_percent: float = Field(ge=0)
+    daily_turnover_limit_percent: float = Field(gt=0)
+    paper_mode_required: bool
+    kill_switch_enabled: bool
+    status: str = "draft"
+    payload: dict[str, object] = Field(default_factory=dict)
+
+
 class SnapshotRequest(BaseModel):
     encryption_mode: str = "none"
     offsite_target: str | None = None
@@ -326,6 +340,49 @@ def create_app(
             payload={"asset_type": request.asset_type, "status": request.status},
         )
         return record
+
+    @app.get("/api/portfolio-mandates")
+    def list_portfolio_mandates(
+        control_mode: str | None = None,
+        repo: UiRepository = Depends(repository),
+    ):
+        return {
+            "mandates": repo.list_portfolio_mandates(control_mode=control_mode)
+        }
+
+    @app.post("/api/portfolio-mandates")
+    def create_portfolio_mandate(
+        request: PortfolioMandateRequest,
+        repo: UiRepository = Depends(repository),
+    ):
+        try:
+            mandate = repo.create_portfolio_mandate(
+                name=request.name,
+                control_mode=request.control_mode,
+                account_ref=request.account_ref,
+                funding_limit=request.funding_limit,
+                max_position_percent=request.max_position_percent,
+                max_drawdown_percent=request.max_drawdown_percent,
+                daily_turnover_limit_percent=request.daily_turnover_limit_percent,
+                paper_mode_required=request.paper_mode_required,
+                kill_switch_enabled=request.kill_switch_enabled,
+                status=request.status,
+                payload=request.payload,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        repo.append_private_office_event(
+            event_type="portfolio_mandate.created",
+            summary=f"Created portfolio mandate: {request.name}.",
+            actor="local-user",
+            entity_id=mandate.mandate_id,
+            payload={
+                "control_mode": request.control_mode,
+                "account_ref": request.account_ref,
+                "status": request.status,
+            },
+        )
+        return mandate
 
     @app.post("/api/snapshots")
     def create_snapshot(
