@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 from urllib.parse import unquote
@@ -140,6 +140,41 @@ def create_app(
             )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Provider not found") from exc
+
+    @app.post("/api/provider-configs/{provider_id}/health-check")
+    def check_provider_health(
+        provider_id: str,
+        repo: UiRepository = Depends(repository),
+    ):
+        try:
+            config = repo.get_provider_config(provider_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Provider not found") from exc
+
+        secret_health = _describe_secret_ref(config.secret_ref)
+        status = "available" if config.enabled and secret_health["available"] else "needs_key"
+        health = {
+            "secret": secret_health,
+            "checked_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        }
+        updated = repo.upsert_provider_config(
+            provider_id=provider_id,
+            health=health,
+            status=status,
+        )
+        repo.append_private_office_event(
+            event_type="provider.health_checked",
+            summary=f"Checked {provider_id} secret health.",
+            actor="Provider Registry",
+            entity_id=f"provider_{provider_id.replace('-', '_')}",
+            payload={
+                "provider_id": provider_id,
+                "secret_backend": secret_health["backend"],
+                "secret_available": secret_health["available"],
+                "status": status,
+            },
+        )
+        return updated
 
     @app.post("/api/private-office/events")
     def append_private_office_event(
@@ -369,3 +404,9 @@ def _secret_store_for_ref(secret_ref: str):
     if secret_ref.startswith("keychain:"):
         return MacKeychainSecretStore()
     raise HTTPException(status_code=400, detail="Unsupported secret_ref backend")
+
+
+def _describe_secret_ref(secret_ref: str | None) -> dict[str, object]:
+    if secret_ref is None:
+        return {"backend": "none", "available": False}
+    return _secret_store_for_ref(secret_ref).describe_secret(secret_ref)

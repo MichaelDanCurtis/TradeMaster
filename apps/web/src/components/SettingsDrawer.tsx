@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { createSnapshot, listProviderConfigs, updateProviderConfig } from "@/lib/api";
+import { checkProviderHealth, createSnapshot, listProviderConfigs, updateProviderConfig } from "@/lib/api";
 import type { ProviderConfig, ProviderControlSurface, ProviderRole, SnapshotManifestRecord } from "@/lib/types";
 
 const ROLE_LABELS: Record<ProviderRole, string> = {
@@ -93,6 +93,21 @@ export function SettingsDrawer({ open, onClose }: { open: boolean; onClose: () =
     }
   }
 
+  async function handleProviderHealthCheck(provider: ProviderConfig) {
+    setSavingProviderId(provider.provider_id);
+    try {
+      const updated = await checkProviderHealth(provider.provider_id);
+      setProviders((current) =>
+        current.map((item) => (item.provider_id === updated.provider_id ? updated : item))
+      );
+      setError(null);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Provider health check failed");
+    } finally {
+      setSavingProviderId(null);
+    }
+  }
+
   async function handleCreateSnapshot() {
     setSnapshotPending(true);
     try {
@@ -177,6 +192,13 @@ export function SettingsDrawer({ open, onClose }: { open: boolean; onClose: () =
                     {provider.enabled ? "Disable provider" : "Enable provider"}
                   </button>
                   <span>{formatHealth(provider.health)}</span>
+                  <button
+                    disabled={savingProviderId === provider.provider_id}
+                    onClick={() => void handleProviderHealthCheck(provider)}
+                    type="button"
+                  >
+                    Check secret
+                  </button>
                 </div>
               </article>
             ))}
@@ -232,6 +254,16 @@ function formatStatus(status: ProviderConfig["status"]): string {
 }
 
 function formatHealth(health: Record<string, unknown>): string {
+  const secret = health.secret;
+  if (isSecretHealth(secret)) {
+    return `${secret.backend} secret ${secret.available ? "available" : "missing"}`;
+  }
   const status = health.status;
   return typeof status === "string" ? status.replaceAll("_", " ") : "not checked";
+}
+
+function isSecretHealth(value: unknown): value is { available: boolean; backend: string } {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate.backend === "string" && typeof candidate.available === "boolean";
 }

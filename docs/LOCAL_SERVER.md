@@ -69,6 +69,18 @@ The bars endpoint accepts `symbol`, `start`, `end`, `timeframe`, optional
 `limit`, and optional `feed`. If `feed` is omitted, the backend uses the feed in
 provider config, such as `{"feed":"iex"}`.
 
+## Provider Secret Health
+
+Settings can run a provider health check against the saved `secret_ref`:
+
+```http
+POST /api/provider-configs/alpaca-market-data/health-check
+```
+
+The response records only metadata such as backend and availability. It never
+returns the resolved secret value. Each health check also writes a private-office
+ledger event (`provider.health_checked`) for auditability.
+
 ## Requirements
 
 These are still useful to run manually in a fresh checkout, but `npm run dev:local` will bootstrap them if they are missing:

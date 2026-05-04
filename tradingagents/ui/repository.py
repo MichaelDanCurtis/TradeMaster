@@ -453,7 +453,7 @@ class UiRepository:
             if config is not None:
                 record.config = self._sanitize_config(config)
             if health is not None:
-                record.health = self._sanitize_config(health)
+                record.health = self._sanitize_health(health)
             if status is not None:
                 record.status = status
             record.updated_at = now_utc()
@@ -517,6 +517,14 @@ class UiRepository:
     def _sanitize_config(value: dict[str, Any]) -> dict[str, Any]:
         blocked = {"secret", "secret_value", "raw_secret", "api_key", "access_token", "refresh_token", "password"}
         return {key: item for key, item in value.items() if key.lower() not in blocked}
+
+    @staticmethod
+    def _sanitize_health(value: dict[str, Any]) -> dict[str, Any]:
+        sanitized = UiRepository._sanitize_config(value)
+        secret_health = value.get("secret")
+        if isinstance(secret_health, dict):
+            sanitized["secret"] = UiRepository._sanitize_config(secret_health)
+        return sanitized
 
     @staticmethod
     def _detach_private_office_event(record: PrivateOfficeEventRecord) -> PrivateOfficeEventRecord:
