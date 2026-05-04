@@ -128,6 +128,7 @@ class UiRepository:
         run_id: str,
         *,
         status: str,
+        provider: str | None = None,
         metadata: dict[str, Any] | None = None,
         cost: dict[str, Any] | None = None,
         external_trace_id: str | None = None,
@@ -135,6 +136,8 @@ class UiRepository:
         with self._session_factory() as session:
             record = self._require_observability_trace(session, run_id)
             record.status = status
+            if provider is not None:
+                record.provider = provider
             if metadata:
                 record.metadata_payload = {
                     **dict(record.metadata_payload),
