@@ -201,3 +201,26 @@ class PrivateOfficeEdgeRecord(SQLModel, table=True):
     created_at: datetime = Field(
         default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
     )
+
+
+class PortfolioMandateRecord(SQLModel, table=True):
+    __tablename__ = "portfolio_mandates"
+
+    mandate_id: str = Field(default_factory=lambda: new_id("mandate"), primary_key=True)
+    name: str
+    control_mode: str = Field(index=True)
+    account_ref: str = Field(index=True)
+    status: str = Field(default="draft", index=True)
+    funding_limit: float
+    max_position_percent: float
+    max_drawdown_percent: float
+    daily_turnover_limit_percent: float
+    paper_mode_required: bool = Field(default=True, index=True)
+    kill_switch_enabled: bool = Field(default=True, index=True)
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )

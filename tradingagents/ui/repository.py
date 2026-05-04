@@ -13,6 +13,7 @@ from tradingagents.ui.models import (
     PrivateOfficeEdgeRecord,
     PrivateOfficeEntityRecord,
     PrivateOfficeEventRecord,
+    PortfolioMandateRecord,
     ProviderConfigRecord,
     RunEventRecord,
     RunRecord,
@@ -231,6 +232,60 @@ class UiRepository:
             statement = statement.where(PrivateOfficeEdgeRecord.target_entity_id == target_entity_id)
         with self._session_factory() as session:
             return [self._detach_private_office_edge(record) for record in session.exec(statement).all()]
+
+    def create_portfolio_mandate(
+        self,
+        *,
+        name: str,
+        control_mode: str,
+        account_ref: str,
+        funding_limit: float,
+        max_position_percent: float,
+        max_drawdown_percent: float,
+        daily_turnover_limit_percent: float,
+        paper_mode_required: bool,
+        kill_switch_enabled: bool,
+        status: str = "draft",
+        payload: dict[str, Any] | None = None,
+    ) -> PortfolioMandateRecord:
+        self._validate_portfolio_mandate(
+            control_mode=control_mode,
+            funding_limit=funding_limit,
+            max_position_percent=max_position_percent,
+            max_drawdown_percent=max_drawdown_percent,
+            daily_turnover_limit_percent=daily_turnover_limit_percent,
+            paper_mode_required=paper_mode_required,
+            kill_switch_enabled=kill_switch_enabled,
+        )
+        record = PortfolioMandateRecord(
+            name=name,
+            control_mode=control_mode,
+            account_ref=account_ref,
+            funding_limit=funding_limit,
+            max_position_percent=max_position_percent,
+            max_drawdown_percent=max_drawdown_percent,
+            daily_turnover_limit_percent=daily_turnover_limit_percent,
+            paper_mode_required=paper_mode_required,
+            kill_switch_enabled=kill_switch_enabled,
+            status=status,
+            payload=payload or {},
+        )
+        with self._session_factory() as session:
+            session.add(record)
+            session.commit()
+            session.refresh(record)
+            return self._detach_portfolio_mandate(record)
+
+    def list_portfolio_mandates(
+        self,
+        *,
+        control_mode: str | None = None,
+    ) -> list[PortfolioMandateRecord]:
+        statement = select(PortfolioMandateRecord).order_by(PortfolioMandateRecord.created_at)
+        if control_mode is not None:
+            statement = statement.where(PortfolioMandateRecord.control_mode == control_mode)
+        with self._session_factory() as session:
+            return [self._detach_portfolio_mandate(record) for record in session.exec(statement).all()]
 
     def create_trade_intent(
         self,
@@ -479,6 +534,49 @@ class UiRepository:
         if record is None:
             raise KeyError(entity_id)
         return record
+
+    @staticmethod
+    def _validate_portfolio_mandate(
+        *,
+        control_mode: str,
+        funding_limit: float,
+        max_position_percent: float,
+        max_drawdown_percent: float,
+        daily_turnover_limit_percent: float,
+        paper_mode_required: bool,
+        kill_switch_enabled: bool,
+    ) -> None:
+        for label, value in {
+            "funding_limit": funding_limit,
+            "max_position_percent": max_position_percent,
+            "max_drawdown_percent": max_drawdown_percent,
+            "daily_turnover_limit_percent": daily_turnover_limit_percent,
+        }.items():
+            if value <= 0:
+                raise ValueError(f"{label} must be greater than zero")
+        if control_mode == "ai-managed-high-risk" and not paper_mode_required:
+            raise ValueError("ai-managed-high-risk mandates require paper mode proving")
+        if control_mode == "ai-managed-high-risk" and not kill_switch_enabled:
+            raise ValueError("ai-managed-high-risk mandates require a kill switch")
+
+    @staticmethod
+    def _detach_portfolio_mandate(record: PortfolioMandateRecord) -> PortfolioMandateRecord:
+        return PortfolioMandateRecord(
+            mandate_id=record.mandate_id,
+            name=record.name,
+            control_mode=record.control_mode,
+            account_ref=record.account_ref,
+            status=record.status,
+            funding_limit=record.funding_limit,
+            max_position_percent=record.max_position_percent,
+            max_drawdown_percent=record.max_drawdown_percent,
+            daily_turnover_limit_percent=record.daily_turnover_limit_percent,
+            paper_mode_required=record.paper_mode_required,
+            kill_switch_enabled=record.kill_switch_enabled,
+            payload=dict(record.payload),
+            created_at=record.created_at,
+            updated_at=record.updated_at,
+        )
 
     @staticmethod
     def _require_run(session: Session, run_id: str) -> RunRecord:
