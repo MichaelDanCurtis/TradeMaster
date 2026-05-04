@@ -8,7 +8,8 @@ import type {
   RunCreated,
   RunEvent,
   RunTrace,
-  SnapshotManifestRecord
+  SnapshotManifestRecord,
+  SnapshotVerification
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8787";
@@ -123,20 +124,46 @@ export async function checkProviderHealth(providerId: string): Promise<ProviderC
 }
 
 export async function createSnapshot(input: {
-  encryptionMode: string;
+  encryptionMode?: string;
   offsiteTarget?: string | null;
+  backupKeyRef?: string | null;
 }): Promise<SnapshotManifestRecord> {
+  const body: Record<string, string | null> = {
+    offsite_target: input.offsiteTarget ?? null
+  };
+  if (input.encryptionMode !== undefined) {
+    body.encryption_mode = input.encryptionMode;
+  }
+  if (input.backupKeyRef) {
+    body.backup_key_ref = input.backupKeyRef;
+  }
   const response = await fetch(`${API_BASE}/api/snapshots`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      encryption_mode: input.encryptionMode,
-      offsite_target: input.offsiteTarget ?? null
-    })
+    body: JSON.stringify(body)
   });
 
   if (!response.ok) {
     throw new Error(`Failed to create snapshot: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function verifySnapshot(
+  snapshotId: string,
+  input: { backupKeyRef: string }
+): Promise<SnapshotVerification> {
+  const response = await fetch(`${API_BASE}/api/snapshots/${snapshotId}/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      backup_key_ref: input.backupKeyRef
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to verify snapshot: ${response.status}`);
   }
 
   return response.json();

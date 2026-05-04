@@ -1,6 +1,7 @@
 from datetime import date, datetime, timezone
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from tradingagents.ui.api import create_app
@@ -331,6 +332,56 @@ def test_snapshot_endpoint_creates_manifest_for_local_sqlite(tmp_path: Path):
     assert response.json()["encryption_mode"] == "age"
     assert response.json()["manifest"]["files"][0]["path"] == str(tmp_path / "ui.db")
     assert len(response.json()["manifest"]["files"][0]["sha256"]) == 64
+
+
+def test_snapshot_endpoint_creates_encrypted_bundle_from_secret_ref(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("TRADEMASTER_BACKUP_KEY", "local backup key")
+    database_url = f"sqlite:///{tmp_path / 'ui.db'}"
+    client = TestClient(create_app(database_url))
+
+    response = client.post(
+        "/api/snapshots",
+        json={
+            "backup_key_ref": "env:TRADEMASTER_BACKUP_KEY",
+            "offsite_target": "manual-offsite",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    artifact = body["manifest"]["backup_artifact"]
+    artifact_path = Path(artifact["path"])
+    assert body["encryption_mode"] == "local-aes-256-gcm"
+    assert artifact["algorithm"] == "AES-256-GCM"
+    assert artifact_path.exists()
+    assert b"sqlite_master" not in artifact_path.read_bytes()
+    assert "local backup key" not in str(body)
+
+
+def test_snapshot_verify_endpoint_checks_encrypted_bundle_from_secret_ref(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("TRADEMASTER_BACKUP_KEY", "local backup key")
+    database_url = f"sqlite:///{tmp_path / 'ui.db'}"
+    client = TestClient(create_app(database_url))
+    created = client.post(
+        "/api/snapshots",
+        json={"backup_key_ref": "env:TRADEMASTER_BACKUP_KEY"},
+    ).json()
+
+    verification = client.post(
+        f"/api/snapshots/{created['snapshot_id']}/verify",
+        json={"backup_key_ref": "env:TRADEMASTER_BACKUP_KEY"},
+    )
+
+    assert verification.status_code == 200
+    assert verification.json()["valid"] is True
+    assert verification.json()["manifest"]["snapshot_id"] == created["snapshot_id"]
+    assert verification.json()["files"][0]["verified"] is True
 
 
 def test_market_data_bars_endpoint_returns_normalized_provider_data(tmp_path: Path):

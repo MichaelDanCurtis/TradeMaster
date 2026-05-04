@@ -394,6 +394,13 @@ class UiRepository:
         with self._session_factory() as session:
             return [self._detach_snapshot_manifest(record) for record in session.exec(statement).all()]
 
+    def get_snapshot_manifest(self, snapshot_id: str) -> SnapshotManifestRecord:
+        with self._session_factory() as session:
+            record = session.get(SnapshotManifestRecord, snapshot_id)
+            if record is None:
+                raise KeyError(snapshot_id)
+            return self._detach_snapshot_manifest(record)
+
     def create_trade_intent(
         self,
         run_id: str,

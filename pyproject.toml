@@ -33,6 +33,7 @@ dependencies = [
     "uvicorn[standard]>=0.30.0",
     "yfinance>=0.2.63",
     "sqlmodel>=0.0.22",
+    "cryptography>=46.0.0",
 ]
 
 [project.scripts]

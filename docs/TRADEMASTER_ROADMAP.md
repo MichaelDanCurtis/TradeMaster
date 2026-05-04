@@ -115,11 +115,11 @@ Make agent behavior inspectable.
 
 Make the MacBook server durable.
 
-- Snapshot SQLite and selected document metadata.
-- Create manifest with hashes.
-- Encrypt with age/sops-style key material.
-- Store offsite.
-- Add restore verification.
+- Done: snapshot SQLite with a manifest and SHA-256 hashes.
+- Done: create encrypted local `.tmbackup` artifacts from server-side secret references.
+- Done: add restore verification that decrypts the artifact and verifies file hashes.
+- Next: add selected document metadata once the document vault exists.
+- Next: push encrypted artifacts to an offsite target.
 
 ## 13. Add Scheduled Agents
 

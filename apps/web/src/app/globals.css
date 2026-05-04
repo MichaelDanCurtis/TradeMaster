@@ -793,13 +793,15 @@ button {
 .provider-secret-row label,
 .provider-toggle-row span,
 .snapshot-card span,
+.backup-key-ref-row span,
 .snapshot-result span,
 .snapshot-result p {
   color: #8397aa;
   font-size: 12px;
 }
 
-.provider-secret-row input {
+.provider-secret-row input,
+.backup-key-ref-row input {
   min-width: 0;
   border: 1px solid #263545;
   border-radius: 5px;
@@ -812,7 +814,8 @@ button {
 
 .provider-secret-row button,
 .provider-toggle-row button,
-.snapshot-card button {
+.snapshot-card button,
+.snapshot-result button {
   border: 1px solid #34435a;
   border-radius: 5px;
   color: #dbe5ee;
@@ -825,7 +828,8 @@ button {
 
 .provider-secret-row button:disabled,
 .provider-toggle-row button:disabled,
-.snapshot-card button:disabled {
+.snapshot-card button:disabled,
+.snapshot-result button:disabled {
   cursor: wait;
   opacity: 0.65;
 }
@@ -863,8 +867,22 @@ button {
   align-items: center;
 }
 
+.snapshot-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.backup-key-ref-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: 54px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
 .snapshot-card strong,
-.snapshot-result strong {
+.snapshot-result strong,
+.snapshot-verify strong {
   color: #f2f6fa;
   font-size: 13px;
 }
@@ -891,6 +909,21 @@ button {
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.snapshot-verify {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #4a2f2f;
+  border-radius: 5px;
+  background: #1c1111;
+  padding: 8px;
+}
+
+.snapshot-verify.valid {
+  border-color: #315b40;
+  background: #0f1d15;
 }
 
 .toast-stack {

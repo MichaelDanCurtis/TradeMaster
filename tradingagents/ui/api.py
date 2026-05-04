@@ -38,7 +38,11 @@ from tradingagents.ui.portfolio_data.plaid import (
 from tradingagents.ui.repository import UiRepository
 from tradingagents.ui.runner import RealRunRunner, TradingRunService
 from tradingagents.ui.secrets import EnvSecretStore, MacKeychainSecretStore, SecretNotFoundError
-from tradingagents.ui.snapshots import create_snapshot_manifest
+from tradingagents.ui.snapshots import (
+    create_encrypted_snapshot_bundle,
+    create_snapshot_manifest,
+    verify_encrypted_snapshot_bundle,
+)
 
 
 class TradePreviewRequest(BaseModel):
@@ -110,6 +114,11 @@ class PortfolioMandateRequest(BaseModel):
 class SnapshotRequest(BaseModel):
     encryption_mode: str = "none"
     offsite_target: str | None = None
+    backup_key_ref: str | None = None
+
+
+class SnapshotVerifyRequest(BaseModel):
+    backup_key_ref: str
 
 
 class BarsResponse(BaseModel):
@@ -416,18 +425,83 @@ def create_app(
             database_path = _sqlite_database_path(resolved_database_url)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        manifest = create_snapshot_manifest(
-            database_path=database_path,
-            encryption_mode=request.encryption_mode,
-            offsite_target=request.offsite_target,
-        )
-        return repo.store_snapshot_manifest(
+        if request.backup_key_ref is None:
+            manifest = create_snapshot_manifest(
+                database_path=database_path,
+                encryption_mode=request.encryption_mode,
+                offsite_target=request.offsite_target,
+            )
+        else:
+            try:
+                backup_key = _secret_store_for_ref(request.backup_key_ref).get_secret(
+                    request.backup_key_ref
+                )
+            except SecretNotFoundError as exc:
+                raise HTTPException(status_code=403, detail="Backup key is not available") from exc
+            manifest = create_encrypted_snapshot_bundle(
+                database_path=database_path,
+                output_dir=database_path.parent / "backups",
+                key_material=backup_key,
+                offsite_target=request.offsite_target,
+            )
+        record = repo.store_snapshot_manifest(
             snapshot_id=manifest["snapshot_id"],
             storage_profile=manifest["storage_profile"],
             encryption_mode=manifest["encryption_mode"],
             offsite_target=manifest["offsite_target"],
             manifest=manifest,
         )
+        repo.append_private_office_event(
+            event_type="snapshot.created",
+            summary="Created encrypted backup snapshot."
+            if manifest["encrypted"]
+            else "Created local backup snapshot manifest.",
+            actor="Backup",
+            entity_id=record.snapshot_id,
+            payload={
+                "encrypted": manifest["encrypted"],
+                "offsite_target": manifest["offsite_target"],
+                "artifact_path": manifest.get("backup_artifact", {}).get("path"),
+            },
+        )
+        return record
+
+    @app.post("/api/snapshots/{snapshot_id}/verify")
+    def verify_snapshot(
+        snapshot_id: str,
+        request: SnapshotVerifyRequest,
+        repo: UiRepository = Depends(repository),
+    ):
+        try:
+            record = repo.get_snapshot_manifest(snapshot_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Snapshot not found") from exc
+        artifact = record.manifest.get("backup_artifact")
+        if not isinstance(artifact, dict) or artifact.get("path") is None:
+            raise HTTPException(status_code=400, detail="Snapshot has no encrypted backup artifact")
+        try:
+            backup_key = _secret_store_for_ref(request.backup_key_ref).get_secret(
+                request.backup_key_ref
+            )
+        except SecretNotFoundError as exc:
+            raise HTTPException(status_code=403, detail="Backup key is not available") from exc
+        verification = verify_encrypted_snapshot_bundle(
+            artifact_path=Path(str(artifact["path"])),
+            key_material=backup_key,
+        )
+        repo.append_private_office_event(
+            event_type="snapshot.verified",
+            summary="Verified encrypted backup snapshot."
+            if verification["valid"]
+            else "Encrypted backup snapshot verification failed.",
+            actor="Backup",
+            entity_id=snapshot_id,
+            payload={
+                "valid": verification["valid"],
+                "artifact_path": artifact["path"],
+            },
+        )
+        return verification
 
     @app.get("/api/market-data/{provider_id}/bars", response_model=BarsResponse)
     def get_market_data_bars(
