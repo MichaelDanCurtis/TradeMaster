@@ -53,9 +53,6 @@ function TickerSparkline({ item }: { item: MarketTickerItem }) {
       role="img"
       viewBox={`0 0 ${width} ${height}`}
     >
-      <title>
-        {item.label} {formatSigned(item.changePercent)}%
-      </title>
       <polyline points={points} />
     </svg>
   );
