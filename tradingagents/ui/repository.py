@@ -10,11 +10,13 @@ from tradingagents.ui.models import (
     ApprovalRecord,
     BrokerOrderRecord,
     DecisionRecord,
+    ProviderConfigRecord,
     RunEventRecord,
     RunRecord,
     TradeIntentRecord,
     now_utc,
 )
+from tradingagents.ui.providers import PROVIDERS, provider_descriptor_by_id
 
 
 class UiRepository:
@@ -220,6 +222,54 @@ class UiRepository:
             session.refresh(record)
             return record
 
+    def list_provider_configs(self) -> list[ProviderConfigRecord]:
+        with self._session_factory() as session:
+            self._seed_provider_configs(session)
+            statement = select(ProviderConfigRecord).order_by(ProviderConfigRecord.provider_id)
+            return list(session.exec(statement).all())
+
+    def get_provider_config(self, provider_id: str) -> ProviderConfigRecord:
+        with self._session_factory() as session:
+            self._seed_provider_configs(session)
+            record = session.get(ProviderConfigRecord, provider_id)
+            if record is None:
+                raise KeyError(provider_id)
+            return record
+
+    def upsert_provider_config(
+        self,
+        provider_id: str,
+        *,
+        enabled: bool | None = None,
+        secret_ref: str | None = None,
+        config: dict[str, Any] | None = None,
+        health: dict[str, Any] | None = None,
+        status: str | None = None,
+    ) -> ProviderConfigRecord:
+        with self._session_factory() as session:
+            self._seed_provider_configs(session)
+            record = session.get(ProviderConfigRecord, provider_id)
+            descriptor = provider_descriptor_by_id(provider_id)
+            if record is None and descriptor is None:
+                raise KeyError(provider_id)
+            if record is None and descriptor is not None:
+                record = self._provider_config_from_descriptor(descriptor)
+            if enabled is not None:
+                record.enabled = enabled
+            if secret_ref is not None:
+                record.secret_ref = secret_ref
+            if config is not None:
+                record.config = self._sanitize_config(config)
+            if health is not None:
+                record.health = self._sanitize_config(health)
+            if status is not None:
+                record.status = status
+            record.updated_at = now_utc()
+            session.add(record)
+            session.commit()
+            session.refresh(record)
+            return record
+
     @staticmethod
     def _run_summary(record: RunRecord) -> RunSummary:
         return RunSummary(
@@ -244,6 +294,37 @@ class UiRepository:
             payload=record.payload,
             created_at=record.created_at,
         )
+
+    @classmethod
+    def _seed_provider_configs(cls, session: Session) -> None:
+        changed = False
+        for descriptor in PROVIDERS:
+            if session.get(ProviderConfigRecord, descriptor.id) is None:
+                session.add(cls._provider_config_from_descriptor(descriptor))
+                changed = True
+        if changed:
+            session.commit()
+
+    @staticmethod
+    def _provider_config_from_descriptor(descriptor: Any) -> ProviderConfigRecord:
+        return ProviderConfigRecord(
+            provider_id=descriptor.id,
+            name=descriptor.name,
+            role=descriptor.role,
+            status=descriptor.status,
+            capabilities=list(descriptor.capabilities),
+            primary_use=descriptor.primary_use,
+            control_surface=descriptor.control_surface,
+            write_authority=descriptor.write_authority,
+            enabled=descriptor.status == "available",
+            config={},
+            health={"status": "not_checked"},
+        )
+
+    @staticmethod
+    def _sanitize_config(value: dict[str, Any]) -> dict[str, Any]:
+        blocked = {"secret", "secret_value", "raw_secret", "api_key", "access_token", "refresh_token", "password"}
+        return {key: item for key, item in value.items() if key.lower() not in blocked}
 
     @staticmethod
     def _require_run(session: Session, run_id: str) -> RunRecord:

@@ -135,3 +135,26 @@ class BrokerOrderRecord(SQLModel, table=True):
     updated_at: datetime = Field(
         default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
     )
+
+
+class ProviderConfigRecord(SQLModel, table=True):
+    __tablename__ = "ui_provider_configs"
+
+    provider_id: str = Field(primary_key=True)
+    name: str
+    role: str = Field(index=True)
+    status: str = Field(index=True)
+    capabilities: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    primary_use: str
+    control_surface: str = Field(index=True)
+    write_authority: str = Field(index=True)
+    enabled: bool = Field(default=False, index=True)
+    secret_ref: str | None = Field(default=None, index=True)
+    config: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    health: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
