@@ -6,9 +6,16 @@ export function MarketTicker() {
   return (
     <section className="market-ticker-strip" aria-label="Market ticker">
       <div className="market-ticker-track">
-        {tickerItems.map((item) => (
-          <TickerItem item={item} key={item.id} />
-        ))}
+        <div className="market-ticker-segment">
+          {tickerItems.map((item) => (
+            <TickerItem item={item} key={item.id} />
+          ))}
+        </div>
+        <div className="market-ticker-segment" aria-hidden="true">
+          {tickerItems.map((item) => (
+            <TickerItem item={item} key={`${item.id}-duplicate`} />
+          ))}
+        </div>
       </div>
     </section>
   );
