@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -5,6 +6,7 @@ from fastapi.testclient import TestClient
 from tradingagents.ui.api import create_app
 from tradingagents.ui.db import create_session_factory
 from tradingagents.ui.events import RunConfig, RunEvent
+from tradingagents.ui.market_data.base import MarketDataBar, MarketDataQuote
 from tradingagents.ui.repository import UiRepository
 from tradingagents.ui.runner import RealRunResult
 
@@ -91,6 +93,180 @@ def test_snapshot_endpoint_creates_manifest_for_local_sqlite(tmp_path: Path):
     assert response.json()["encryption_mode"] == "age"
     assert response.json()["manifest"]["files"][0]["path"] == str(tmp_path / "ui.db")
     assert len(response.json()["manifest"]["files"][0]["sha256"]) == 64
+
+
+def test_market_data_bars_endpoint_returns_normalized_provider_data(tmp_path: Path):
+    class FakeMarketDataProvider:
+        def historical_bars(self, **kwargs):
+            return [
+                MarketDataBar(
+                    symbol=kwargs["symbol"].upper(),
+                    timestamp=datetime(2026, 4, 30, 13, 30, tzinfo=timezone.utc),
+                    open=838.12,
+                    high=841.0,
+                    low=836.5,
+                    close=839.05,
+                    volume=6601542,
+                    vwap=838.71,
+                    trade_count=9342,
+                )
+            ]
+
+        def latest_quote(self, symbol: str, *, feed: str | None = None):
+            raise AssertionError("not used")
+
+    client = TestClient(
+        create_app(
+            f"sqlite:///{tmp_path / 'ui.db'}",
+            market_data_providers={"alpaca-market-data": FakeMarketDataProvider()},
+        )
+    )
+
+    response = client.get(
+        "/api/market-data/alpaca-market-data/bars",
+        params={
+            "symbol": "nvda",
+            "start": "2026-04-30T13:30:00Z",
+            "end": "2026-04-30T20:00:00Z",
+            "timeframe": "1Min",
+            "limit": "100",
+            "feed": "iex",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["bars"][0]["symbol"] == "NVDA"
+    assert response.json()["bars"][0]["timestamp"] == "2026-04-30T13:30:00Z"
+    assert response.json()["bars"][0]["vwap"] == 838.71
+
+
+def test_market_data_quote_endpoint_returns_normalized_provider_data(tmp_path: Path):
+    class FakeMarketDataProvider:
+        def historical_bars(self, **kwargs):
+            raise AssertionError("not used")
+
+        def latest_quote(self, symbol: str, *, feed: str | None = None):
+            return MarketDataQuote(
+                symbol=symbol.upper(),
+                timestamp=datetime(2026, 4, 30, 13, 30, 1, tzinfo=timezone.utc),
+                bid_price=838.95,
+                bid_size=200,
+                ask_price=839.1,
+                ask_size=300,
+            )
+
+    client = TestClient(
+        create_app(
+            f"sqlite:///{tmp_path / 'ui.db'}",
+            market_data_providers={"alpaca-market-data": FakeMarketDataProvider()},
+        )
+    )
+
+    response = client.get(
+        "/api/market-data/alpaca-market-data/quote",
+        params={"symbol": "nvda", "feed": "iex"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["quote"]["symbol"] == "NVDA"
+    assert response.json()["quote"]["timestamp"] == "2026-04-30T13:30:01Z"
+    assert response.json()["quote"]["ask_size"] == 300
+
+
+def test_market_data_endpoint_builds_alpaca_provider_from_provider_config(
+    tmp_path: Path,
+    monkeypatch,
+):
+    class FakeResponse:
+        def json(self):
+            return {
+                "bars": [
+                    {
+                        "t": "2026-04-30T13:30:00Z",
+                        "o": 838.12,
+                        "h": 841.0,
+                        "l": 836.5,
+                        "c": 839.05,
+                        "v": 6601542,
+                        "vw": 838.71,
+                        "n": 9342,
+                    }
+                ]
+            }
+
+        def raise_for_status(self):
+            return None
+
+    class RecordingHttpClient:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def get(self, url: str, *, headers: dict, params: dict, timeout: float):
+            self.calls.append(
+                {
+                    "url": url,
+                    "headers": headers,
+                    "params": params,
+                    "timeout": timeout,
+                }
+            )
+            return FakeResponse()
+
+    monkeypatch.setenv(
+        "TRADEMASTER_ALPACA_CREDS",
+        '{"key_id":"paper-key","secret_key":"paper-secret"}',
+    )
+    http_client = RecordingHttpClient()
+    client = TestClient(
+        create_app(
+            f"sqlite:///{tmp_path / 'ui.db'}",
+            market_data_http_client=http_client,
+        )
+    )
+    client.post(
+        "/api/provider-configs/alpaca-market-data",
+        json={
+            "enabled": True,
+            "secret_ref": "env:TRADEMASTER_ALPACA_CREDS",
+            "config": {"feed": "iex"},
+        },
+    )
+
+    response = client.get(
+        "/api/market-data/alpaca-market-data/bars",
+        params={
+            "symbol": "NVDA",
+            "start": "2026-04-30T13:30:00Z",
+            "end": "2026-04-30T20:00:00Z",
+            "timeframe": "1Min",
+        },
+    )
+
+    assert response.status_code == 200
+    assert http_client.calls[0]["headers"] == {
+        "APCA-API-KEY-ID": "paper-key",
+        "APCA-API-SECRET-KEY": "paper-secret",
+    }
+    assert http_client.calls[0]["params"]["feed"] == "iex"
+
+
+def test_market_data_endpoint_returns_controlled_error_when_secret_missing(tmp_path: Path):
+    client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
+    client.post(
+        "/api/provider-configs/alpaca-market-data",
+        json={
+            "enabled": True,
+            "secret_ref": "env:MISSING_TRADEMASTER_ALPACA_CREDS",
+        },
+    )
+
+    response = client.get(
+        "/api/market-data/alpaca-market-data/quote",
+        params={"symbol": "NVDA"},
+    )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Market data secret is not available"}
 
 
 def test_create_run_and_fetch_events(tmp_path: Path):
