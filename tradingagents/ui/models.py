@@ -135,3 +135,105 @@ class BrokerOrderRecord(SQLModel, table=True):
     updated_at: datetime = Field(
         default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
     )
+
+
+class ProviderConfigRecord(SQLModel, table=True):
+    __tablename__ = "ui_provider_configs"
+
+    provider_id: str = Field(primary_key=True)
+    name: str
+    role: str = Field(index=True)
+    status: str = Field(index=True)
+    capabilities: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    primary_use: str
+    control_surface: str = Field(index=True)
+    write_authority: str = Field(index=True)
+    enabled: bool = Field(default=False, index=True)
+    secret_ref: str | None = Field(default=None, index=True)
+    config: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    health: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
+class PrivateOfficeEventRecord(SQLModel, table=True):
+    __tablename__ = "private_office_events"
+
+    event_id: str = Field(default_factory=lambda: new_id("poevt"), primary_key=True)
+    event_type: str = Field(index=True)
+    summary: str
+    actor: str = Field(index=True)
+    entity_id: str | None = Field(default=None, index=True)
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
+class PrivateOfficeEntityRecord(SQLModel, table=True):
+    __tablename__ = "private_office_entities"
+
+    entity_id: str = Field(primary_key=True)
+    entity_type: str = Field(index=True)
+    label: str
+    external_id: str | None = Field(default=None, index=True)
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
+class PrivateOfficeEdgeRecord(SQLModel, table=True):
+    __tablename__ = "private_office_edges"
+
+    edge_id: str = Field(default_factory=lambda: new_id("poedge"), primary_key=True)
+    source_entity_id: str = Field(index=True)
+    target_entity_id: str = Field(index=True)
+    relationship: str = Field(index=True)
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
+class PortfolioMandateRecord(SQLModel, table=True):
+    __tablename__ = "portfolio_mandates"
+
+    mandate_id: str = Field(default_factory=lambda: new_id("mandate"), primary_key=True)
+    name: str
+    control_mode: str = Field(index=True)
+    account_ref: str = Field(index=True)
+    status: str = Field(default="draft", index=True)
+    funding_limit: float
+    max_position_percent: float
+    max_drawdown_percent: float
+    daily_turnover_limit_percent: float
+    paper_mode_required: bool = Field(default=True, index=True)
+    kill_switch_enabled: bool = Field(default=True, index=True)
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
+class SnapshotManifestRecord(SQLModel, table=True):
+    __tablename__ = "snapshot_manifests"
+
+    snapshot_id: str = Field(primary_key=True)
+    storage_profile: str = Field(index=True)
+    encryption_mode: str = Field(index=True)
+    offsite_target: str | None = Field(default=None, index=True)
+    manifest: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )

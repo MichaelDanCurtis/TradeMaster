@@ -10,11 +10,18 @@ from tradingagents.ui.models import (
     ApprovalRecord,
     BrokerOrderRecord,
     DecisionRecord,
+    PrivateOfficeEdgeRecord,
+    PrivateOfficeEntityRecord,
+    PrivateOfficeEventRecord,
+    PortfolioMandateRecord,
+    ProviderConfigRecord,
     RunEventRecord,
     RunRecord,
+    SnapshotManifestRecord,
     TradeIntentRecord,
     now_utc,
 )
+from tradingagents.ui.providers import PROVIDERS, provider_descriptor_by_id
 
 
 class UiRepository:
@@ -121,6 +128,193 @@ class UiRepository:
             session.refresh(record)
             return record
 
+    def append_private_office_event(
+        self,
+        *,
+        event_type: str,
+        summary: str,
+        actor: str,
+        entity_id: str | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> PrivateOfficeEventRecord:
+        record = PrivateOfficeEventRecord(
+            event_type=event_type,
+            summary=summary,
+            actor=actor,
+            entity_id=entity_id,
+            payload=payload or {},
+        )
+        with self._session_factory() as session:
+            session.add(record)
+            session.commit()
+            session.refresh(record)
+            return self._detach_private_office_event(record)
+
+    def list_private_office_events(
+        self,
+        *,
+        entity_id: str | None = None,
+    ) -> list[PrivateOfficeEventRecord]:
+        statement = select(PrivateOfficeEventRecord).order_by(PrivateOfficeEventRecord.created_at)
+        if entity_id is not None:
+            statement = statement.where(PrivateOfficeEventRecord.entity_id == entity_id)
+        with self._session_factory() as session:
+            return [self._detach_private_office_event(record) for record in session.exec(statement).all()]
+
+    def upsert_private_office_entity(
+        self,
+        *,
+        entity_id: str,
+        entity_type: str,
+        label: str,
+        external_id: str | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> PrivateOfficeEntityRecord:
+        with self._session_factory() as session:
+            record = session.get(PrivateOfficeEntityRecord, entity_id)
+            if record is None:
+                record = PrivateOfficeEntityRecord(
+                    entity_id=entity_id,
+                    entity_type=entity_type,
+                    label=label,
+                    external_id=external_id,
+                    payload=payload or {},
+                )
+            else:
+                record.entity_type = entity_type
+                record.label = label
+                record.external_id = external_id
+                record.payload = payload or {}
+                record.updated_at = now_utc()
+            session.add(record)
+            session.commit()
+            session.refresh(record)
+            return self._detach_private_office_entity(record)
+
+    def get_private_office_entity(self, entity_id: str) -> PrivateOfficeEntityRecord:
+        with self._session_factory() as session:
+            record = session.get(PrivateOfficeEntityRecord, entity_id)
+            if record is None:
+                raise KeyError(entity_id)
+            return self._detach_private_office_entity(record)
+
+    def link_private_office_entities(
+        self,
+        *,
+        source_entity_id: str,
+        target_entity_id: str,
+        relationship: str,
+        payload: dict[str, Any] | None = None,
+    ) -> PrivateOfficeEdgeRecord:
+        with self._session_factory() as session:
+            self._require_private_office_entity(session, source_entity_id)
+            self._require_private_office_entity(session, target_entity_id)
+            record = PrivateOfficeEdgeRecord(
+                source_entity_id=source_entity_id,
+                target_entity_id=target_entity_id,
+                relationship=relationship,
+                payload=payload or {},
+            )
+            session.add(record)
+            session.commit()
+            session.refresh(record)
+            return self._detach_private_office_edge(record)
+
+    def list_private_office_edges(
+        self,
+        *,
+        source_entity_id: str | None = None,
+        target_entity_id: str | None = None,
+    ) -> list[PrivateOfficeEdgeRecord]:
+        statement = select(PrivateOfficeEdgeRecord).order_by(PrivateOfficeEdgeRecord.created_at)
+        if source_entity_id is not None:
+            statement = statement.where(PrivateOfficeEdgeRecord.source_entity_id == source_entity_id)
+        if target_entity_id is not None:
+            statement = statement.where(PrivateOfficeEdgeRecord.target_entity_id == target_entity_id)
+        with self._session_factory() as session:
+            return [self._detach_private_office_edge(record) for record in session.exec(statement).all()]
+
+    def create_portfolio_mandate(
+        self,
+        *,
+        name: str,
+        control_mode: str,
+        account_ref: str,
+        funding_limit: float,
+        max_position_percent: float,
+        max_drawdown_percent: float,
+        daily_turnover_limit_percent: float,
+        paper_mode_required: bool,
+        kill_switch_enabled: bool,
+        status: str = "draft",
+        payload: dict[str, Any] | None = None,
+    ) -> PortfolioMandateRecord:
+        self._validate_portfolio_mandate(
+            control_mode=control_mode,
+            funding_limit=funding_limit,
+            max_position_percent=max_position_percent,
+            max_drawdown_percent=max_drawdown_percent,
+            daily_turnover_limit_percent=daily_turnover_limit_percent,
+            paper_mode_required=paper_mode_required,
+            kill_switch_enabled=kill_switch_enabled,
+        )
+        record = PortfolioMandateRecord(
+            name=name,
+            control_mode=control_mode,
+            account_ref=account_ref,
+            funding_limit=funding_limit,
+            max_position_percent=max_position_percent,
+            max_drawdown_percent=max_drawdown_percent,
+            daily_turnover_limit_percent=daily_turnover_limit_percent,
+            paper_mode_required=paper_mode_required,
+            kill_switch_enabled=kill_switch_enabled,
+            status=status,
+            payload=payload or {},
+        )
+        with self._session_factory() as session:
+            session.add(record)
+            session.commit()
+            session.refresh(record)
+            return self._detach_portfolio_mandate(record)
+
+    def list_portfolio_mandates(
+        self,
+        *,
+        control_mode: str | None = None,
+    ) -> list[PortfolioMandateRecord]:
+        statement = select(PortfolioMandateRecord).order_by(PortfolioMandateRecord.created_at)
+        if control_mode is not None:
+            statement = statement.where(PortfolioMandateRecord.control_mode == control_mode)
+        with self._session_factory() as session:
+            return [self._detach_portfolio_mandate(record) for record in session.exec(statement).all()]
+
+    def store_snapshot_manifest(
+        self,
+        *,
+        snapshot_id: str,
+        storage_profile: str,
+        encryption_mode: str,
+        offsite_target: str | None,
+        manifest: dict[str, Any],
+    ) -> SnapshotManifestRecord:
+        record = SnapshotManifestRecord(
+            snapshot_id=snapshot_id,
+            storage_profile=storage_profile,
+            encryption_mode=encryption_mode,
+            offsite_target=offsite_target,
+            manifest=manifest,
+        )
+        with self._session_factory() as session:
+            session.add(record)
+            session.commit()
+            session.refresh(record)
+            return self._detach_snapshot_manifest(record)
+
+    def list_snapshot_manifests(self) -> list[SnapshotManifestRecord]:
+        statement = select(SnapshotManifestRecord).order_by(SnapshotManifestRecord.created_at.desc())
+        with self._session_factory() as session:
+            return [self._detach_snapshot_manifest(record) for record in session.exec(statement).all()]
+
     def create_trade_intent(
         self,
         run_id: str,
@@ -220,6 +414,54 @@ class UiRepository:
             session.refresh(record)
             return record
 
+    def list_provider_configs(self) -> list[ProviderConfigRecord]:
+        with self._session_factory() as session:
+            self._seed_provider_configs(session)
+            statement = select(ProviderConfigRecord).order_by(ProviderConfigRecord.provider_id)
+            return list(session.exec(statement).all())
+
+    def get_provider_config(self, provider_id: str) -> ProviderConfigRecord:
+        with self._session_factory() as session:
+            self._seed_provider_configs(session)
+            record = session.get(ProviderConfigRecord, provider_id)
+            if record is None:
+                raise KeyError(provider_id)
+            return record
+
+    def upsert_provider_config(
+        self,
+        provider_id: str,
+        *,
+        enabled: bool | None = None,
+        secret_ref: str | None = None,
+        config: dict[str, Any] | None = None,
+        health: dict[str, Any] | None = None,
+        status: str | None = None,
+    ) -> ProviderConfigRecord:
+        with self._session_factory() as session:
+            self._seed_provider_configs(session)
+            record = session.get(ProviderConfigRecord, provider_id)
+            descriptor = provider_descriptor_by_id(provider_id)
+            if record is None and descriptor is None:
+                raise KeyError(provider_id)
+            if record is None and descriptor is not None:
+                record = self._provider_config_from_descriptor(descriptor)
+            if enabled is not None:
+                record.enabled = enabled
+            if secret_ref is not None:
+                record.secret_ref = secret_ref
+            if config is not None:
+                record.config = self._sanitize_config(config)
+            if health is not None:
+                record.health = self._sanitize_config(health)
+            if status is not None:
+                record.status = status
+            record.updated_at = now_utc()
+            session.add(record)
+            session.commit()
+            session.refresh(record)
+            return record
+
     @staticmethod
     def _run_summary(record: RunRecord) -> RunSummary:
         return RunSummary(
@@ -242,6 +484,136 @@ class UiRepository:
             node=record.node,
             message=record.message,
             payload=record.payload,
+            created_at=record.created_at,
+        )
+
+    @classmethod
+    def _seed_provider_configs(cls, session: Session) -> None:
+        changed = False
+        for descriptor in PROVIDERS:
+            if session.get(ProviderConfigRecord, descriptor.id) is None:
+                session.add(cls._provider_config_from_descriptor(descriptor))
+                changed = True
+        if changed:
+            session.commit()
+
+    @staticmethod
+    def _provider_config_from_descriptor(descriptor: Any) -> ProviderConfigRecord:
+        return ProviderConfigRecord(
+            provider_id=descriptor.id,
+            name=descriptor.name,
+            role=descriptor.role,
+            status=descriptor.status,
+            capabilities=list(descriptor.capabilities),
+            primary_use=descriptor.primary_use,
+            control_surface=descriptor.control_surface,
+            write_authority=descriptor.write_authority,
+            enabled=descriptor.status == "available",
+            config={},
+            health={"status": "not_checked"},
+        )
+
+    @staticmethod
+    def _sanitize_config(value: dict[str, Any]) -> dict[str, Any]:
+        blocked = {"secret", "secret_value", "raw_secret", "api_key", "access_token", "refresh_token", "password"}
+        return {key: item for key, item in value.items() if key.lower() not in blocked}
+
+    @staticmethod
+    def _detach_private_office_event(record: PrivateOfficeEventRecord) -> PrivateOfficeEventRecord:
+        return PrivateOfficeEventRecord(
+            event_id=record.event_id,
+            event_type=record.event_type,
+            summary=record.summary,
+            actor=record.actor,
+            entity_id=record.entity_id,
+            payload=dict(record.payload),
+            created_at=record.created_at,
+        )
+
+    @staticmethod
+    def _detach_private_office_entity(record: PrivateOfficeEntityRecord) -> PrivateOfficeEntityRecord:
+        return PrivateOfficeEntityRecord(
+            entity_id=record.entity_id,
+            entity_type=record.entity_type,
+            label=record.label,
+            external_id=record.external_id,
+            payload=dict(record.payload),
+            created_at=record.created_at,
+            updated_at=record.updated_at,
+        )
+
+    @staticmethod
+    def _detach_private_office_edge(record: PrivateOfficeEdgeRecord) -> PrivateOfficeEdgeRecord:
+        return PrivateOfficeEdgeRecord(
+            edge_id=record.edge_id,
+            source_entity_id=record.source_entity_id,
+            target_entity_id=record.target_entity_id,
+            relationship=record.relationship,
+            payload=dict(record.payload),
+            created_at=record.created_at,
+        )
+
+    @staticmethod
+    def _require_private_office_entity(
+        session: Session,
+        entity_id: str,
+    ) -> PrivateOfficeEntityRecord:
+        record = session.get(PrivateOfficeEntityRecord, entity_id)
+        if record is None:
+            raise KeyError(entity_id)
+        return record
+
+    @staticmethod
+    def _validate_portfolio_mandate(
+        *,
+        control_mode: str,
+        funding_limit: float,
+        max_position_percent: float,
+        max_drawdown_percent: float,
+        daily_turnover_limit_percent: float,
+        paper_mode_required: bool,
+        kill_switch_enabled: bool,
+    ) -> None:
+        for label, value in {
+            "funding_limit": funding_limit,
+            "max_position_percent": max_position_percent,
+            "max_drawdown_percent": max_drawdown_percent,
+            "daily_turnover_limit_percent": daily_turnover_limit_percent,
+        }.items():
+            if value <= 0:
+                raise ValueError(f"{label} must be greater than zero")
+        if control_mode == "ai-managed-high-risk" and not paper_mode_required:
+            raise ValueError("ai-managed-high-risk mandates require paper mode proving")
+        if control_mode == "ai-managed-high-risk" and not kill_switch_enabled:
+            raise ValueError("ai-managed-high-risk mandates require a kill switch")
+
+    @staticmethod
+    def _detach_portfolio_mandate(record: PortfolioMandateRecord) -> PortfolioMandateRecord:
+        return PortfolioMandateRecord(
+            mandate_id=record.mandate_id,
+            name=record.name,
+            control_mode=record.control_mode,
+            account_ref=record.account_ref,
+            status=record.status,
+            funding_limit=record.funding_limit,
+            max_position_percent=record.max_position_percent,
+            max_drawdown_percent=record.max_drawdown_percent,
+            daily_turnover_limit_percent=record.daily_turnover_limit_percent,
+            paper_mode_required=record.paper_mode_required,
+            kill_switch_enabled=record.kill_switch_enabled,
+            payload=dict(record.payload),
+            created_at=record.created_at,
+            updated_at=record.updated_at,
+        )
+
+    @staticmethod
+    def _detach_snapshot_manifest(record: SnapshotManifestRecord) -> SnapshotManifestRecord:
+        return SnapshotManifestRecord(
+            snapshot_id=record.snapshot_id,
+            storage_profile=record.storage_profile,
+            encryption_mode=record.encryption_mode,
+            offsite_target=record.offsite_target,
+            manifest=dict(record.manifest),
             created_at=record.created_at,
         )
 
