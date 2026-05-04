@@ -3,83 +3,90 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
-  getAgentConversations,
-  getAgentMessages,
-  getConversationActions,
-  type ActionRequest,
-  type AgentConversation,
-  type AgentMessage
+  getPrivateOfficeChannelActions,
+  getPrivateOfficeChannelMessages,
+  getPrivateOfficeChannels,
+  getPrivateOfficeGoalDossier,
+  type PrivateOfficeChannel,
+  type PrivateOfficeChannelAction,
+  type PrivateOfficeChannelMessage,
+  type PrivateOfficeGoalDossier
 } from "@/lib/workspace-data";
 
 export function AgentsWorkspace({ symbol }: { symbol: string }) {
-  const conversations = useMemo(() => getAgentConversations(symbol), [symbol]);
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
-  const selectedConversation =
-    conversations.find((conversation) => conversation.id === selectedConversationId) ?? conversations[0] ?? null;
+  const channels = useMemo(() => getPrivateOfficeChannels(symbol), [symbol]);
+  const goalDossier = useMemo(() => getPrivateOfficeGoalDossier(symbol), [symbol]);
+  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(channels[0]?.id ?? null);
+  const selectedChannel = channels.find((channel) => channel.id === selectedChannelId) ?? channels[0] ?? null;
   const messages = useMemo(
-    () => (selectedConversation ? getAgentMessages(selectedConversation.id) : []),
-    [selectedConversation]
+    () => (selectedChannel ? getPrivateOfficeChannelMessages(selectedChannel.id, symbol) : []),
+    [selectedChannel, symbol]
   );
   const actions = useMemo(
-    () => (selectedConversation ? getConversationActions(selectedConversation.id) : []),
-    [selectedConversation]
+    () => (selectedChannel ? getPrivateOfficeChannelActions(selectedChannel.id, symbol) : []),
+    [selectedChannel, symbol]
   );
 
   useEffect(() => {
-    setSelectedConversationId(conversations[0]?.id ?? null);
-  }, [conversations]);
+    setSelectedChannelId(channels[0]?.id ?? null);
+  }, [channels]);
 
   return (
-    <section className="agents-workspace" aria-label="Agents workspace">
-      <ConversationRail
-        conversations={conversations}
-        selectedConversationId={selectedConversation?.id ?? null}
-        onSelectConversation={setSelectedConversationId}
+    <section className="agents-workspace private-office-console" aria-label="Private office agents console">
+      <ChannelRail
+        channels={channels}
+        selectedChannelId={selectedChannel?.id ?? null}
+        onSelectChannel={setSelectedChannelId}
       />
-      <MessageStream conversation={selectedConversation} messages={messages} symbol={symbol} />
-      <ActionPanel actions={actions} conversation={selectedConversation} />
+      <ChannelMessageStream
+        channel={selectedChannel}
+        goalDossier={goalDossier}
+        messages={messages}
+        symbol={symbol}
+      />
+      <TriagePanel actions={actions} channel={selectedChannel} goalDossier={goalDossier} />
     </section>
   );
 }
 
-function ConversationRail({
-  conversations,
-  selectedConversationId,
-  onSelectConversation
+function ChannelRail({
+  channels,
+  selectedChannelId,
+  onSelectChannel
 }: {
-  conversations: AgentConversation[];
-  selectedConversationId: string | null;
-  onSelectConversation: (conversationId: string) => void;
+  channels: PrivateOfficeChannel[];
+  selectedChannelId: string | null;
+  onSelectChannel: (channelId: string) => void;
 }) {
   return (
-    <aside className="agents-conversation-rail">
+    <aside className="agents-conversation-rail private-channel-rail">
       <header className="panel-header">
         <div>
-          <span className="panel-kicker">Agent inbox</span>
-          <h2>Conversations</h2>
+          <span className="panel-kicker">Private office</span>
+          <h2>Agent teams</h2>
         </div>
-        <span className="panel-count">{conversations.length}</span>
+        <span className="panel-count">{channels.length}</span>
       </header>
-      <div className="conversation-list">
-        {conversations.map((conversation) => (
+      <div className="conversation-list private-channel-list">
+        {channels.map((channel) => (
           <button
-            className={
-              conversation.id === selectedConversationId ? "conversation-item selected" : "conversation-item"
-            }
-            key={conversation.id}
+            className={channel.id === selectedChannelId ? "conversation-item private-channel-item selected" : "conversation-item private-channel-item"}
+            key={channel.id}
             type="button"
-            onClick={() => onSelectConversation(conversation.id)}
+            onClick={() => onSelectChannel(channel.id)}
           >
-            <span className={`conversation-avatar ${conversation.type}`}>{getConversationInitials(conversation)}</span>
+            <span className={`conversation-avatar ${channel.urgency}`}>{getChannelInitials(channel.label)}</span>
             <span className="conversation-copy">
               <span className="conversation-row">
-                <strong>{conversation.label}</strong>
-                <time>{formatShortTime(conversation.lastActivity)}</time>
+                <strong>{channel.label}</strong>
+                <time>{formatShortTime(channel.lastActivity)}</time>
               </span>
-              <span className="conversation-summary">{conversation.summary}</span>
-              <span className="conversation-meta">
-                <span>{conversation.type}</span>
-                {conversation.unreadCount > 0 ? <span>{conversation.unreadCount} unread</span> : null}
+              <span className="conversation-summary">{channel.description}</span>
+              <span className="conversation-meta private-channel-meta">
+                <span className={`channel-urgency ${channel.urgency}`}>{channel.urgency}</span>
+                <span>{channel.delivery}</span>
+                {channel.notifyMichael ? <span>notify</span> : null}
+                {channel.unreadCount > 0 ? <span>{channel.unreadCount} unread</span> : null}
               </span>
             </span>
           </button>
@@ -89,41 +96,52 @@ function ConversationRail({
   );
 }
 
-function MessageStream({
-  conversation,
+function ChannelMessageStream({
+  channel,
+  goalDossier,
   messages,
   symbol
 }: {
-  conversation: AgentConversation | null;
-  messages: AgentMessage[];
+  channel: PrivateOfficeChannel | null;
+  goalDossier: PrivateOfficeGoalDossier;
+  messages: PrivateOfficeChannelMessage[];
   symbol: string;
 }) {
-  if (!conversation) {
+  if (!channel) {
     return (
-      <section className="agents-message-stream">
-        <p className="empty-state">No agent conversations are available.</p>
+      <section className="agents-message-stream private-message-stream">
+        <p className="empty-state">No private-office channels are available.</p>
       </section>
     );
   }
 
   return (
-    <article className="agents-message-stream">
-      <header className="message-stream-header">
+    <article className="agents-message-stream private-message-stream">
+      <header className="message-stream-header private-message-header">
         <div>
-          <span className="panel-kicker">{conversation.type}</span>
-          <h1>{conversation.label}</h1>
+          <span className="panel-kicker">{channel.delivery} channel</span>
+          <h1>{channel.label}</h1>
         </div>
-        <span className="status-pill paper">{conversation.symbol ?? "System"}</span>
+        <span className={`status-pill channel-status ${channel.urgency}`}>{channel.urgency}</span>
       </header>
-      <div className="message-list" aria-label={`${conversation.label} messages`}>
+      <div className="private-channel-summary">
+        <span>{channel.a2uiSurface}</span>
+        <p>{channel.description}</p>
+      </div>
+      <div className="message-list" aria-label={`${channel.label} messages`}>
         {messages.map((message) => (
-          <section className={`agent-message ${message.author.type}`} key={message.id}>
+          <section className="agent-message private-agent-message" key={message.id}>
             <header>
-              <strong>{message.author.name}</strong>
+              <span>
+                <strong>{message.author}</strong>
+                <small>{message.role}</small>
+              </span>
               <time>{formatLongTime(message.timestamp)}</time>
             </header>
             <p>{message.body}</p>
-            {message.a2uiSurface === "event-chart" ? <EventChartSurface symbol={symbol} /> : null}
+            {message.surface ? (
+              <A2UISurface message={message} goalDossier={goalDossier} symbol={symbol} />
+            ) : null}
           </section>
         ))}
       </div>
@@ -131,76 +149,172 @@ function MessageStream({
   );
 }
 
-function EventChartSurface({ symbol }: { symbol: string }) {
-  const bars = [44, 58, 52, 69, 74, 66, 82, 88];
+function A2UISurface({
+  goalDossier,
+  message,
+  symbol
+}: {
+  goalDossier: PrivateOfficeGoalDossier;
+  message: PrivateOfficeChannelMessage;
+  symbol: string;
+}) {
+  if (message.surface === "goal-dossier") {
+    return (
+      <section className="a2ui-surface-card goal-surface" aria-label={`${goalDossier.goalName} A2UI surface`}>
+        <div className="a2ui-card-header">
+          <div>
+            <span className="panel-kicker">A2UI goal dossier</span>
+            <strong>{goalDossier.assetTarget}</strong>
+          </div>
+          <span>{goalDossier.status}</span>
+        </div>
+        <div className="goal-progress-meter" aria-label={`${goalDossier.fundingProgress}% funding readiness`}>
+          <span style={{ width: `${goalDossier.fundingProgress}%` }} />
+        </div>
+        <div className="goal-surface-grid">
+          <span>Location: {goalDossier.desiredLocation}</span>
+          <span>Window: {goalDossier.targetWindow}</span>
+        </div>
+      </section>
+    );
+  }
+
+  if (message.surface === "approval-triage") {
+    return (
+      <section className="a2ui-surface-card approval-surface" aria-label={`${symbol} approval triage surface`}>
+        <div className="a2ui-card-header">
+          <div>
+            <span className="panel-kicker">A2UI approval gate</span>
+            <strong>{symbol} capital policy</strong>
+          </div>
+          <span>Human approval required</span>
+        </div>
+        <div className="approval-grid">
+          <span>Max loss</span>
+          <span>Opportunity cost</span>
+          <span>Tax drag</span>
+          <span>Goal impact</span>
+        </div>
+      </section>
+    );
+  }
+
+  if (message.surface === "document-checklist") {
+    return (
+      <section className="a2ui-surface-card document-surface" aria-label="Asset document checklist surface">
+        <div className="a2ui-card-header">
+          <div>
+            <span className="panel-kicker">A2UI document checklist</span>
+            <strong>Asset registry shell</strong>
+          </div>
+          <span>Vault first</span>
+        </div>
+        <div className="document-chip-row">
+          {["Title", "Insurance", "Registration", "Maintenance", "Advisor notes"].map((label) => (
+            <span key={label}>{label}</span>
+          ))}
+        </div>
+      </section>
+    );
+  }
 
   return (
-    <section className="a2ui-surface-card" aria-label={`${symbol} event chart preview`}>
+    <section className="a2ui-surface-card morning-surface" aria-label={`${symbol} morning brief surface`}>
       <div className="a2ui-card-header">
         <div>
-          <span className="panel-kicker">A2UI surface</span>
-          <strong>{symbol} event chart</strong>
+          <span className="panel-kicker">A2UI morning brief</span>
+          <strong>Private office digest</strong>
         </div>
-        <span>Constrained preview</span>
+        <span>{symbol}</span>
       </div>
-      <div className="a2ui-chart-grid">
-        {bars.map((height, index) => (
-          <span
-            className={index >= bars.length - 3 ? "a2ui-chart-bar active" : "a2ui-chart-bar"}
-            key={`${height}-${index}`}
-            style={{ height: `${height}%` }}
-          />
-        ))}
-      </div>
-      <div className="a2ui-event-row">
-        <span>Demand revision</span>
-        <span>Options flow</span>
-        <span>Supply update</span>
+      <div className="morning-brief-grid">
+        <span>Goals</span>
+        <span>Capital</span>
+        <span>Documents</span>
+        <span>Communications</span>
       </div>
     </section>
   );
 }
 
-function ActionPanel({
+function TriagePanel({
   actions,
-  conversation
+  channel,
+  goalDossier
 }: {
-  actions: ActionRequest[];
-  conversation: AgentConversation | null;
+  actions: PrivateOfficeChannelAction[];
+  channel: PrivateOfficeChannel | null;
+  goalDossier: PrivateOfficeGoalDossier;
 }) {
   return (
-    <aside className="agents-action-panel">
+    <aside className="agents-action-panel private-triage-panel">
       <header className="panel-header">
         <div>
-          <span className="panel-kicker">Context</span>
-          <h2>Actions</h2>
+          <span className="panel-kicker">Actionable panel</span>
+          <h2>Triage</h2>
         </div>
         <span className="panel-count">{actions.length}</span>
       </header>
-      <section className="action-context-card">
-        <span>Selected thread</span>
-        <strong>{conversation?.label ?? "None"}</strong>
-        <p>{conversation?.summary ?? "Select a conversation to review available actions."}</p>
+      <section className="action-context-card private-context-card">
+        <span>Selected team</span>
+        <strong>{channel?.label ?? "None"}</strong>
+        <p>{channel?.description ?? "Select a private-office team to review messages and available actions."}</p>
       </section>
-      <div className="action-request-list">
+      <div className="action-request-list private-action-list">
         {actions.map((action) => (
-          <button className={`action-request ${action.status}`} key={action.id} type="button">
+          <button className={`action-request private-action-request ${action.status}`} key={action.id} type="button">
             <span>
               <strong>{action.label}</strong>
-              <small>{formatActionType(action.type)}</small>
+              <small>{action.detail}</small>
             </span>
-            <span className={action.requiresApproval ? "approval-badge required" : "approval-badge"}>{formatStatus(action)}</span>
+            <span className={action.requiresApproval ? "approval-badge required" : "approval-badge"}>
+              {formatActionStatus(action)}
+            </span>
           </button>
         ))}
       </div>
+      <GoalDossierCard dossier={goalDossier} />
     </aside>
   );
 }
 
-function getConversationInitials(conversation: AgentConversation): string {
-  if (conversation.type === "platform") return "PA";
+function GoalDossierCard({ dossier }: { dossier: PrivateOfficeGoalDossier }) {
+  return (
+    <section className="goal-dossier-card" aria-label={`${dossier.goalName} dossier`}>
+      <header>
+        <span className="panel-kicker">Material goal</span>
+        <h3>{dossier.goalName}</h3>
+      </header>
+      <div className="goal-dossier-stat">
+        <span>{dossier.assetTarget}</span>
+        <strong>{dossier.fundingProgress}%</strong>
+      </div>
+      <div className="goal-progress-meter">
+        <span style={{ width: `${dossier.fundingProgress}%` }} />
+      </div>
+      <p>{dossier.estimatedAcquisitionCost}</p>
+      <p>{dossier.operatingCostWatch}</p>
+      <div className="goal-section">
+        <strong>Capital path</strong>
+        {dossier.capitalPath.map((item) => (
+          <span className="goal-path-row" key={item}>{item}</span>
+        ))}
+      </div>
+      <div className="goal-section">
+        <strong>Blockers</strong>
+        {dossier.blockers.map((blocker) => (
+          <span className={`goal-blocker ${blocker.severity}`} key={`${blocker.owner}-${blocker.detail}`}>
+            <small>{blocker.owner}</small>
+            {blocker.detail}
+          </span>
+        ))}
+      </div>
+    </section>
+  );
+}
 
-  return conversation.label
+function getChannelInitials(label: string): string {
+  return label
     .split(" ")
     .slice(0, 2)
     .map((part) => part[0])
@@ -208,17 +322,13 @@ function getConversationInitials(conversation: AgentConversation): string {
     .toUpperCase();
 }
 
-function formatActionType(value: ActionRequest["type"]): string {
-  return value
+function formatActionStatus(action: PrivateOfficeChannelAction): string {
+  if (action.requiresApproval) return "Approval";
+
+  return action.status
     .split("-")
     .map((part) => part[0].toUpperCase() + part.slice(1))
     .join(" ");
-}
-
-function formatStatus(action: ActionRequest): string {
-  if (action.requiresApproval) return "Approval";
-
-  return action.status.replace("-", " ");
 }
 
 function formatShortTime(value: string): string {

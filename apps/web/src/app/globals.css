@@ -2080,6 +2080,318 @@ button {
   background: #20190d;
 }
 
+.private-office-console {
+  grid-template-columns: minmax(270px, 320px) minmax(430px, 1fr) minmax(340px, 390px);
+  background:
+    linear-gradient(90deg, rgba(80, 124, 90, 0.05), transparent 34%),
+    #090f15;
+}
+
+.private-channel-rail,
+.private-triage-panel {
+  background: #0b1016;
+}
+
+.private-channel-list {
+  gap: 7px;
+}
+
+.private-channel-item {
+  min-height: 112px;
+  border-color: #26313b;
+  background: #0f151c;
+}
+
+.private-channel-item.selected {
+  border-color: #6eb582;
+  background: #101f19;
+  box-shadow: inset 3px 0 0 #6eb582;
+}
+
+.private-channel-item:hover {
+  border-color: #557b65;
+  background: #121c20;
+}
+
+.conversation-avatar.low,
+.conversation-avatar.normal,
+.conversation-avatar.watch,
+.conversation-avatar.urgent {
+  border-color: #36434d;
+  color: #d9e4ef;
+  background: #121922;
+}
+
+.conversation-avatar.watch {
+  border-color: #6b5c29;
+  color: #f4d68b;
+  background: #211b0f;
+}
+
+.conversation-avatar.urgent {
+  border-color: #75423f;
+  color: #ffb4aa;
+  background: #271513;
+}
+
+.private-channel-meta {
+  flex-wrap: wrap;
+}
+
+.channel-urgency {
+  border: 1px solid #34435a;
+  border-radius: 999px;
+  padding: 2px 6px;
+}
+
+.channel-urgency.watch {
+  border-color: #5b4a22;
+  color: #f4d68b;
+}
+
+.channel-urgency.urgent {
+  border-color: #71413d;
+  color: #ffb4aa;
+}
+
+.private-message-stream {
+  background:
+    linear-gradient(180deg, rgba(216, 229, 238, 0.03), transparent 260px),
+    #0a1017;
+}
+
+.private-message-header {
+  margin-bottom: 10px;
+}
+
+.channel-status {
+  border-color: #34435a;
+}
+
+.channel-status.watch {
+  border-color: #5b4a22;
+  color: #f4d68b;
+  background: #20190d;
+}
+
+.channel-status.urgent {
+  border-color: #71413d;
+  color: #ffb4aa;
+  background: #271513;
+}
+
+.private-channel-summary {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+  border: 1px solid #26313b;
+  border-radius: 7px;
+  background: #0d141c;
+  padding: 10px 12px;
+}
+
+.private-channel-summary span {
+  color: #8ccf9f;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.private-channel-summary p {
+  margin: 0;
+  color: #aebdcc;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.private-agent-message {
+  max-width: 860px;
+  border-color: #26313b;
+  background: #0f151c;
+}
+
+.private-agent-message header span {
+  display: grid;
+  gap: 2px;
+}
+
+.private-agent-message small {
+  color: #8397aa;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.goal-surface,
+.approval-surface,
+.document-surface,
+.morning-surface {
+  border-color: #314050;
+  background: #0a1118;
+}
+
+.goal-progress-meter {
+  overflow: hidden;
+  height: 9px;
+  border: 1px solid #26313b;
+  border-radius: 999px;
+  background: #111821;
+}
+
+.goal-progress-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6eb582, #f4d68b);
+}
+
+.goal-surface-grid,
+.approval-grid,
+.morning-brief-grid,
+.document-chip-row {
+  display: grid;
+  gap: 8px;
+}
+
+.goal-surface-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.approval-grid,
+.morning-brief-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.document-chip-row {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.goal-surface-grid span,
+.approval-grid span,
+.morning-brief-grid span,
+.document-chip-row span {
+  overflow: hidden;
+  border: 1px solid #26313b;
+  border-radius: 5px;
+  color: #c8d5e2;
+  background: #0d141c;
+  padding: 7px 8px;
+  font-size: 11px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.private-context-card {
+  border-color: #26313b;
+  background: #0f151c;
+}
+
+.private-action-list {
+  margin-bottom: 12px;
+}
+
+.private-action-request {
+  min-height: 76px;
+}
+
+.private-action-request small {
+  display: -webkit-box;
+  overflow: hidden;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.private-action-request.requires-approval {
+  border-color: #6b5c29;
+  background: #17170f;
+}
+
+.private-action-request.complete {
+  border-color: #315b40;
+  background: #0f1d15;
+}
+
+.goal-dossier-card {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #314050;
+  border-radius: 7px;
+  background: #0f151c;
+  padding: 12px;
+}
+
+.goal-dossier-card h3 {
+  margin: 2px 0 0;
+  color: #f2f6fa;
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.goal-dossier-card p {
+  margin: 0;
+  color: #aebdcc;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.goal-dossier-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.goal-dossier-stat span {
+  color: #dbe5ee;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.goal-dossier-stat strong {
+  color: #f4d68b;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.goal-section {
+  display: grid;
+  gap: 7px;
+}
+
+.goal-section > strong {
+  color: #f2f6fa;
+  font-size: 12px;
+}
+
+.goal-path-row,
+.goal-blocker {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #26313b;
+  border-radius: 6px;
+  color: #c8d5e2;
+  background: #0d141c;
+  padding: 8px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.goal-blocker small {
+  color: #8fb7ff;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.goal-blocker.watch {
+  border-color: #5b4a22;
+}
+
+.goal-blocker.urgent {
+  border-color: #71413d;
+}
+
 .transactions-main {
   min-width: 0;
   padding: 14px;
@@ -2681,6 +2993,10 @@ button {
     overflow: auto;
   }
 
+  .private-office-console {
+    grid-template-columns: minmax(260px, 300px) minmax(360px, 1fr);
+  }
+
   .transactions-workspace {
     grid-template-columns: minmax(360px, 1fr);
     overflow: auto;
@@ -2719,6 +3035,12 @@ button {
 
   .agents-workspace {
     grid-template-columns: minmax(230px, 270px) minmax(320px, 1fr);
+  }
+
+  .approval-grid,
+  .document-chip-row,
+  .morning-brief-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .transaction-balance-strip {
@@ -2791,6 +3113,17 @@ button {
   .agents-workspace {
     grid-template-columns: 1fr;
     overflow: visible;
+  }
+
+  .private-office-console {
+    grid-template-columns: 1fr;
+  }
+
+  .goal-surface-grid,
+  .approval-grid,
+  .document-chip-row,
+  .morning-brief-grid {
+    grid-template-columns: 1fr;
   }
 
   .transactions-workspace {
