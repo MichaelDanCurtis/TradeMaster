@@ -15,6 +15,8 @@ This starts two tmux sessions:
 
 The script waits for both health checks before exiting.
 
+If `.venv`, `node_modules`, or the Next.js production build is missing, the script creates them before starting the tmux sessions.
+
 ## Stop
 
 ```bash
@@ -31,7 +33,7 @@ TRADEMASTER_API_PORT=8877 TRADEMASTER_WEB_PORT=3100 npm run dev:local
 
 ## Requirements
 
-Run these once in a fresh checkout:
+These are still useful to run manually in a fresh checkout, but `npm run dev:local` will bootstrap them if they are missing:
 
 ```bash
 npm install

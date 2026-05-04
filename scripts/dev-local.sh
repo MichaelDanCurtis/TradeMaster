@@ -15,13 +15,22 @@ if ! command -v tmux >/dev/null 2>&1; then
 fi
 
 if [[ ! -x "${ROOT_DIR}/.venv/bin/uvicorn" ]]; then
-  echo "Missing ${ROOT_DIR}/.venv/bin/uvicorn. Run: uv sync --extra dev" >&2
-  exit 1
+  if ! command -v uv >/dev/null 2>&1; then
+    echo "Missing ${ROOT_DIR}/.venv/bin/uvicorn and uv is not installed." >&2
+    exit 1
+  fi
+  echo "Creating Python environment with uv sync --extra dev..."
+  (cd "${ROOT_DIR}" && uv sync --extra dev)
 fi
 
 if [[ ! -d "${ROOT_DIR}/node_modules" ]]; then
-  echo "Missing node_modules. Run: npm install" >&2
-  exit 1
+  echo "Installing web dependencies with npm install..."
+  (cd "${ROOT_DIR}" && npm install)
+fi
+
+if [[ ! -d "${ROOT_DIR}/apps/web/.next" ]]; then
+  echo "Creating Next.js production build..."
+  (cd "${ROOT_DIR}" && npm run web:build)
 fi
 
 tmux kill-session -t "${API_SESSION}" 2>/dev/null || true
