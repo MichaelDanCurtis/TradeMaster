@@ -224,3 +224,16 @@ class PortfolioMandateRecord(SQLModel, table=True):
     updated_at: datetime = Field(
         default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
     )
+
+
+class SnapshotManifestRecord(SQLModel, table=True):
+    __tablename__ = "snapshot_manifests"
+
+    snapshot_id: str = Field(primary_key=True)
+    storage_profile: str = Field(index=True)
+    encryption_mode: str = Field(index=True)
+    offsite_target: str | None = Field(default=None, index=True)
+    manifest: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )

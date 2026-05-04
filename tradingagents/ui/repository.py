@@ -17,6 +17,7 @@ from tradingagents.ui.models import (
     ProviderConfigRecord,
     RunEventRecord,
     RunRecord,
+    SnapshotManifestRecord,
     TradeIntentRecord,
     now_utc,
 )
@@ -286,6 +287,33 @@ class UiRepository:
             statement = statement.where(PortfolioMandateRecord.control_mode == control_mode)
         with self._session_factory() as session:
             return [self._detach_portfolio_mandate(record) for record in session.exec(statement).all()]
+
+    def store_snapshot_manifest(
+        self,
+        *,
+        snapshot_id: str,
+        storage_profile: str,
+        encryption_mode: str,
+        offsite_target: str | None,
+        manifest: dict[str, Any],
+    ) -> SnapshotManifestRecord:
+        record = SnapshotManifestRecord(
+            snapshot_id=snapshot_id,
+            storage_profile=storage_profile,
+            encryption_mode=encryption_mode,
+            offsite_target=offsite_target,
+            manifest=manifest,
+        )
+        with self._session_factory() as session:
+            session.add(record)
+            session.commit()
+            session.refresh(record)
+            return self._detach_snapshot_manifest(record)
+
+    def list_snapshot_manifests(self) -> list[SnapshotManifestRecord]:
+        statement = select(SnapshotManifestRecord).order_by(SnapshotManifestRecord.created_at.desc())
+        with self._session_factory() as session:
+            return [self._detach_snapshot_manifest(record) for record in session.exec(statement).all()]
 
     def create_trade_intent(
         self,
@@ -576,6 +604,17 @@ class UiRepository:
             payload=dict(record.payload),
             created_at=record.created_at,
             updated_at=record.updated_at,
+        )
+
+    @staticmethod
+    def _detach_snapshot_manifest(record: SnapshotManifestRecord) -> SnapshotManifestRecord:
+        return SnapshotManifestRecord(
+            snapshot_id=record.snapshot_id,
+            storage_profile=record.storage_profile,
+            encryption_mode=record.encryption_mode,
+            offsite_target=record.offsite_target,
+            manifest=dict(record.manifest),
+            created_at=record.created_at,
         )
 
     @staticmethod
