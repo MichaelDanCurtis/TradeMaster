@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 
-import { checkProviderHealth, exportRunTrace, getRunTrace } from "./api.ts";
-import type { ProviderConfig, RunTrace } from "./types.ts";
+import { checkProviderHealth, createSnapshot, exportRunTrace, getRunTrace, verifySnapshot } from "./api.ts";
+import type { ProviderConfig, RunTrace, SnapshotManifestRecord } from "./types.ts";
 
 const originalFetch = globalThis.fetch;
 
@@ -76,6 +76,74 @@ describe("api client", () => {
     assert.equal(exported.metadata.exported_to, "langfuse");
     assert.equal(String(exported.metadata).includes("sk-lf"), false);
   });
+
+  it("creates an encrypted snapshot with a backup key reference", async () => {
+    const calls: Array<{ input: string | URL | Request; init?: RequestInit }> = [];
+    const snapshot = makeSnapshot({
+      encryption_mode: "local-aes-256-gcm",
+      manifest: {
+        ...makeSnapshot({}).manifest,
+        encryption_mode: "local-aes-256-gcm",
+        encrypted: true,
+        backup_artifact: {
+          algorithm: "AES-256-GCM",
+          path: "/tmp/backups/snapshot_1.tmbackup",
+          sha256: "a".repeat(64),
+          size_bytes: 512
+        }
+      }
+    });
+    globalThis.fetch = async (input, init) => {
+      calls.push({ input, init });
+      return new Response(JSON.stringify(snapshot), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    };
+
+    const created = await createSnapshot({
+      backupKeyRef: "env:TRADEMASTER_BACKUP_KEY",
+      offsiteTarget: "manual-offsite"
+    });
+
+    assert.equal(String(calls[0].input), "http://127.0.0.1:8787/api/snapshots");
+    assert.equal(calls[0].init?.method, "POST");
+    assert.deepEqual(JSON.parse(String(calls[0].init?.body)), {
+      offsite_target: "manual-offsite",
+      backup_key_ref: "env:TRADEMASTER_BACKUP_KEY"
+    });
+    assert.equal(created.manifest.backup_artifact?.algorithm, "AES-256-GCM");
+  });
+
+  it("verifies an encrypted snapshot without sending raw key material", async () => {
+    const calls: Array<{ input: string | URL | Request; init?: RequestInit }> = [];
+    globalThis.fetch = async (input, init) => {
+      calls.push({ input, init });
+      return new Response(
+        JSON.stringify({
+          valid: true,
+          manifest: { snapshot_id: "snapshot_1" },
+          files: [{ path: "ui.db", verified: true }]
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        }
+      );
+    };
+
+    const verification = await verifySnapshot("snapshot_1", {
+      backupKeyRef: "env:TRADEMASTER_BACKUP_KEY"
+    });
+
+    assert.equal(String(calls[0].input), "http://127.0.0.1:8787/api/snapshots/snapshot_1/verify");
+    assert.equal(calls[0].init?.method, "POST");
+    assert.deepEqual(JSON.parse(String(calls[0].init?.body)), {
+      backup_key_ref: "env:TRADEMASTER_BACKUP_KEY"
+    });
+    assert.equal(String(calls[0].init?.body).includes("local backup key"), false);
+    assert.equal(verification.valid, true);
+  });
 });
 
 function makeProviderConfig(overrides: Partial<ProviderConfig>): ProviderConfig {
@@ -110,6 +178,27 @@ function makeRunTrace(overrides: Partial<RunTrace>): RunTrace {
     status: "completed",
     trace_id: "trace_123",
     updated_at: "2026-05-04T12:00:00.000Z",
+    ...overrides
+  };
+}
+
+function makeSnapshot(overrides: Partial<SnapshotManifestRecord>): SnapshotManifestRecord {
+  return {
+    created_at: "2026-05-04T12:00:00.000Z",
+    encryption_mode: "none",
+    manifest: {
+      created_at: "2026-05-04T12:00:00.000Z",
+      database_path: "/tmp/ui.db",
+      encrypted: false,
+      encryption_mode: "none",
+      files: [{ path: "/tmp/ui.db", sha256: "b".repeat(64), size_bytes: 256 }],
+      offsite_target: null,
+      snapshot_id: "snapshot_1",
+      storage_profile: "sqlite-local"
+    },
+    offsite_target: null,
+    snapshot_id: "snapshot_1",
+    storage_profile: "sqlite-local",
     ...overrides
   };
 }

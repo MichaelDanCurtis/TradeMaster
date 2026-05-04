@@ -92,8 +92,28 @@ export type SnapshotManifestRecord = {
       sha256: string;
       size_bytes: number;
     }>;
+    backup_artifact?: {
+      algorithm: string;
+      path: string;
+      sha256: string;
+      size_bytes: number;
+      verification?: string;
+    };
   };
   created_at: string;
+};
+
+export type SnapshotVerification = {
+  valid: boolean;
+  reason?: string;
+  manifest?: Record<string, unknown>;
+  files?: Array<{
+    path: string;
+    archive_name?: string;
+    expected_sha256?: string;
+    actual_sha256?: string;
+    verified: boolean;
+  }>;
 };
 
 export type OrderPreview = {

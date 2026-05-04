@@ -2,8 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { checkProviderHealth, createSnapshot, listProviderConfigs, updateProviderConfig } from "@/lib/api";
-import type { ProviderConfig, ProviderControlSurface, ProviderRole, SnapshotManifestRecord } from "@/lib/types";
+import { checkProviderHealth, createSnapshot, listProviderConfigs, updateProviderConfig, verifySnapshot } from "@/lib/api";
+import type {
+  ProviderConfig,
+  ProviderControlSurface,
+  ProviderRole,
+  SnapshotManifestRecord,
+  SnapshotVerification
+} from "@/lib/types";
 
 const ROLE_LABELS: Record<ProviderRole, string> = {
   brokerage: "Brokerage",
@@ -24,6 +30,8 @@ export function SettingsDrawer({ open, onClose }: { open: boolean; onClose: () =
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [draftSecretRefs, setDraftSecretRefs] = useState<Record<string, string>>({});
   const [snapshot, setSnapshot] = useState<SnapshotManifestRecord | null>(null);
+  const [backupKeyRef, setBackupKeyRef] = useState("env:TRADEMASTER_BACKUP_KEY");
+  const [snapshotVerification, setSnapshotVerification] = useState<SnapshotVerification | null>(null);
   const [loading, setLoading] = useState(false);
   const [savingProviderId, setSavingProviderId] = useState<string | null>(null);
   const [snapshotPending, setSnapshotPending] = useState(false);
@@ -112,11 +120,43 @@ export function SettingsDrawer({ open, onClose }: { open: boolean; onClose: () =
   async function handleCreateSnapshot() {
     setSnapshotPending(true);
     try {
-      const created = await createSnapshot({ encryptionMode: "age", offsiteTarget: "manual-offsite" });
+      const created = await createSnapshot({ encryptionMode: "none", offsiteTarget: "manual-offsite" });
       setSnapshot(created);
+      setSnapshotVerification(null);
       setError(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Snapshot creation failed");
+    } finally {
+      setSnapshotPending(false);
+    }
+  }
+
+  async function handleCreateEncryptedSnapshot() {
+    setSnapshotPending(true);
+    try {
+      const created = await createSnapshot({
+        backupKeyRef: backupKeyRef.trim(),
+        offsiteTarget: "manual-offsite"
+      });
+      setSnapshot(created);
+      setSnapshotVerification(null);
+      setError(null);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Encrypted snapshot creation failed");
+    } finally {
+      setSnapshotPending(false);
+    }
+  }
+
+  async function handleVerifySnapshot() {
+    if (!snapshot) return;
+    setSnapshotPending(true);
+    try {
+      const verification = await verifySnapshot(snapshot.snapshot_id, { backupKeyRef: backupKeyRef.trim() });
+      setSnapshotVerification(verification);
+      setError(null);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Snapshot verification failed");
     } finally {
       setSnapshotPending(false);
     }
@@ -212,19 +252,43 @@ export function SettingsDrawer({ open, onClose }: { open: boolean; onClose: () =
           </div>
           <div className="snapshot-card">
             <div>
-              <strong>Encrypted snapshot manifest</strong>
-              <span>Records DB path, file hashes, encryption intent, and offsite target. Upload is a later step.</span>
+              <strong>Encrypted backup</strong>
+              <span>Creates a hashed manifest or an AES-256-GCM artifact from a server-side secret reference.</span>
             </div>
-            <button disabled={snapshotPending} onClick={() => void handleCreateSnapshot()} type="button">
-              {snapshotPending ? "Creating..." : "Create manifest"}
-            </button>
+            <div className="snapshot-actions">
+              <button disabled={snapshotPending} onClick={() => void handleCreateSnapshot()} type="button">
+                Manifest
+              </button>
+              <button disabled={snapshotPending || !backupKeyRef.trim()} onClick={() => void handleCreateEncryptedSnapshot()} type="button">
+                {snapshotPending ? "Working..." : "Encrypt"}
+              </button>
+            </div>
+            <label className="backup-key-ref-row">
+              <span>Key ref</span>
+              <input
+                aria-label="Backup key secret reference"
+                value={backupKeyRef}
+                onChange={(event) => setBackupKeyRef(event.target.value)}
+              />
+            </label>
           </div>
           {snapshot ? (
             <div className="snapshot-result">
               <span>{snapshot.snapshot_id}</span>
               <strong>{snapshot.encryption_mode}</strong>
-              <p>{snapshot.manifest.files[0]?.path}</p>
-              <code>{snapshot.manifest.files[0]?.sha256}</code>
+              <p>{snapshot.manifest.backup_artifact?.path ?? snapshot.manifest.files[0]?.path}</p>
+              <code>{snapshot.manifest.backup_artifact?.sha256 ?? snapshot.manifest.files[0]?.sha256}</code>
+              {snapshot.manifest.backup_artifact ? (
+                <button disabled={snapshotPending || !backupKeyRef.trim()} onClick={() => void handleVerifySnapshot()} type="button">
+                  Verify restore
+                </button>
+              ) : null}
+              {snapshotVerification ? (
+                <div className={snapshotVerification.valid ? "snapshot-verify valid" : "snapshot-verify"}>
+                  <span>{snapshotVerification.valid ? "Restore verification passed" : "Restore verification failed"}</span>
+                  <strong>{snapshotVerification.files?.filter((file) => file.verified).length ?? 0} files</strong>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </section>

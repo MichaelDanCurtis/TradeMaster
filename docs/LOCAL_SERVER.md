@@ -173,6 +173,40 @@ Then set `langfuse-observability` to `enabled=true` with
 when that package is installed. If it is not installed, the API returns a
 controlled `503` and the local trace remains intact.
 
+## Encrypted Backups
+
+The snapshot endpoint can create either a manifest-only record or an encrypted
+local backup artifact. The encrypted path uses AES-256-GCM, derives the key from
+a server-side secret reference, stores only artifact metadata in SQLite, and
+records `snapshot.created` / `snapshot.verified` events in the private-office
+ledger.
+
+For local env-backed testing, store a backup key:
+
+```bash
+export TRADEMASTER_BACKUP_KEY='<long local backup passphrase>'
+```
+
+Then call:
+
+```http
+POST /api/snapshots
+{
+  "backup_key_ref": "env:TRADEMASTER_BACKUP_KEY",
+  "offsite_target": "manual-offsite"
+}
+```
+
+This writes an encrypted `.tmbackup` file next to the SQLite database under
+`backups/`. Restore verification is available without exposing key material:
+
+```http
+POST /api/snapshots/{snapshot_id}/verify
+{
+  "backup_key_ref": "env:TRADEMASTER_BACKUP_KEY"
+}
+```
+
 ## Requirements
 
 These are still useful to run manually in a fresh checkout, but `npm run dev:local` will bootstrap them if they are missing:
