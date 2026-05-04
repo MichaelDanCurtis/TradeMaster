@@ -14,7 +14,14 @@ import { WatchlistRail } from "@/components/WatchlistRail";
 import { WorkspaceNav } from "@/components/WorkspaceNav";
 import { WATCHLIST } from "@/data/watchlist";
 import { getInitialNotifications, type TerminalNotification, type WorkspaceId } from "@/lib/workspace-data";
-import { dismissNotification, selectSymbol, setWorkspace, toggleSettings, type WorkspaceShellState } from "@/lib/workspace-state";
+import {
+  dismissNotification,
+  selectSymbol,
+  setWorkspace,
+  toggleSettings,
+  visibleNotifications,
+  type WorkspaceShellState
+} from "@/lib/workspace-state";
 
 export function MarketShell() {
   const [shellState, setShellState] = useState<WorkspaceShellState>({
@@ -80,7 +87,7 @@ export function MarketShell() {
       </div>
       <SettingsDrawer open={shellState.settingsOpen} onClose={handleCloseSettings} />
       <ToastStack
-        notifications={notifications}
+        notifications={visibleNotifications(shellState, notifications)}
         onDismiss={(notificationId) =>
           setNotifications((currentNotifications) => dismissNotification(currentNotifications, notificationId))
         }

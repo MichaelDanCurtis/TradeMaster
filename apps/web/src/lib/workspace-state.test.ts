@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { dismissNotification, selectSymbol, setWorkspace, toggleSettings } from "./workspace-state.ts";
+import {
+  dismissNotification,
+  selectSymbol,
+  setWorkspace,
+  toggleSettings,
+  visibleNotifications
+} from "./workspace-state.ts";
 
 describe("workspace state helpers", () => {
   it("keeps agents as a valid workspace home state", () => {
@@ -35,5 +41,26 @@ describe("workspace state helpers", () => {
     ];
 
     assert.deepEqual(dismissNotification(notifications, "a").map((item) => item.id), ["b"]);
+  });
+
+  it("suppresses notification toasts while settings is open", () => {
+    const notifications = [
+      { id: "a", severity: "info" as const, title: "A", body: "A", linkedWorkspace: "dashboard" as const }
+    ];
+
+    assert.deepEqual(
+      visibleNotifications(
+        { activeWorkspace: "agents", selectedSymbol: "NVDA", settingsOpen: true },
+        notifications
+      ),
+      []
+    );
+    assert.deepEqual(
+      visibleNotifications(
+        { activeWorkspace: "agents", selectedSymbol: "NVDA", settingsOpen: false },
+        notifications
+      ),
+      notifications
+    );
   });
 });
