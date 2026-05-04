@@ -28,6 +28,18 @@ export type RunEvent = {
   created_at: string;
 };
 
+export type RunTrace = {
+  trace_id: string;
+  run_id: string;
+  provider: string;
+  status: string;
+  external_trace_id: string | null;
+  metadata: Record<string, unknown>;
+  cost: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
 export type ProviderDescriptor = {
   id: string;
   name: string;

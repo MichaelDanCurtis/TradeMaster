@@ -7,6 +7,7 @@ import type {
   ProviderConfigCatalog,
   RunCreated,
   RunEvent,
+  RunTrace,
   SnapshotManifestRecord
 } from "./types";
 
@@ -39,6 +40,28 @@ export async function listRunEvents(runId: string): Promise<RunEvent[]> {
 
   if (!response.ok) {
     throw new Error(`Failed to list run events: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function getRunTrace(runId: string): Promise<RunTrace> {
+  const response = await fetch(`${API_BASE}/api/runs/${runId}/trace`);
+
+  if (!response.ok) {
+    throw new Error(`Failed to get run trace: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function exportRunTrace(runId: string): Promise<RunTrace> {
+  const response = await fetch(`${API_BASE}/api/runs/${runId}/trace/export`, {
+    method: "POST"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to export run trace: ${response.status}`);
   }
 
   return response.json();
