@@ -100,6 +100,19 @@ Then set `plaid-investments` to `enabled=true` with
 - `GET /api/portfolio-data/plaid-investments/holdings`
 - `GET /api/portfolio-data/plaid-investments/transactions?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD`
 
+## Goals And Asset Dossiers
+
+Goals and assets are durable private-office entities. They can be linked through
+the entity graph so agents can connect material goals to assets, accounts,
+documents, advisors, and later Plaid/Webull/Alpaca context.
+
+- `GET /api/goals`
+- `POST /api/goals`
+- `GET /api/assets`
+- `POST /api/assets`
+- `GET /api/private-office/edges`
+- `POST /api/private-office/edges`
+
 ## Requirements
 
 These are still useful to run manually in a fresh checkout, but `npm run dev:local` will bootstrap them if they are missing:
