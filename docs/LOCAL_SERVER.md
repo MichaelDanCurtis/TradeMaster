@@ -81,6 +81,25 @@ The response records only metadata such as backend and availability. It never
 returns the resolved secret value. Each health check also writes a private-office
 ledger event (`provider.health_checked`) for auditability.
 
+## Plaid Read-Only Portfolio Data
+
+Plaid is read-only in TradeMaster. The provider adapter normalizes accounts,
+holdings, and transactions for private-office context; it does not expose any
+write-capable banking or transfer operation.
+
+For local env-backed testing, store one JSON secret:
+
+```bash
+export TRADEMASTER_PLAID_CREDS='{"client_id":"<client id>","secret":"<secret>","access_token":"<access token>"}'
+```
+
+Then set `plaid-investments` to `enabled=true` with
+`secret_ref=env:TRADEMASTER_PLAID_CREDS`. The normalized API surface is:
+
+- `GET /api/portfolio-data/plaid-investments/accounts`
+- `GET /api/portfolio-data/plaid-investments/holdings`
+- `GET /api/portfolio-data/plaid-investments/transactions?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD`
+
 ## Requirements
 
 These are still useful to run manually in a fresh checkout, but `npm run dev:local` will bootstrap them if they are missing:

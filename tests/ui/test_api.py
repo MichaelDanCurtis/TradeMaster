@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -7,6 +7,11 @@ from tradingagents.ui.api import create_app
 from tradingagents.ui.db import create_session_factory
 from tradingagents.ui.events import RunConfig, RunEvent
 from tradingagents.ui.market_data.base import MarketDataBar, MarketDataQuote
+from tradingagents.ui.portfolio_data.base import (
+    PortfolioAccount,
+    PortfolioHolding,
+    PortfolioTransaction,
+)
 from tradingagents.ui.repository import UiRepository
 from tradingagents.ui.runner import RealRunResult
 
@@ -319,6 +324,132 @@ def test_market_data_endpoint_returns_controlled_error_when_secret_missing(tmp_p
 
     assert response.status_code == 403
     assert response.json() == {"detail": "Market data secret is not available"}
+
+
+def test_portfolio_data_endpoints_return_read_only_plaid_context(tmp_path: Path):
+    class FakePortfolioProvider:
+        def accounts(self):
+            return [
+                PortfolioAccount(
+                    account_id="acc_1",
+                    name="Brokerage",
+                    type="investment",
+                    subtype="brokerage",
+                    current_balance=125000.25,
+                    iso_currency_code="USD",
+                )
+            ]
+
+        def holdings(self):
+            return [
+                PortfolioHolding(
+                    account_id="acc_1",
+                    security_id="sec_nvda",
+                    symbol="NVDA",
+                    name="NVIDIA Corporation",
+                    quantity=12.5,
+                    price=839.05,
+                    value=10488.125,
+                    cost_basis=8000.0,
+                )
+            ]
+
+        def transactions(self, *, start_date: date, end_date: date):
+            return [
+                PortfolioTransaction(
+                    transaction_id="txn_1",
+                    account_id="acc_1",
+                    date=start_date,
+                    name="Deposit",
+                    amount=-5000,
+                    iso_currency_code="USD",
+                    categories=["Transfer", "Deposit"],
+                )
+            ]
+
+    client = TestClient(
+        create_app(
+            f"sqlite:///{tmp_path / 'ui.db'}",
+            portfolio_providers={"plaid-investments": FakePortfolioProvider()},
+        )
+    )
+
+    accounts = client.get("/api/portfolio-data/plaid-investments/accounts")
+    holdings = client.get("/api/portfolio-data/plaid-investments/holdings")
+    transactions = client.get(
+        "/api/portfolio-data/plaid-investments/transactions",
+        params={"start_date": "2026-04-01", "end_date": "2026-04-30"},
+    )
+
+    assert accounts.status_code == 200
+    assert accounts.json()["accounts"][0]["current_balance"] == 125000.25
+    assert holdings.status_code == 200
+    assert holdings.json()["holdings"][0]["symbol"] == "NVDA"
+    assert transactions.status_code == 200
+    assert transactions.json()["transactions"][0]["categories"] == ["Transfer", "Deposit"]
+
+
+def test_portfolio_data_endpoint_builds_plaid_provider_from_provider_config(
+    tmp_path: Path,
+    monkeypatch,
+):
+    class FakeResponse:
+        def json(self):
+            return {
+                "accounts": [
+                    {
+                        "account_id": "acc_1",
+                        "name": "Brokerage",
+                        "type": "investment",
+                        "balances": {
+                            "current": 125000.25,
+                            "iso_currency_code": "USD",
+                        },
+                    }
+                ]
+            }
+
+        def raise_for_status(self):
+            return None
+
+    class RecordingHttpClient:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def post(self, url: str, *, json: dict, timeout: float):
+            self.calls.append({"url": url, "json": json, "timeout": timeout})
+            return FakeResponse()
+
+    monkeypatch.setenv(
+        "TRADEMASTER_PLAID_CREDS",
+        '{"client_id":"client","secret":"sandbox-secret","access_token":"access-sandbox"}',
+    )
+    http_client = RecordingHttpClient()
+    client = TestClient(
+        create_app(
+            f"sqlite:///{tmp_path / 'ui.db'}",
+            portfolio_http_client=http_client,
+        )
+    )
+    client.post(
+        "/api/provider-configs/plaid-investments",
+        json={
+            "enabled": True,
+            "secret_ref": "env:TRADEMASTER_PLAID_CREDS",
+        },
+    )
+
+    response = client.get("/api/portfolio-data/plaid-investments/accounts")
+
+    assert response.status_code == 200
+    assert response.json()["accounts"][0]["account_id"] == "acc_1"
+    assert "sandbox-secret" not in str(response.json())
+    assert http_client.calls[0]["url"] == "https://production.plaid.com/accounts/balance/get"
+    assert http_client.calls[0]["json"] == {
+        "client_id": "client",
+        "secret": "sandbox-secret",
+        "access_token": "access-sandbox",
+    }
 
 
 def test_create_run_and_fetch_events(tmp_path: Path):
