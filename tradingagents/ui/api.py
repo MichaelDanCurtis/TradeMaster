@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
+from datetime import datetime
 from pathlib import Path
 from typing import Literal
 from urllib.parse import unquote
@@ -14,9 +16,17 @@ from tradingagents.ui.brokers.fake import FakePaperBroker
 from tradingagents.ui.brokers.service import BrokerService
 from tradingagents.ui.db import create_session_factory, init_db
 from tradingagents.ui.events import RunConfig, RunCreated, RunEvent
+from tradingagents.ui.market_data.alpaca import AlpacaMarketDataProvider, HttpClient
+from tradingagents.ui.market_data.base import (
+    BarTimeframe,
+    MarketDataBar,
+    MarketDataProvider,
+    MarketDataQuote,
+)
 from tradingagents.ui.providers import ProviderCatalog, get_provider_catalog
 from tradingagents.ui.repository import UiRepository
 from tradingagents.ui.runner import RealRunRunner, TradingRunService
+from tradingagents.ui.secrets import EnvSecretStore, MacKeychainSecretStore, SecretNotFoundError
 from tradingagents.ui.snapshots import create_snapshot_manifest
 
 
@@ -52,10 +62,20 @@ class SnapshotRequest(BaseModel):
     offsite_target: str | None = None
 
 
+class BarsResponse(BaseModel):
+    bars: list[MarketDataBar]
+
+
+class QuoteResponse(BaseModel):
+    quote: MarketDataQuote
+
+
 def create_app(
     database_url: str | None = None,
     *,
     real_runner: RealRunRunner | None = None,
+    market_data_providers: Mapping[str, MarketDataProvider] | None = None,
+    market_data_http_client: HttpClient | None = None,
 ) -> FastAPI:
     resolved_database_url = (
         database_url
@@ -69,6 +89,7 @@ def create_app(
         from tradingagents.ui.graph_runner import TradingAgentsGraphRunner
 
         resolved_real_runner = TradingAgentsGraphRunner()
+    resolved_market_data_providers = dict(market_data_providers or {})
 
     app = FastAPI(title="TradingAgents UI API")
     app.add_middleware(
@@ -154,6 +175,67 @@ def create_app(
             offsite_target=manifest["offsite_target"],
             manifest=manifest,
         )
+
+    @app.get("/api/market-data/{provider_id}/bars", response_model=BarsResponse)
+    def get_market_data_bars(
+        provider_id: str,
+        symbol: str,
+        start: datetime,
+        end: datetime,
+        timeframe: BarTimeframe,
+        limit: int | None = None,
+        feed: str | None = None,
+        repo: UiRepository = Depends(repository),
+    ) -> BarsResponse:
+        provider, provider_config = _resolve_market_data_provider(
+            provider_id,
+            resolved_market_data_providers,
+            repo,
+            market_data_http_client,
+        )
+        resolved_feed = feed or _configured_feed(provider_config)
+        try:
+            return BarsResponse(
+                bars=provider.historical_bars(
+                    symbol=symbol,
+                    start=start,
+                    end=end,
+                    timeframe=timeframe,
+                    limit=limit,
+                    feed=resolved_feed,
+                )
+            )
+        except SecretNotFoundError as exc:
+            raise HTTPException(
+                status_code=403,
+                detail="Market data secret is not available",
+            ) from exc
+
+    @app.get("/api/market-data/{provider_id}/quote", response_model=QuoteResponse)
+    def get_market_data_quote(
+        provider_id: str,
+        symbol: str,
+        feed: str | None = None,
+        repo: UiRepository = Depends(repository),
+    ) -> QuoteResponse:
+        provider, provider_config = _resolve_market_data_provider(
+            provider_id,
+            resolved_market_data_providers,
+            repo,
+            market_data_http_client,
+        )
+        try:
+            return QuoteResponse(
+                quote=provider.latest_quote(
+                    symbol,
+                    feed=feed or _configured_feed(provider_config),
+                )
+            )
+        except SecretNotFoundError as exc:
+            raise HTTPException(
+                status_code=403,
+                detail="Market data secret is not available",
+            ) from exc
 
     @app.post("/api/runs", response_model=RunCreated)
     def create_run(
@@ -242,3 +324,48 @@ def _sqlite_database_path(database_url: str) -> Path:
     if not database_url.startswith(prefix):
         raise ValueError("snapshot endpoint currently supports sqlite:/// database URLs")
     return Path(unquote(database_url.removeprefix(prefix)))
+
+
+def _resolve_market_data_provider(
+    provider_id: str,
+    providers: Mapping[str, MarketDataProvider],
+    repo: UiRepository,
+    market_data_http_client: HttpClient | None,
+) -> tuple[MarketDataProvider, dict[str, object]]:
+    provider = providers.get(provider_id)
+    if provider is not None:
+        return provider, {}
+    if provider_id != "alpaca-market-data":
+        raise HTTPException(status_code=404, detail="Market data provider not configured")
+    try:
+        config = repo.get_provider_config(provider_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Market data provider not configured") from exc
+    if not config.enabled or config.secret_ref is None:
+        raise HTTPException(
+            status_code=403,
+            detail="Alpaca market data is disabled or missing a secret_ref",
+        )
+    return (
+        AlpacaMarketDataProvider(
+            secret_store=_secret_store_for_ref(config.secret_ref),
+            secret_ref=config.secret_ref,
+            http_client=market_data_http_client,
+        ),
+        config.config,
+    )
+
+
+def _configured_feed(config: Mapping[str, object]) -> str | None:
+    feed = config.get("feed")
+    if feed is None:
+        return None
+    return str(feed)
+
+
+def _secret_store_for_ref(secret_ref: str):
+    if secret_ref.startswith("env:"):
+        return EnvSecretStore()
+    if secret_ref.startswith("keychain:"):
+        return MacKeychainSecretStore()
+    raise HTTPException(status_code=400, detail="Unsupported secret_ref backend")

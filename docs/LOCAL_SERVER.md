@@ -48,6 +48,27 @@ If a client requests `execution_mode=real` while the adapter is disabled, the ru
 is recorded as `failed` with `reason=real_runner_not_configured` rather than
 emitting simulated analyst events.
 
+## Alpaca Market Data
+
+Alpaca market data is read-only and agent-facing. Enable it in the provider
+registry with a `secret_ref`; do not store raw keys in SQLite.
+
+For local env-backed testing, store one JSON secret in an environment variable:
+
+```bash
+export TRADEMASTER_ALPACA_CREDS='{"key_id":"<paper key>","secret_key":"<paper secret>"}'
+```
+
+Then set `alpaca-market-data` to `enabled=true` with
+`secret_ref=env:TRADEMASTER_ALPACA_CREDS`. The normalized API surface is:
+
+- `GET /api/market-data/alpaca-market-data/bars`
+- `GET /api/market-data/alpaca-market-data/quote`
+
+The bars endpoint accepts `symbol`, `start`, `end`, `timeframe`, optional
+`limit`, and optional `feed`. If `feed` is omitted, the backend uses the feed in
+provider config, such as `{"feed":"iex"}`.
+
 ## Requirements
 
 These are still useful to run manually in a fresh checkout, but `npm run dev:local` will bootstrap them if they are missing:
