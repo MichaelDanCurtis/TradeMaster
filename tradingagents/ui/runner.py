@@ -2,19 +2,43 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
+from dataclasses import dataclass
 from datetime import timezone
-from typing import Any
+from typing import Any, Protocol
 
 from tradingagents.ui.events import RunConfig, RunCreated, RunEvent, RunStatus
 from tradingagents.ui.repository import UiRepository
 
 
+@dataclass(frozen=True)
+class RealRunResult:
+    events: list[RunEvent]
+    rating: str
+    action: str
+    thesis: str
+    risk_notes: str | None = None
+
+
+class RealRunRunner(Protocol):
+    def __call__(self, run_id: str, config: RunConfig) -> RealRunResult: ...
+
+
 class TradingRunService:
-    def __init__(self, repository: UiRepository) -> None:
+    def __init__(
+        self,
+        repository: UiRepository,
+        real_runner: RealRunRunner | None = None,
+    ) -> None:
         self._repository = repository
+        self._real_runner = real_runner
 
     def start_run(self, config: RunConfig) -> RunCreated:
         run = self._repository.create_run(config)
+        if config.execution_mode == "real":
+            if self._real_runner is None:
+                self._append_real_run_not_configured_events(run.run_id, config)
+                return RunCreated(run_id=run.run_id, status=RunStatus.FAILED)
+            return self._append_real_run_events(run.run_id, config)
         self._append_fake_events(run.run_id, config)
         return RunCreated(run_id=run.run_id, status=RunStatus.COMPLETED)
 
@@ -25,6 +49,137 @@ class TradingRunService:
         for event in self.list_events(run_id):
             data = json.dumps(self._serialize_event(event), separators=(",", ":"))
             yield f"event: {event.type}\ndata: {data}\n\n"
+
+    def _append_real_run_events(self, run_id: str, config: RunConfig) -> RunCreated:
+        self._repository.set_run_status(run_id, RunStatus.RUNNING)
+        next_sequence = self._append_events(
+            run_id,
+            [
+                RunEvent(
+                    run_id=run_id,
+                    sequence=1,
+                    type="run.created",
+                    node=None,
+                    message=f"Created real TradingAgents run for {config.ticker}.",
+                    payload={
+                        "ticker": config.ticker,
+                        "trade_date": config.trade_date,
+                        "execution_mode": config.execution_mode,
+                    },
+                ),
+                RunEvent(
+                    run_id=run_id,
+                    sequence=2,
+                    type="run.started",
+                    node=None,
+                    message="Started real TradingAgents execution.",
+                    payload={
+                        "llm_provider": config.llm_provider,
+                        "quick_model": config.quick_model,
+                        "deep_model": config.deep_model,
+                    },
+                ),
+            ],
+            start_sequence=1,
+        )
+        try:
+            result = self._real_runner(run_id, config)
+        except Exception as exc:
+            self._append_events(
+                run_id,
+                [
+                    RunEvent(
+                        run_id=run_id,
+                        sequence=next_sequence,
+                        type="run.failed",
+                        node=None,
+                        message="Real TradingAgents execution failed.",
+                        payload={
+                            "status": RunStatus.FAILED.value,
+                            "reason": "real_runner_exception",
+                            "error": str(exc),
+                        },
+                    )
+                ],
+                start_sequence=next_sequence,
+            )
+            self._repository.set_run_status(run_id, RunStatus.FAILED)
+            return RunCreated(run_id=run_id, status=RunStatus.FAILED)
+
+        next_sequence = self._append_events(
+            run_id,
+            result.events,
+            start_sequence=next_sequence,
+        )
+        self._repository.store_decision(
+            run_id=run_id,
+            rating=result.rating,
+            action=result.action,
+            thesis=result.thesis,
+            risk_notes=result.risk_notes,
+        )
+        self._append_events(
+            run_id,
+            [
+                RunEvent(
+                    run_id=run_id,
+                    sequence=next_sequence,
+                    type="run.completed",
+                    node=None,
+                    message="Completed real TradingAgents run.",
+                    payload={"status": RunStatus.COMPLETED.value},
+                )
+            ],
+            start_sequence=next_sequence,
+        )
+        self._repository.set_run_status(run_id, RunStatus.COMPLETED)
+        return RunCreated(run_id=run_id, status=RunStatus.COMPLETED)
+
+    def _append_real_run_not_configured_events(self, run_id: str, config: RunConfig) -> None:
+        events: list[dict[str, Any]] = [
+            {
+                "type": "run.created",
+                "node": None,
+                "message": f"Created real TradingAgents run for {config.ticker}.",
+                "payload": {
+                    "ticker": config.ticker,
+                    "trade_date": config.trade_date,
+                    "execution_mode": config.execution_mode,
+                },
+            },
+            {
+                "type": "run.started",
+                "node": None,
+                "message": "Real TradingAgents execution requested.",
+                "payload": {
+                    "llm_provider": config.llm_provider,
+                    "quick_model": config.quick_model,
+                    "deep_model": config.deep_model,
+                },
+            },
+            {
+                "type": "run.failed",
+                "node": None,
+                "message": "Real TradingAgents execution is not configured. Configure LLM and data providers first.",
+                "payload": {
+                    "status": RunStatus.FAILED.value,
+                    "reason": "real_runner_not_configured",
+                },
+            },
+        ]
+        self._repository.set_run_status(run_id, RunStatus.RUNNING)
+        for sequence, event in enumerate(events, start=1):
+            self._repository.append_event(
+                RunEvent(
+                    run_id=run_id,
+                    sequence=sequence,
+                    type=event["type"],
+                    node=event["node"],
+                    message=event["message"],
+                    payload=event["payload"],
+                )
+            )
+        self._repository.set_run_status(run_id, RunStatus.FAILED)
 
     def _append_fake_events(self, run_id: str, config: RunConfig) -> None:
         analyst_events = [
@@ -195,6 +350,26 @@ class TradingRunService:
                 notional=10000,
             )
         self._repository.set_run_status(run_id, RunStatus.COMPLETED)
+
+    def _append_events(
+        self,
+        run_id: str,
+        events: list[RunEvent],
+        *,
+        start_sequence: int,
+    ) -> int:
+        next_sequence = start_sequence
+        for event in events:
+            self._repository.append_event(
+                event.model_copy(
+                    update={
+                        "run_id": run_id,
+                        "sequence": next_sequence,
+                    }
+                )
+            )
+            next_sequence += 1
+        return next_sequence
 
     @staticmethod
     def _serialize_event(event: RunEvent) -> dict[str, Any]:

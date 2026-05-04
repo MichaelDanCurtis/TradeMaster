@@ -4,7 +4,9 @@ from fastapi.testclient import TestClient
 
 from tradingagents.ui.api import create_app
 from tradingagents.ui.db import create_session_factory
+from tradingagents.ui.events import RunConfig, RunEvent
 from tradingagents.ui.repository import UiRepository
+from tradingagents.ui.runner import RealRunResult
 
 
 def test_health_endpoint_returns_ok(tmp_path: Path):
@@ -105,6 +107,53 @@ def test_create_run_and_fetch_events(tmp_path: Path):
     assert created.json()["status"] == "completed"
     assert events.status_code == 200
     assert events.json()[0]["type"] == "run.created"
+
+
+def test_create_real_run_uses_injected_real_runner(tmp_path: Path):
+    class FakeRealRunner:
+        def __call__(self, run_id: str, config: RunConfig) -> RealRunResult:
+            return RealRunResult(
+                events=[
+                    RunEvent(
+                        run_id=run_id,
+                        sequence=1,
+                        type="decision.created",
+                        node="Portfolio Manager",
+                        message=f"Created real decision for {config.ticker}.",
+                        payload={"rating": "Neutral", "action": "Hold"},
+                    )
+                ],
+                rating="Neutral",
+                action="Hold",
+                thesis="Injected real runner result.",
+            )
+
+    client = TestClient(
+        create_app(
+            f"sqlite:///{tmp_path / 'ui.db'}",
+            real_runner=FakeRealRunner(),
+        )
+    )
+
+    created = client.post(
+        "/api/runs",
+        json={
+            "ticker": "NVDA",
+            "trade_date": "2026-04-30",
+            "execution_mode": "real",
+        },
+    )
+    run_id = created.json()["run_id"]
+    events = client.get(f"/api/runs/{run_id}/events")
+
+    assert created.status_code == 200
+    assert created.json()["status"] == "completed"
+    assert [event["type"] for event in events.json()] == [
+        "run.created",
+        "run.started",
+        "decision.created",
+        "run.completed",
+    ]
 
 
 def test_stream_run_events_as_sse(tmp_path: Path):
