@@ -16,7 +16,7 @@ from tradingagents.ui.db import create_session_factory, init_db
 from tradingagents.ui.events import RunConfig, RunCreated, RunEvent
 from tradingagents.ui.providers import ProviderCatalog, get_provider_catalog
 from tradingagents.ui.repository import UiRepository
-from tradingagents.ui.runner import TradingRunService
+from tradingagents.ui.runner import RealRunRunner, TradingRunService
 from tradingagents.ui.snapshots import create_snapshot_manifest
 
 
@@ -52,7 +52,11 @@ class SnapshotRequest(BaseModel):
     offsite_target: str | None = None
 
 
-def create_app(database_url: str | None = None) -> FastAPI:
+def create_app(
+    database_url: str | None = None,
+    *,
+    real_runner: RealRunRunner | None = None,
+) -> FastAPI:
     resolved_database_url = (
         database_url
         or os.environ.get("TRADINGAGENTS_UI_DATABASE_URL")
@@ -60,6 +64,11 @@ def create_app(database_url: str | None = None) -> FastAPI:
     )
     engine, session_factory = create_session_factory(resolved_database_url)
     init_db(engine)
+    resolved_real_runner = real_runner
+    if resolved_real_runner is None and os.environ.get("TRADEMASTER_ENABLE_REAL_RUNS") == "1":
+        from tradingagents.ui.graph_runner import TradingAgentsGraphRunner
+
+        resolved_real_runner = TradingAgentsGraphRunner()
 
     app = FastAPI(title="TradingAgents UI API")
     app.add_middleware(
@@ -76,7 +85,7 @@ def create_app(database_url: str | None = None) -> FastAPI:
     def run_service(
         repository: UiRepository = Depends(repository),
     ) -> TradingRunService:
-        return TradingRunService(repository)
+        return TradingRunService(repository, real_runner=resolved_real_runner)
 
     def broker_service(repo: UiRepository = Depends(repository)) -> BrokerService:
         return BrokerService(repo, FakePaperBroker())

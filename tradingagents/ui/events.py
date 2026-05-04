@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 AnalystKey = Literal["market", "social", "news", "fundamentals"]
 BrokerMode = Literal["disabled", "paper", "live_preview"]
+ExecutionMode = Literal["simulated", "real"]
 RunEventType = Literal[
     "run.created",
     "run.started",
@@ -42,6 +43,7 @@ class RunConfig(BaseModel):
     deep_model: str = "gpt-5.4"
     checkpoint: bool = False
     broker_mode: BrokerMode = "disabled"
+    execution_mode: ExecutionMode = "simulated"
 
     @field_validator("ticker")
     @classmethod

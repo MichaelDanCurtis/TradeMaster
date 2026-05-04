@@ -19,6 +19,7 @@ def test_run_config_defaults_to_safe_report_only_mode():
     assert config.analysts == ["market", "social", "news", "fundamentals"]
     assert config.research_depth == 1
     assert config.broker_mode == "disabled"
+    assert config.execution_mode == "simulated"
 
 
 def test_run_event_serializes_timestamp_as_iso_string():

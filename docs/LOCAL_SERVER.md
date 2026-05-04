@@ -31,6 +31,23 @@ Override ports when needed:
 TRADEMASTER_API_PORT=8877 TRADEMASTER_WEB_PORT=3100 npm run dev:local
 ```
 
+## Real TradingAgents Runs
+
+Agent runs default to `execution_mode=simulated`. This keeps demos and UI tests
+from accidentally spending tokens or calling live data providers.
+
+The backend now has a real-run adapter for `TradingAgentsGraph.propagate()`, but
+it is disabled by default. Enable it only after LLM and data-provider credentials
+are configured:
+
+```bash
+TRADEMASTER_ENABLE_REAL_RUNS=1 npm run dev:local
+```
+
+If a client requests `execution_mode=real` while the adapter is disabled, the run
+is recorded as `failed` with `reason=real_runner_not_configured` rather than
+emitting simulated analyst events.
+
 ## Requirements
 
 These are still useful to run manually in a fresh checkout, but `npm run dev:local` will bootstrap them if they are missing:
