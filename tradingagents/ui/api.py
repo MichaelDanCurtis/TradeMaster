@@ -23,6 +23,7 @@ from tradingagents.ui.market_data.base import (
     MarketDataProvider,
     MarketDataQuote,
 )
+from tradingagents.ui.observability import LangfuseClientFactory, ObservabilityService
 from tradingagents.ui.providers import ProviderCatalog, get_provider_catalog
 from tradingagents.ui.portfolio_data.base import (
     PortfolioAccount,
@@ -151,6 +152,7 @@ def create_app(
     market_data_http_client: HttpClient | None = None,
     portfolio_providers: Mapping[str, PortfolioProvider] | None = None,
     portfolio_http_client: PlaidHttpClient | None = None,
+    langfuse_client_factory: LangfuseClientFactory | None = None,
 ) -> FastAPI:
     resolved_database_url = (
         database_url
@@ -186,6 +188,15 @@ def create_app(
 
     def broker_service(repo: UiRepository = Depends(repository)) -> BrokerService:
         return BrokerService(repo, FakePaperBroker())
+
+    def observability_service(
+        repo: UiRepository = Depends(repository),
+    ) -> ObservabilityService:
+        return ObservabilityService(
+            repo,
+            secret_store_factory=_secret_store_for_ref,
+            langfuse_client_factory=langfuse_client_factory,
+        )
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
@@ -572,17 +583,29 @@ def create_app(
             trace = repo.get_observability_trace(run_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Run trace not found") from exc
-        return RunTraceResponse(
-            trace_id=trace.trace_id,
-            run_id=trace.run_id,
-            provider=trace.provider,
-            status=trace.status,
-            external_trace_id=trace.external_trace_id,
-            metadata=trace.metadata_payload,
-            cost=trace.cost,
-            created_at=trace.created_at,
-            updated_at=trace.updated_at,
-        )
+        return _run_trace_response(trace)
+
+    @app.post("/api/runs/{run_id}/trace/export", response_model=RunTraceResponse)
+    def export_run_trace(
+        run_id: str,
+        service: ObservabilityService = Depends(observability_service),
+    ) -> RunTraceResponse:
+        try:
+            trace = service.export_run_trace(run_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Run trace not found") from exc
+        except SecretNotFoundError as exc:
+            raise HTTPException(
+                status_code=403,
+                detail="LangFuse observability secret is not available",
+            ) from exc
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        return _run_trace_response(trace)
 
     @app.get("/api/runs/{run_id}/stream")
     def stream_events(
@@ -647,6 +670,20 @@ def create_app(
             raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     return app
+
+
+def _run_trace_response(trace) -> RunTraceResponse:
+    return RunTraceResponse(
+        trace_id=trace.trace_id,
+        run_id=trace.run_id,
+        provider=trace.provider,
+        status=trace.status,
+        external_trace_id=trace.external_trace_id,
+        metadata=trace.metadata_payload,
+        cost=trace.cost,
+        created_at=trace.created_at,
+        updated_at=trace.updated_at,
+    )
 
 
 def _sqlite_database_path(database_url: str) -> Path:

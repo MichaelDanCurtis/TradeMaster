@@ -155,11 +155,23 @@ TradeMaster run id, execution mode, selected LLM provider/models, broker mode,
 analysts, status, and failure reason when applicable.
 
 - `GET /api/runs/{run_id}/trace`
+- `POST /api/runs/{run_id}/trace/export`
 
 LangFuse is registered as `langfuse-observability` in the provider registry so
 credentials can use the same `secret_ref` and health-check flow as other
 providers. External trace export is intentionally separated from the local trace
 ledger; the local ledger remains the business truth.
+
+For local env-backed testing, store one JSON secret:
+
+```bash
+export TRADEMASTER_LANGFUSE_CREDS='{"public_key":"<pk-lf...>","secret_key":"<sk-lf...>","base_url":"https://cloud.langfuse.com"}'
+```
+
+Then set `langfuse-observability` to `enabled=true` with
+`secret_ref=env:TRADEMASTER_LANGFUSE_CREDS`. Export uses the LangFuse Python SDK
+when that package is installed. If it is not installed, the API returns a
+controlled `503` and the local trace remains intact.
 
 ## Requirements
 

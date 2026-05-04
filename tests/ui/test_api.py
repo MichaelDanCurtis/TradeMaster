@@ -16,6 +16,33 @@ from tradingagents.ui.repository import UiRepository
 from tradingagents.ui.runner import RealRunResult
 
 
+class FakeLangfuseObservation:
+    trace_id = "0123456789abcdef0123456789abcdef"
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback) -> None:
+        return None
+
+    def update(self, **kwargs) -> None:
+        return None
+
+
+class FakeLangfuseClient:
+    def create_trace_id(self, seed: str) -> str:
+        return "0123456789abcdef0123456789abcdef"
+
+    def start_as_current_observation(self, **kwargs):
+        return FakeLangfuseObservation()
+
+    def get_trace_url(self, *, trace_id: str) -> str:
+        return f"https://cloud.langfuse.com/project/local/traces/{trace_id}"
+
+    def flush(self) -> None:
+        return None
+
+
 def test_health_endpoint_returns_ok(tmp_path: Path):
     client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
 
@@ -640,6 +667,64 @@ def test_fetch_run_observability_trace(tmp_path: Path):
     assert response.json()["status"] == "completed"
     assert response.json()["metadata"]["ticker"] == "NVDA"
     assert response.json()["metadata"]["execution_mode"] == "simulated"
+
+
+def test_export_run_observability_trace_to_langfuse(tmp_path: Path, monkeypatch):
+    client = TestClient(
+        create_app(
+            f"sqlite:///{tmp_path / 'ui.db'}",
+            langfuse_client_factory=lambda credentials: FakeLangfuseClient(),
+        )
+    )
+    monkeypatch.setenv(
+        "TRADEMASTER_LANGFUSE_CREDS",
+        '{"public_key":"pk-lf-local","secret_key":"sk-lf-local","base_url":"https://cloud.langfuse.com"}',
+    )
+    client.post(
+        "/api/provider-configs/langfuse-observability",
+        json={
+            "enabled": True,
+            "secret_ref": "env:TRADEMASTER_LANGFUSE_CREDS",
+        },
+    )
+    run_id = client.post(
+        "/api/runs",
+        json={
+            "ticker": "NVDA",
+            "trade_date": "2026-04-30",
+            "execution_mode": "simulated",
+        },
+    ).json()["run_id"]
+
+    response = client.post(f"/api/runs/{run_id}/trace/export")
+
+    assert response.status_code == 200
+    assert response.json()["provider"] == "langfuse-observability"
+    assert response.json()["status"] == "exported"
+    assert response.json()["external_trace_id"] == "0123456789abcdef0123456789abcdef"
+    assert response.json()["metadata"]["exported_to"] == "langfuse"
+    assert "sk-lf-local" not in str(response.json())
+
+
+def test_export_run_observability_trace_requires_configured_langfuse_provider(
+    tmp_path: Path,
+):
+    client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
+    run_id = client.post(
+        "/api/runs",
+        json={
+            "ticker": "NVDA",
+            "trade_date": "2026-04-30",
+            "execution_mode": "simulated",
+        },
+    ).json()["run_id"]
+
+    response = client.post(f"/api/runs/{run_id}/trace/export")
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "detail": "LangFuse observability is disabled or missing a secret_ref"
+    }
 
 
 def test_create_real_run_uses_injected_real_runner(tmp_path: Path):
