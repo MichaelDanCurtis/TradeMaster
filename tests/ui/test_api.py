@@ -219,6 +219,77 @@ def test_private_office_edge_endpoint_links_goal_to_asset(tmp_path: Path):
     assert listed.json()["edges"][0]["target_entity_id"] == "asset_navetta_68"
 
 
+def test_portfolio_mandate_endpoints_create_and_filter_mandates(tmp_path: Path):
+    client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
+
+    human = client.post(
+        "/api/portfolio-mandates",
+        json={
+            "name": "Webull assisted strategy",
+            "control_mode": "human-managed-assisted",
+            "account_ref": "webull:human",
+            "funding_limit": 250000,
+            "max_position_percent": 20,
+            "max_drawdown_percent": 12,
+            "daily_turnover_limit_percent": 15,
+            "paper_mode_required": False,
+            "kill_switch_enabled": True,
+            "status": "active",
+        },
+    )
+    high_risk = client.post(
+        "/api/portfolio-mandates",
+        json={
+            "name": "AI high-risk paper harness",
+            "control_mode": "ai-managed-high-risk",
+            "account_ref": "alpaca:paper:high-risk",
+            "funding_limit": 50000,
+            "max_position_percent": 10,
+            "max_drawdown_percent": 8,
+            "daily_turnover_limit_percent": 20,
+            "paper_mode_required": True,
+            "kill_switch_enabled": True,
+            "status": "draft",
+            "payload": {"proving_phase": "paper"},
+        },
+    )
+    filtered = client.get(
+        "/api/portfolio-mandates",
+        params={"control_mode": "ai-managed-high-risk"},
+    )
+
+    assert human.status_code == 200
+    assert human.json()["control_mode"] == "human-managed-assisted"
+    assert high_risk.status_code == 200
+    assert high_risk.json()["paper_mode_required"] is True
+    assert filtered.status_code == 200
+    assert [item["name"] for item in filtered.json()["mandates"]] == [
+        "AI high-risk paper harness"
+    ]
+
+
+def test_portfolio_mandate_endpoint_rejects_high_risk_without_kill_switch(tmp_path: Path):
+    client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
+
+    response = client.post(
+        "/api/portfolio-mandates",
+        json={
+            "name": "AI high-risk unsafe",
+            "control_mode": "ai-managed-high-risk",
+            "account_ref": "alpaca:paper:high-risk",
+            "funding_limit": 50000,
+            "max_position_percent": 10,
+            "max_drawdown_percent": 8,
+            "daily_turnover_limit_percent": 20,
+            "paper_mode_required": True,
+            "kill_switch_enabled": False,
+        },
+    )
+
+    assert response.status_code == 400
+    assert "kill switch" in response.json()["detail"]
+
+
 def test_snapshot_endpoint_creates_manifest_for_local_sqlite(tmp_path: Path):
     database_url = f"sqlite:///{tmp_path / 'ui.db'}"
     client = TestClient(create_app(database_url))
