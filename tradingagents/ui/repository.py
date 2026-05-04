@@ -10,6 +10,7 @@ from tradingagents.ui.models import (
     ApprovalRecord,
     BrokerOrderRecord,
     DecisionRecord,
+    ObservabilityTraceRecord,
     PrivateOfficeEdgeRecord,
     PrivateOfficeEntityRecord,
     PrivateOfficeEventRecord,
@@ -99,6 +100,70 @@ class UiRepository:
             self._require_run(session, run_id)
             records = session.exec(statement).all()
             return [self._run_event(record) for record in records]
+
+    def start_observability_trace(
+        self,
+        *,
+        run_id: str,
+        provider: str = "local",
+        external_trace_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> ObservabilityTraceRecord:
+        with self._session_factory() as session:
+            self._require_run(session, run_id)
+            record = ObservabilityTraceRecord(
+                run_id=run_id,
+                provider=provider,
+                status="running",
+                external_trace_id=external_trace_id,
+                metadata_payload=metadata or {},
+            )
+            session.add(record)
+            session.commit()
+            session.refresh(record)
+            return self._detach_observability_trace(record)
+
+    def update_observability_trace(
+        self,
+        run_id: str,
+        *,
+        status: str,
+        metadata: dict[str, Any] | None = None,
+        cost: dict[str, Any] | None = None,
+        external_trace_id: str | None = None,
+    ) -> ObservabilityTraceRecord:
+        with self._session_factory() as session:
+            record = self._require_observability_trace(session, run_id)
+            record.status = status
+            if metadata:
+                record.metadata_payload = {
+                    **dict(record.metadata_payload),
+                    **metadata,
+                }
+            if cost:
+                record.cost = {**dict(record.cost), **cost}
+            if external_trace_id is not None:
+                record.external_trace_id = external_trace_id
+            record.updated_at = now_utc()
+            session.add(record)
+            session.commit()
+            session.refresh(record)
+            return self._detach_observability_trace(record)
+
+    def get_observability_trace(self, run_id: str) -> ObservabilityTraceRecord:
+        with self._session_factory() as session:
+            record = self._require_observability_trace(session, run_id)
+            return self._detach_observability_trace(record)
+
+    def list_observability_traces(self) -> list[ObservabilityTraceRecord]:
+        statement = select(ObservabilityTraceRecord).order_by(
+            ObservabilityTraceRecord.created_at.desc()
+        )
+        with self._session_factory() as session:
+            return [
+                self._detach_observability_trace(record)
+                for record in session.exec(statement).all()
+            ]
 
     def store_decision(
         self,
@@ -550,6 +615,22 @@ class UiRepository:
         )
 
     @staticmethod
+    def _detach_observability_trace(
+        record: ObservabilityTraceRecord,
+    ) -> ObservabilityTraceRecord:
+        return ObservabilityTraceRecord(
+            trace_id=record.trace_id,
+            run_id=record.run_id,
+            provider=record.provider,
+            status=record.status,
+            external_trace_id=record.external_trace_id,
+            metadata_payload=dict(record.metadata_payload),
+            cost=dict(record.cost),
+            created_at=record.created_at,
+            updated_at=record.updated_at,
+        )
+
+    @staticmethod
     def _detach_private_office_entity(record: PrivateOfficeEntityRecord) -> PrivateOfficeEntityRecord:
         return PrivateOfficeEntityRecord(
             entity_id=record.entity_id,
@@ -639,6 +720,19 @@ class UiRepository:
     @staticmethod
     def _require_run(session: Session, run_id: str) -> RunRecord:
         record = session.get(RunRecord, run_id)
+        if record is None:
+            raise KeyError(run_id)
+        return record
+
+    @staticmethod
+    def _require_observability_trace(
+        session: Session,
+        run_id: str,
+    ) -> ObservabilityTraceRecord:
+        statement = select(ObservabilityTraceRecord).where(
+            ObservabilityTraceRecord.run_id == run_id
+        )
+        record = session.exec(statement).first()
         if record is None:
             raise KeyError(run_id)
         return record

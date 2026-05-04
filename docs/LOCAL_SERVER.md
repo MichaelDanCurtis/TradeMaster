@@ -148,6 +148,19 @@ export TRADEMASTER_ALPACA_BROKER_CREDS='{"key_id":"<paper key>","secret_key":"<p
 
 Live trading is not wired into this adapter.
 
+## Observability And LangFuse
+
+Every agent run now creates a durable local observability trace with the
+TradeMaster run id, execution mode, selected LLM provider/models, broker mode,
+analysts, status, and failure reason when applicable.
+
+- `GET /api/runs/{run_id}/trace`
+
+LangFuse is registered as `langfuse-observability` in the provider registry so
+credentials can use the same `secret_ref` and health-check flow as other
+providers. External trace export is intentionally separated from the local trace
+ledger; the local ledger remains the business truth.
+
 ## Requirements
 
 These are still useful to run manually in a fresh checkout, but `npm run dev:local` will bootstrap them if they are missing:

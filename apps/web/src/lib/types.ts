@@ -1,7 +1,7 @@
 export type RunStatus = "queued" | "running" | "completed" | "failed" | "canceled";
 export type BrokerMode = "disabled" | "paper" | "live_preview";
 export type OrderSide = "buy" | "sell";
-export type ProviderRole = "brokerage" | "llm" | "market-data" | "portfolio";
+export type ProviderRole = "brokerage" | "llm" | "market-data" | "observability" | "portfolio";
 export type ProviderStatus = "available" | "disabled" | "needs_key" | "planned";
 export type ProviderControlSurface = "agent-data" | "ai-harness" | "human-cockpit" | "platform";
 export type ProviderWriteAuthority = "live-trading" | "none" | "paper-trading" | "read-only";

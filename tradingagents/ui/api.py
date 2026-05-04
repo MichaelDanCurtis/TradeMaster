@@ -131,6 +131,18 @@ class TransactionsResponse(BaseModel):
     transactions: list[PortfolioTransaction]
 
 
+class RunTraceResponse(BaseModel):
+    trace_id: str
+    run_id: str
+    provider: str
+    status: str
+    external_trace_id: str | None = None
+    metadata: dict[str, object]
+    cost: dict[str, object]
+    created_at: datetime
+    updated_at: datetime
+
+
 def create_app(
     database_url: str | None = None,
     *,
@@ -550,6 +562,27 @@ def create_app(
             return service.list_events(run_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Run not found") from exc
+
+    @app.get("/api/runs/{run_id}/trace", response_model=RunTraceResponse)
+    def get_run_trace(
+        run_id: str,
+        repo: UiRepository = Depends(repository),
+    ) -> RunTraceResponse:
+        try:
+            trace = repo.get_observability_trace(run_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Run trace not found") from exc
+        return RunTraceResponse(
+            trace_id=trace.trace_id,
+            run_id=trace.run_id,
+            provider=trace.provider,
+            status=trace.status,
+            external_trace_id=trace.external_trace_id,
+            metadata=trace.metadata_payload,
+            cost=trace.cost,
+            created_at=trace.created_at,
+            updated_at=trace.updated_at,
+        )
 
     @app.get("/api/runs/{run_id}/stream")
     def stream_events(

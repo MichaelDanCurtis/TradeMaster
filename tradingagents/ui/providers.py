@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 
-ProviderRole = Literal["market-data", "portfolio", "brokerage", "llm"]
+ProviderRole = Literal["market-data", "portfolio", "brokerage", "llm", "observability"]
 ProviderStatus = Literal["available", "disabled", "needs_key", "planned"]
 ProviderControlSurface = Literal["agent-data", "human-cockpit", "ai-harness", "platform"]
 ProviderWriteAuthority = Literal["none", "read-only", "paper-trading", "live-trading"]
@@ -179,6 +179,16 @@ PROVIDERS: tuple[ProviderDescriptor, ...] = (
         status="needs_key",
         capabilities=["quick-model", "deep-model", "research-reasoning"],
         primary_use="Optional LLM provider for future selectable runs.",
+        control_surface="platform",
+        write_authority="none",
+    ),
+    ProviderDescriptor(
+        id="langfuse-observability",
+        name="LangFuse",
+        role="observability",
+        status="needs_key",
+        capabilities=["trace-export", "cost-metadata", "run-correlation"],
+        primary_use="External observability for LangGraph and TradeMaster run traces.",
         control_surface="platform",
         write_authority="none",
     ),

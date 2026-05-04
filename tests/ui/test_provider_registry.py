@@ -56,6 +56,8 @@ def test_provider_catalog_documents_alpaca_webull_and_plaid_roles():
     assert by_id["webull-market-data"].control_surface == "human-cockpit"
     assert by_id["webull-broker"].control_surface == "human-cockpit"
     assert by_id["plaid-investments"].primary_use.lower().startswith("read-only")
+    assert by_id["langfuse-observability"].role == "observability"
+    assert "trace-export" in by_id["langfuse-observability"].capabilities
 
 
 def test_env_secret_store_resolves_only_env_references(monkeypatch: pytest.MonkeyPatch):

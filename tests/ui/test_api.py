@@ -622,6 +622,26 @@ def test_create_run_and_fetch_events(tmp_path: Path):
     assert events.json()[0]["type"] == "run.created"
 
 
+def test_fetch_run_observability_trace(tmp_path: Path):
+    client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
+    run_id = client.post(
+        "/api/runs",
+        json={
+            "ticker": "NVDA",
+            "trade_date": "2026-04-30",
+            "execution_mode": "simulated",
+        },
+    ).json()["run_id"]
+
+    response = client.get(f"/api/runs/{run_id}/trace")
+
+    assert response.status_code == 200
+    assert response.json()["run_id"] == run_id
+    assert response.json()["status"] == "completed"
+    assert response.json()["metadata"]["ticker"] == "NVDA"
+    assert response.json()["metadata"]["execution_mode"] == "simulated"
+
+
 def test_create_real_run_uses_injected_real_runner(tmp_path: Path):
     class FakeRealRunner:
         def __call__(self, run_id: str, config: RunConfig) -> RealRunResult:
