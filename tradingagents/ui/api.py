@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Literal
 from urllib.parse import unquote
@@ -24,6 +24,16 @@ from tradingagents.ui.market_data.base import (
     MarketDataQuote,
 )
 from tradingagents.ui.providers import ProviderCatalog, get_provider_catalog
+from tradingagents.ui.portfolio_data.base import (
+    PortfolioAccount,
+    PortfolioHolding,
+    PortfolioProvider,
+    PortfolioTransaction,
+)
+from tradingagents.ui.portfolio_data.plaid import (
+    HttpClient as PlaidHttpClient,
+    PlaidPortfolioProvider,
+)
 from tradingagents.ui.repository import UiRepository
 from tradingagents.ui.runner import RealRunRunner, TradingRunService
 from tradingagents.ui.secrets import EnvSecretStore, MacKeychainSecretStore, SecretNotFoundError
@@ -70,12 +80,26 @@ class QuoteResponse(BaseModel):
     quote: MarketDataQuote
 
 
+class AccountsResponse(BaseModel):
+    accounts: list[PortfolioAccount]
+
+
+class HoldingsResponse(BaseModel):
+    holdings: list[PortfolioHolding]
+
+
+class TransactionsResponse(BaseModel):
+    transactions: list[PortfolioTransaction]
+
+
 def create_app(
     database_url: str | None = None,
     *,
     real_runner: RealRunRunner | None = None,
     market_data_providers: Mapping[str, MarketDataProvider] | None = None,
     market_data_http_client: HttpClient | None = None,
+    portfolio_providers: Mapping[str, PortfolioProvider] | None = None,
+    portfolio_http_client: PlaidHttpClient | None = None,
 ) -> FastAPI:
     resolved_database_url = (
         database_url
@@ -90,6 +114,7 @@ def create_app(
 
         resolved_real_runner = TradingAgentsGraphRunner()
     resolved_market_data_providers = dict(market_data_providers or {})
+    resolved_portfolio_providers = dict(portfolio_providers or {})
 
     app = FastAPI(title="TradingAgents UI API")
     app.add_middleware(
@@ -272,6 +297,73 @@ def create_app(
                 detail="Market data secret is not available",
             ) from exc
 
+    @app.get("/api/portfolio-data/{provider_id}/accounts", response_model=AccountsResponse)
+    def get_portfolio_accounts(
+        provider_id: str,
+        repo: UiRepository = Depends(repository),
+    ) -> AccountsResponse:
+        provider = _resolve_portfolio_provider(
+            provider_id,
+            resolved_portfolio_providers,
+            repo,
+            portfolio_http_client,
+        )
+        try:
+            return AccountsResponse(accounts=provider.accounts())
+        except SecretNotFoundError as exc:
+            raise HTTPException(
+                status_code=403,
+                detail="Portfolio data secret is not available",
+            ) from exc
+
+    @app.get("/api/portfolio-data/{provider_id}/holdings", response_model=HoldingsResponse)
+    def get_portfolio_holdings(
+        provider_id: str,
+        repo: UiRepository = Depends(repository),
+    ) -> HoldingsResponse:
+        provider = _resolve_portfolio_provider(
+            provider_id,
+            resolved_portfolio_providers,
+            repo,
+            portfolio_http_client,
+        )
+        try:
+            return HoldingsResponse(holdings=provider.holdings())
+        except SecretNotFoundError as exc:
+            raise HTTPException(
+                status_code=403,
+                detail="Portfolio data secret is not available",
+            ) from exc
+
+    @app.get(
+        "/api/portfolio-data/{provider_id}/transactions",
+        response_model=TransactionsResponse,
+    )
+    def get_portfolio_transactions(
+        provider_id: str,
+        start_date: date,
+        end_date: date,
+        repo: UiRepository = Depends(repository),
+    ) -> TransactionsResponse:
+        provider = _resolve_portfolio_provider(
+            provider_id,
+            resolved_portfolio_providers,
+            repo,
+            portfolio_http_client,
+        )
+        try:
+            return TransactionsResponse(
+                transactions=provider.transactions(
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+            )
+        except SecretNotFoundError as exc:
+            raise HTTPException(
+                status_code=403,
+                detail="Portfolio data secret is not available",
+            ) from exc
+
     @app.post("/api/runs", response_model=RunCreated)
     def create_run(
         config: RunConfig,
@@ -410,3 +502,30 @@ def _describe_secret_ref(secret_ref: str | None) -> dict[str, object]:
     if secret_ref is None:
         return {"backend": "none", "available": False}
     return _secret_store_for_ref(secret_ref).describe_secret(secret_ref)
+
+
+def _resolve_portfolio_provider(
+    provider_id: str,
+    providers: Mapping[str, PortfolioProvider],
+    repo: UiRepository,
+    portfolio_http_client: PlaidHttpClient | None,
+) -> PortfolioProvider:
+    provider = providers.get(provider_id)
+    if provider is not None:
+        return provider
+    if provider_id != "plaid-investments":
+        raise HTTPException(status_code=404, detail="Portfolio provider not configured")
+    try:
+        config = repo.get_provider_config(provider_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Portfolio provider not configured") from exc
+    if not config.enabled or config.secret_ref is None:
+        raise HTTPException(
+            status_code=403,
+            detail="Plaid portfolio data is disabled or missing a secret_ref",
+        )
+    return PlaidPortfolioProvider(
+        secret_store=_secret_store_for_ref(config.secret_ref),
+        secret_ref=config.secret_ref,
+        http_client=portfolio_http_client,
+    )
