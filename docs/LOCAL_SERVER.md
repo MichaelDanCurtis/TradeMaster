@@ -134,6 +134,20 @@ harness become explicit durable records.
 High-risk AI mandates are rejected unless paper proving and the kill switch are
 enabled.
 
+## Alpaca Paper Broker Adapter
+
+The Alpaca broker adapter is paper-only. It submits market notional orders to
+the Alpaca paper endpoint and relies on the existing TradeMaster flow for
+preview, approval, symbolic constraint checks, and audit persistence.
+
+For local env-backed testing, store one JSON secret:
+
+```bash
+export TRADEMASTER_ALPACA_BROKER_CREDS='{"key_id":"<paper key>","secret_key":"<paper secret>"}'
+```
+
+Live trading is not wired into this adapter.
+
 ## Requirements
 
 These are still useful to run manually in a fresh checkout, but `npm run dev:local` will bootstrap them if they are missing:
