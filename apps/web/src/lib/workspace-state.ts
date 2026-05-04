@@ -33,3 +33,10 @@ export function dismissNotification(
 ): TerminalNotification[] {
   return notifications.filter((notification) => notification.id !== notificationId);
 }
+
+export function visibleNotifications(
+  state: WorkspaceShellState,
+  notifications: TerminalNotification[]
+): TerminalNotification[] {
+  return state.settingsOpen ? [] : notifications;
+}
