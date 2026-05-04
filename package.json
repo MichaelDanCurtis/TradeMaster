@@ -4,6 +4,8 @@
     "apps/web"
   ],
   "scripts": {
+    "dev:local": "bash scripts/dev-local.sh",
+    "stop:local": "bash scripts/stop-local.sh",
     "web:dev": "npm --workspace apps/web run dev",
     "web:build": "npm --workspace apps/web run build",
     "web:lint": "npm --workspace apps/web run lint"
