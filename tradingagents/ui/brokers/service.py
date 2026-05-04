@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import cast
 
 from tradingagents.ui.brokers.base import (
@@ -8,13 +9,30 @@ from tradingagents.ui.brokers.base import (
     OrderPreview,
     OrderSide,
 )
+from tradingagents.ui.constraints import (
+    ConstraintContext,
+    PortfolioConstraintPolicy,
+    SymbolicConstraintEngine,
+    TradeProposal,
+)
 from tradingagents.ui.repository import UiRepository
 
 
 class BrokerService:
-    def __init__(self, repository: UiRepository, broker: BrokerAdapter) -> None:
+    def __init__(
+        self,
+        repository: UiRepository,
+        broker: BrokerAdapter,
+        *,
+        constraint_engine: SymbolicConstraintEngine | None = None,
+        constraint_policy: PortfolioConstraintPolicy | None = None,
+        constraint_context_provider: Callable[[str, str], ConstraintContext] | None = None,
+    ) -> None:
         self._repo = repository
         self._broker = broker
+        self._constraint_engine = constraint_engine
+        self._constraint_policy = constraint_policy
+        self._constraint_context_provider = constraint_context_provider
 
     def preview_order(
         self, run_id: str, symbol: str, side: OrderSide | str, notional: float
@@ -29,6 +47,12 @@ class BrokerService:
             raise ValueError("side must be buy or sell")
         self._require_paper_broker_mode(run_id)
         order_side = cast(OrderSide, normalized_side)
+        self._require_symbolic_constraints(
+            run_id=run_id,
+            symbol=symbol,
+            side=order_side,
+            notional=notional,
+        )
         intent = self._repo.create_trade_intent(
             run_id=run_id,
             symbol=symbol,
@@ -87,3 +111,31 @@ class BrokerService:
         config = self._repo.get_run_config(run_id)
         if config.get("broker_mode") != "paper":
             raise PermissionError("paper broker requires broker_mode=paper")
+
+    def _require_symbolic_constraints(
+        self,
+        *,
+        run_id: str,
+        symbol: str,
+        side: OrderSide,
+        notional: float,
+    ) -> None:
+        if (
+            self._constraint_engine is None
+            or self._constraint_policy is None
+            or self._constraint_context_provider is None
+        ):
+            return
+        decision = self._constraint_engine.evaluate(
+            TradeProposal(
+                symbol=symbol,
+                side=side,
+                notional=notional,
+                environment=self._broker.environment,
+            ),
+            self._constraint_context_provider(run_id, symbol),
+            self._constraint_policy,
+        )
+        if not decision.passed:
+            rules = ", ".join(violation.rule for violation in decision.violations)
+            raise PermissionError(f"symbolic constraints vetoed order: {rules}")

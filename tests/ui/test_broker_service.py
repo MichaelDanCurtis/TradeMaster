@@ -6,6 +6,11 @@ from sqlmodel import select
 from tradingagents.ui.brokers.base import BrokerOrder, OrderSide
 from tradingagents.ui.brokers.fake import FakePaperBroker
 from tradingagents.ui.brokers.service import BrokerService
+from tradingagents.ui.constraints import (
+    ConstraintContext,
+    PortfolioConstraintPolicy,
+    SymbolicConstraintEngine,
+)
 from tradingagents.ui.db import create_session_factory, init_db
 from tradingagents.ui.events import RunConfig
 from tradingagents.ui.models import TradeIntentRecord
@@ -143,6 +148,46 @@ def test_preview_order_rejects_invalid_side_before_creating_intent(tmp_path):
     with pytest.raises(ValueError, match="side must be buy or sell"):
         service.preview_order(
             run_id=run.run_id, symbol="NVDA", side="hold", notional=1000
+        )
+
+    with session_factory() as session:
+        intents = session.exec(select(TradeIntentRecord)).all()
+    assert intents == []
+
+
+def test_preview_order_applies_symbolic_constraint_gate_before_creating_intent(tmp_path):
+    engine, session_factory = create_session_factory(f"sqlite:///{tmp_path / 'ui.db'}")
+    init_db(engine)
+    repo = UiRepository(session_factory)
+    run = repo.create_run(
+        RunConfig(ticker="NVDA", trade_date="2026-04-30", broker_mode="paper")
+    )
+    service = BrokerService(
+        repo,
+        FakePaperBroker(),
+        constraint_engine=SymbolicConstraintEngine(),
+        constraint_policy=PortfolioConstraintPolicy(
+            max_position_percent=5,
+            max_sector_percent=100,
+            max_daily_turnover_percent=100,
+            max_drawdown_percent=100,
+            paper_mode_required=True,
+        ),
+        constraint_context_provider=lambda run_id, symbol: ConstraintContext(
+            account_equity=100_000,
+            current_position_notional=0,
+            sector_exposure_notional=0,
+            daily_turnover_notional=0,
+            current_drawdown_percent=0,
+        ),
+    )
+
+    with pytest.raises(PermissionError, match="max_position_percent"):
+        service.preview_order(
+            run_id=run.run_id,
+            symbol="NVDA",
+            side="buy",
+            notional=10_000,
         )
 
     with session_factory() as session:

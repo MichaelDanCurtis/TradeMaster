@@ -113,6 +113,14 @@ documents, advisors, and later Plaid/Webull/Alpaca context.
 - `GET /api/private-office/edges`
 - `POST /api/private-office/edges`
 
+## Symbolic Constraint Engine
+
+The backend now has a deterministic constraint engine that can veto trade
+previews before a broker intent is created. Current rules cover paper-mode
+requirements, position concentration, sector concentration, daily turnover, and
+drawdown circuit breakers. The broker service accepts the engine as an optional
+gate; wiring it to durable portfolio mandates is the next step.
+
 ## Requirements
 
 These are still useful to run manually in a fresh checkout, but `npm run dev:local` will bootstrap them if they are missing:
