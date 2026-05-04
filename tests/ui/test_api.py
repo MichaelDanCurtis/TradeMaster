@@ -136,6 +136,89 @@ def test_private_office_event_endpoint_appends_ledger_event(tmp_path: Path):
     assert response.json()["payload"] == {"surface": "goal-dossier"}
 
 
+def test_goal_endpoints_create_and_list_durable_goal_dossiers(tmp_path: Path):
+    client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
+
+    created = client.post(
+        "/api/goals",
+        json={
+            "goal_id": "goal_yacht",
+            "label": "Absolute Navetta 68",
+            "target_amount": 4750000,
+            "target_date": "2026-11-01",
+            "status": "planning",
+            "payload": {"location": "Hawaii", "advisor_notes": ["Review ownership structure"]},
+        },
+    )
+    listed = client.get("/api/goals")
+
+    assert created.status_code == 200
+    assert created.json()["entity_id"] == "goal_yacht"
+    assert created.json()["entity_type"] == "goal"
+    assert created.json()["payload"]["target_amount"] == 4750000
+    assert listed.status_code == 200
+    assert listed.json()["goals"][0]["label"] == "Absolute Navetta 68"
+
+
+def test_asset_endpoints_create_and_list_durable_asset_dossiers(tmp_path: Path):
+    client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
+
+    created = client.post(
+        "/api/assets",
+        json={
+            "asset_id": "asset_navetta_68",
+            "label": "Absolute Navetta 68",
+            "asset_type": "boat",
+            "jurisdiction": "Hawaii",
+            "status": "target",
+            "payload": {"liability_notes": ["Moorage and insurance review required"]},
+        },
+    )
+    listed = client.get("/api/assets")
+
+    assert created.status_code == 200
+    assert created.json()["entity_id"] == "asset_navetta_68"
+    assert created.json()["entity_type"] == "asset"
+    assert created.json()["payload"]["asset_type"] == "boat"
+    assert listed.status_code == 200
+    assert listed.json()["assets"][0]["payload"]["jurisdiction"] == "Hawaii"
+
+
+def test_private_office_edge_endpoint_links_goal_to_asset(tmp_path: Path):
+    client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
+    client.post(
+        "/api/goals",
+        json={"goal_id": "goal_yacht", "label": "Absolute Navetta 68"},
+    )
+    client.post(
+        "/api/assets",
+        json={
+            "asset_id": "asset_navetta_68",
+            "label": "Absolute Navetta 68",
+            "asset_type": "boat",
+        },
+    )
+
+    created = client.post(
+        "/api/private-office/edges",
+        json={
+            "source_entity_id": "goal_yacht",
+            "target_entity_id": "asset_navetta_68",
+            "relationship": "targets_asset",
+            "payload": {"confidence": "candidate"},
+        },
+    )
+    listed = client.get(
+        "/api/private-office/edges",
+        params={"source_entity_id": "goal_yacht"},
+    )
+
+    assert created.status_code == 200
+    assert created.json()["relationship"] == "targets_asset"
+    assert listed.status_code == 200
+    assert listed.json()["edges"][0]["target_entity_id"] == "asset_navetta_68"
+
+
 def test_snapshot_endpoint_creates_manifest_for_local_sqlite(tmp_path: Path):
     database_url = f"sqlite:///{tmp_path / 'ui.db'}"
     client = TestClient(create_app(database_url))

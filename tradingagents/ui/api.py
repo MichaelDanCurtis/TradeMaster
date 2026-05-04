@@ -67,6 +67,31 @@ class PrivateOfficeEventRequest(BaseModel):
     payload: dict[str, object] = Field(default_factory=dict)
 
 
+class PrivateOfficeEdgeRequest(BaseModel):
+    source_entity_id: str
+    target_entity_id: str
+    relationship: str
+    payload: dict[str, object] = Field(default_factory=dict)
+
+
+class GoalRequest(BaseModel):
+    goal_id: str
+    label: str
+    target_amount: float | None = None
+    target_date: str | None = None
+    status: str = "draft"
+    payload: dict[str, object] = Field(default_factory=dict)
+
+
+class AssetRequest(BaseModel):
+    asset_id: str
+    label: str
+    asset_type: str
+    jurisdiction: str | None = None
+    status: str = "draft"
+    payload: dict[str, object] = Field(default_factory=dict)
+
+
 class SnapshotRequest(BaseModel):
     encryption_mode: str = "none"
     offsite_target: str | None = None
@@ -213,6 +238,94 @@ def create_app(
             entity_id=request.entity_id,
             payload=request.payload,
         )
+
+    @app.get("/api/private-office/edges")
+    def list_private_office_edges(
+        source_entity_id: str | None = None,
+        target_entity_id: str | None = None,
+        repo: UiRepository = Depends(repository),
+    ):
+        return {
+            "edges": repo.list_private_office_edges(
+                source_entity_id=source_entity_id,
+                target_entity_id=target_entity_id,
+            )
+        }
+
+    @app.post("/api/private-office/edges")
+    def link_private_office_entities(
+        request: PrivateOfficeEdgeRequest,
+        repo: UiRepository = Depends(repository),
+    ):
+        try:
+            return repo.link_private_office_entities(
+                source_entity_id=request.source_entity_id,
+                target_entity_id=request.target_entity_id,
+                relationship=request.relationship,
+                payload=request.payload,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Private-office entity not found") from exc
+
+    @app.get("/api/goals")
+    def list_goals(repo: UiRepository = Depends(repository)):
+        return {"goals": repo.list_private_office_entities(entity_type="goal")}
+
+    @app.post("/api/goals")
+    def upsert_goal(
+        request: GoalRequest,
+        repo: UiRepository = Depends(repository),
+    ):
+        payload = {
+            **request.payload,
+            "target_amount": request.target_amount,
+            "target_date": request.target_date,
+            "status": request.status,
+        }
+        record = repo.upsert_private_office_entity(
+            entity_id=request.goal_id,
+            entity_type="goal",
+            label=request.label,
+            payload=payload,
+        )
+        repo.append_private_office_event(
+            event_type="goal.dossier_upserted",
+            summary=f"Updated goal dossier: {request.label}.",
+            actor="local-user",
+            entity_id=request.goal_id,
+            payload={"status": request.status},
+        )
+        return record
+
+    @app.get("/api/assets")
+    def list_assets(repo: UiRepository = Depends(repository)):
+        return {"assets": repo.list_private_office_entities(entity_type="asset")}
+
+    @app.post("/api/assets")
+    def upsert_asset(
+        request: AssetRequest,
+        repo: UiRepository = Depends(repository),
+    ):
+        payload = {
+            **request.payload,
+            "asset_type": request.asset_type,
+            "jurisdiction": request.jurisdiction,
+            "status": request.status,
+        }
+        record = repo.upsert_private_office_entity(
+            entity_id=request.asset_id,
+            entity_type="asset",
+            label=request.label,
+            payload=payload,
+        )
+        repo.append_private_office_event(
+            event_type="asset.dossier_upserted",
+            summary=f"Updated asset dossier: {request.label}.",
+            actor="local-user",
+            entity_id=request.asset_id,
+            payload={"asset_type": request.asset_type, "status": request.status},
+        )
+        return record
 
     @app.post("/api/snapshots")
     def create_snapshot(

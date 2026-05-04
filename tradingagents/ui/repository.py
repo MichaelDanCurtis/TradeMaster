@@ -198,6 +198,17 @@ class UiRepository:
                 raise KeyError(entity_id)
             return self._detach_private_office_entity(record)
 
+    def list_private_office_entities(
+        self,
+        *,
+        entity_type: str | None = None,
+    ) -> list[PrivateOfficeEntityRecord]:
+        statement = select(PrivateOfficeEntityRecord).order_by(PrivateOfficeEntityRecord.created_at)
+        if entity_type is not None:
+            statement = statement.where(PrivateOfficeEntityRecord.entity_type == entity_type)
+        with self._session_factory() as session:
+            return [self._detach_private_office_entity(record) for record in session.exec(statement).all()]
+
     def link_private_office_entities(
         self,
         *,
