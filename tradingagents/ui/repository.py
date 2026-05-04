@@ -10,6 +10,9 @@ from tradingagents.ui.models import (
     ApprovalRecord,
     BrokerOrderRecord,
     DecisionRecord,
+    PrivateOfficeEdgeRecord,
+    PrivateOfficeEntityRecord,
+    PrivateOfficeEventRecord,
     ProviderConfigRecord,
     RunEventRecord,
     RunRecord,
@@ -122,6 +125,112 @@ class UiRepository:
             session.commit()
             session.refresh(record)
             return record
+
+    def append_private_office_event(
+        self,
+        *,
+        event_type: str,
+        summary: str,
+        actor: str,
+        entity_id: str | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> PrivateOfficeEventRecord:
+        record = PrivateOfficeEventRecord(
+            event_type=event_type,
+            summary=summary,
+            actor=actor,
+            entity_id=entity_id,
+            payload=payload or {},
+        )
+        with self._session_factory() as session:
+            session.add(record)
+            session.commit()
+            session.refresh(record)
+            return self._detach_private_office_event(record)
+
+    def list_private_office_events(
+        self,
+        *,
+        entity_id: str | None = None,
+    ) -> list[PrivateOfficeEventRecord]:
+        statement = select(PrivateOfficeEventRecord).order_by(PrivateOfficeEventRecord.created_at)
+        if entity_id is not None:
+            statement = statement.where(PrivateOfficeEventRecord.entity_id == entity_id)
+        with self._session_factory() as session:
+            return [self._detach_private_office_event(record) for record in session.exec(statement).all()]
+
+    def upsert_private_office_entity(
+        self,
+        *,
+        entity_id: str,
+        entity_type: str,
+        label: str,
+        external_id: str | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> PrivateOfficeEntityRecord:
+        with self._session_factory() as session:
+            record = session.get(PrivateOfficeEntityRecord, entity_id)
+            if record is None:
+                record = PrivateOfficeEntityRecord(
+                    entity_id=entity_id,
+                    entity_type=entity_type,
+                    label=label,
+                    external_id=external_id,
+                    payload=payload or {},
+                )
+            else:
+                record.entity_type = entity_type
+                record.label = label
+                record.external_id = external_id
+                record.payload = payload or {}
+                record.updated_at = now_utc()
+            session.add(record)
+            session.commit()
+            session.refresh(record)
+            return self._detach_private_office_entity(record)
+
+    def get_private_office_entity(self, entity_id: str) -> PrivateOfficeEntityRecord:
+        with self._session_factory() as session:
+            record = session.get(PrivateOfficeEntityRecord, entity_id)
+            if record is None:
+                raise KeyError(entity_id)
+            return self._detach_private_office_entity(record)
+
+    def link_private_office_entities(
+        self,
+        *,
+        source_entity_id: str,
+        target_entity_id: str,
+        relationship: str,
+        payload: dict[str, Any] | None = None,
+    ) -> PrivateOfficeEdgeRecord:
+        with self._session_factory() as session:
+            self._require_private_office_entity(session, source_entity_id)
+            self._require_private_office_entity(session, target_entity_id)
+            record = PrivateOfficeEdgeRecord(
+                source_entity_id=source_entity_id,
+                target_entity_id=target_entity_id,
+                relationship=relationship,
+                payload=payload or {},
+            )
+            session.add(record)
+            session.commit()
+            session.refresh(record)
+            return self._detach_private_office_edge(record)
+
+    def list_private_office_edges(
+        self,
+        *,
+        source_entity_id: str | None = None,
+        target_entity_id: str | None = None,
+    ) -> list[PrivateOfficeEdgeRecord]:
+        statement = select(PrivateOfficeEdgeRecord).order_by(PrivateOfficeEdgeRecord.created_at)
+        if source_entity_id is not None:
+            statement = statement.where(PrivateOfficeEdgeRecord.source_entity_id == source_entity_id)
+        if target_entity_id is not None:
+            statement = statement.where(PrivateOfficeEdgeRecord.target_entity_id == target_entity_id)
+        with self._session_factory() as session:
+            return [self._detach_private_office_edge(record) for record in session.exec(statement).all()]
 
     def create_trade_intent(
         self,
@@ -325,6 +434,51 @@ class UiRepository:
     def _sanitize_config(value: dict[str, Any]) -> dict[str, Any]:
         blocked = {"secret", "secret_value", "raw_secret", "api_key", "access_token", "refresh_token", "password"}
         return {key: item for key, item in value.items() if key.lower() not in blocked}
+
+    @staticmethod
+    def _detach_private_office_event(record: PrivateOfficeEventRecord) -> PrivateOfficeEventRecord:
+        return PrivateOfficeEventRecord(
+            event_id=record.event_id,
+            event_type=record.event_type,
+            summary=record.summary,
+            actor=record.actor,
+            entity_id=record.entity_id,
+            payload=dict(record.payload),
+            created_at=record.created_at,
+        )
+
+    @staticmethod
+    def _detach_private_office_entity(record: PrivateOfficeEntityRecord) -> PrivateOfficeEntityRecord:
+        return PrivateOfficeEntityRecord(
+            entity_id=record.entity_id,
+            entity_type=record.entity_type,
+            label=record.label,
+            external_id=record.external_id,
+            payload=dict(record.payload),
+            created_at=record.created_at,
+            updated_at=record.updated_at,
+        )
+
+    @staticmethod
+    def _detach_private_office_edge(record: PrivateOfficeEdgeRecord) -> PrivateOfficeEdgeRecord:
+        return PrivateOfficeEdgeRecord(
+            edge_id=record.edge_id,
+            source_entity_id=record.source_entity_id,
+            target_entity_id=record.target_entity_id,
+            relationship=record.relationship,
+            payload=dict(record.payload),
+            created_at=record.created_at,
+        )
+
+    @staticmethod
+    def _require_private_office_entity(
+        session: Session,
+        entity_id: str,
+    ) -> PrivateOfficeEntityRecord:
+        record = session.get(PrivateOfficeEntityRecord, entity_id)
+        if record is None:
+            raise KeyError(entity_id)
+        return record
 
     @staticmethod
     def _require_run(session: Session, run_id: str) -> RunRecord:

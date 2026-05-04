@@ -158,3 +158,46 @@ class ProviderConfigRecord(SQLModel, table=True):
     updated_at: datetime = Field(
         default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
     )
+
+
+class PrivateOfficeEventRecord(SQLModel, table=True):
+    __tablename__ = "private_office_events"
+
+    event_id: str = Field(default_factory=lambda: new_id("poevt"), primary_key=True)
+    event_type: str = Field(index=True)
+    summary: str
+    actor: str = Field(index=True)
+    entity_id: str | None = Field(default=None, index=True)
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
+class PrivateOfficeEntityRecord(SQLModel, table=True):
+    __tablename__ = "private_office_entities"
+
+    entity_id: str = Field(primary_key=True)
+    entity_type: str = Field(index=True)
+    label: str
+    external_id: str | None = Field(default=None, index=True)
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
+class PrivateOfficeEdgeRecord(SQLModel, table=True):
+    __tablename__ = "private_office_edges"
+
+    edge_id: str = Field(default_factory=lambda: new_id("poedge"), primary_key=True)
+    source_entity_id: str = Field(index=True)
+    target_entity_id: str = Field(index=True)
+    relationship: str = Field(index=True)
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
