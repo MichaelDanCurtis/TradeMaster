@@ -12,6 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from tradingagents.ui.brokers.alpaca import AlpacaPaperBroker
+from tradingagents.ui.brokers.base import BrokerAdapter
 from tradingagents.ui.brokers.fake import FakePaperBroker
 from tradingagents.ui.brokers.service import BrokerService
 from tradingagents.ui.db import create_session_factory, init_db
@@ -159,6 +161,7 @@ def create_app(
     real_runner: RealRunRunner | None = None,
     market_data_providers: Mapping[str, MarketDataProvider] | None = None,
     market_data_http_client: HttpClient | None = None,
+    broker_providers: Mapping[str, BrokerAdapter] | None = None,
     portfolio_providers: Mapping[str, PortfolioProvider] | None = None,
     portfolio_http_client: PlaidHttpClient | None = None,
     langfuse_client_factory: LangfuseClientFactory | None = None,
@@ -176,6 +179,7 @@ def create_app(
 
         resolved_real_runner = TradingAgentsGraphRunner()
     resolved_market_data_providers = dict(market_data_providers or {})
+    resolved_broker_providers = dict(broker_providers or {})
     resolved_portfolio_providers = dict(portfolio_providers or {})
 
     app = FastAPI(title="TradingAgents UI API")
@@ -196,7 +200,7 @@ def create_app(
         return TradingRunService(repository, real_runner=resolved_real_runner)
 
     def broker_service(repo: UiRepository = Depends(repository)) -> BrokerService:
-        return BrokerService(repo, FakePaperBroker())
+        return BrokerService(repo, _resolve_broker_adapter(repo, resolved_broker_providers))
 
     def observability_service(
         repo: UiRepository = Depends(repository),
@@ -816,6 +820,47 @@ def _resolve_market_data_provider(
         ),
         config.config,
     )
+
+
+def _resolve_broker_adapter(
+    repo: UiRepository,
+    providers: Mapping[str, BrokerAdapter],
+) -> BrokerAdapter:
+    provider_id = "alpaca-paper-broker"
+    try:
+        config = repo.get_provider_config(provider_id)
+    except KeyError:
+        return FakePaperBroker()
+    if not config.enabled or config.secret_ref is None:
+        return FakePaperBroker()
+    provider = providers.get(provider_id)
+    if provider is not None:
+        return provider
+    return AlpacaPaperBroker(
+        secret_store=_secret_store_for_ref(config.secret_ref),
+        secret_ref=config.secret_ref,
+        price_estimator=_alpaca_price_estimator(config.secret_ref),
+        base_url=_configured_alpaca_broker_base_url(config.config),
+    )
+
+
+def _alpaca_price_estimator(secret_ref: str):
+    def estimate(symbol: str) -> float:
+        quote = AlpacaMarketDataProvider(
+            secret_store=_secret_store_for_ref(secret_ref),
+            secret_ref=secret_ref,
+        ).latest_quote(symbol, feed="iex")
+        midpoint = (quote.bid_price + quote.ask_price) / 2
+        if midpoint <= 0:
+            return FakePaperBroker().estimate_price(symbol)
+        return midpoint
+
+    return estimate
+
+
+def _configured_alpaca_broker_base_url(config: Mapping[str, object]) -> str:
+    base_url = str(config.get("base_url") or "https://paper-api.alpaca.markets")
+    return base_url.removesuffix("/v2").rstrip("/")
 
 
 def _configured_feed(config: Mapping[str, object]) -> str | None:

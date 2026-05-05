@@ -72,6 +72,30 @@ def test_alpaca_paper_broker_submits_market_notional_order(monkeypatch: pytest.M
     assert order.broker_order_id == "alpaca_order_1"
 
 
+def test_alpaca_paper_broker_accepts_versioned_paper_api_endpoint(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv(
+        "TRADEMASTER_ALPACA_BROKER_CREDS",
+        '{"key_id":"paper-key","secret_key":"paper-secret"}',
+    )
+    http_client = RecordingHttpClient()
+    broker = AlpacaPaperBroker(
+        secret_store=EnvSecretStore(),
+        secret_ref="env:TRADEMASTER_ALPACA_BROKER_CREDS",
+        http_client=http_client,
+        price_estimator=lambda symbol: 839.05,
+        base_url="https://paper-api.alpaca.test/v2",
+    )
+
+    broker.submit_order(
+        intent_id="intent_1",
+        symbol="nvda",
+        side="buy",
+        notional=25,
+    )
+
+    assert http_client.calls[0]["url"] == "https://paper-api.alpaca.test/v2/orders"
+
+
 def test_alpaca_paper_broker_requires_secret_ref():
     broker = AlpacaPaperBroker(
         secret_store=EnvSecretStore(),

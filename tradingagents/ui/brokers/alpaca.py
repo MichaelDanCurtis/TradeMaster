@@ -46,7 +46,7 @@ class AlpacaPaperBroker:
         self._secret_ref = secret_ref
         self._price_estimator = price_estimator
         self._http_client = http_client or requests
-        self._base_url = base_url.rstrip("/")
+        self._base_url = base_url.rstrip("/").removesuffix("/v2")
         self._timeout = timeout
 
     def estimate_price(self, symbol: str) -> float:
