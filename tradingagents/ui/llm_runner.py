@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -132,9 +133,10 @@ class LlmResearchRunner:
         api_key: str,
     ) -> LlmResearchDecision:
         model = str(provider_config.get("model") or config.deep_model)
+        provider = str(provider_config.get("provider") or "openai")
         base_url = _optional_string(provider_config.get("base_url"))
         llm_client = self._llm_client_factory(
-            "openai",
+            provider,
             model,
             base_url=base_url,
             api_key=api_key,
@@ -150,7 +152,7 @@ class LlmResearchRunner:
             action=str(payload.get("action") or "Hold").strip() or "Hold",
             thesis=str(payload.get("thesis") or raw_response).strip(),
             risk_notes=str(payload.get("risk_notes") or "Risk review required before any paper order.").strip(),
-            confidence=float(payload.get("confidence") or 0.5),
+            confidence=_confidence_value(payload.get("confidence")),
             raw_response=raw_response,
         )
 
@@ -218,7 +220,9 @@ def _research_prompt(config: RunConfig) -> str:
     return (
         "You are the Wealth Agents research manager. Create a concise investment research synthesis. "
         "Do not claim certainty and do not place trades. "
-        "Return only JSON with keys rating, action, thesis, risk_notes, confidence. "
+        "Return only a flat JSON object with keys rating, action, thesis, risk_notes, confidence. "
+        "Do not add markdown, comments, nested objects, arrays, or any text outside the JSON object. "
+        "Confidence must be a number from 0 to 1. "
         f"Ticker: {config.ticker}. Trade date: {config.trade_date}. "
         f"Analyst packets available: {analysts}. Research depth: {config.research_depth}. "
         "Allowed actions are Buy, Hold, Sell, Watch, or Avoid. "
@@ -229,16 +233,75 @@ def _research_prompt(config: RunConfig) -> str:
 def _extract_json_payload(raw_response: str) -> dict[str, object]:
     text = raw_response.strip()
     if text.startswith("```"):
-        text = text.strip("`")
-        if text.lower().startswith("json"):
-            text = text[4:].strip()
+        lines = text.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    if not text.startswith("{"):
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end > start:
+            text = text[start : end + 1]
     try:
         payload = json.loads(text)
     except json.JSONDecodeError as exc:
-        raise ValueError("LLM response was not valid JSON") from exc
+        payload = _extract_loose_payload(text)
+        if payload is None:
+            raise ValueError("LLM response was not valid JSON") from exc
     if not isinstance(payload, dict):
         raise ValueError("LLM response JSON must be an object")
     return payload
+
+
+def _extract_loose_payload(text: str) -> dict[str, object] | None:
+    payload = {
+        "rating": _extract_string_field(text, "rating"),
+        "action": _extract_string_field(text, "action"),
+        "thesis": _extract_string_field(text, "thesis"),
+        "risk_notes": _extract_string_field(text, "risk_notes"),
+        "confidence": _extract_scalar_field(text, "confidence"),
+    }
+    if not payload["rating"] or not payload["action"]:
+        return None
+    return {key: value for key, value in payload.items() if value is not None}
+
+
+def _extract_string_field(text: str, field: str) -> str | None:
+    match = re.search(rf'"{re.escape(field)}"\s*:\s*"(?P<value>.*?)"\s*(?:,|\n|}})', text, re.DOTALL)
+    if not match:
+        return None
+    return match.group("value").replace('\\"', '"').strip().rstrip('"').strip()
+
+
+def _extract_scalar_field(text: str, field: str) -> object | None:
+    quoted = _extract_string_field(text, field)
+    if quoted is not None:
+        return quoted
+    match = re.search(rf'"{re.escape(field)}"\s*:\s*(?P<value>-?\d+(?:\.\d+)?)', text)
+    if not match:
+        return None
+    return float(match.group("value"))
+
+
+def _confidence_value(value: object) -> float:
+    if isinstance(value, int | float):
+        return max(0.0, min(float(value), 1.0))
+    text = str(value or "").strip().lower()
+    if not text:
+        return 0.5
+    try:
+        return max(0.0, min(float(text), 1.0))
+    except ValueError:
+        pass
+    if "high" in text:
+        return 0.75
+    if "moderate" in text or "medium" in text:
+        return 0.55
+    if "low" in text:
+        return 0.3
+    return 0.5
 
 
 def _response_text(response: Any) -> str:
