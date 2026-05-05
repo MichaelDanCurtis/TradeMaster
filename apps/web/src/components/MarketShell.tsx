@@ -13,7 +13,8 @@ import { TransactionsWorkspace } from "@/components/TransactionsWorkspace";
 import { WatchlistRail } from "@/components/WatchlistRail";
 import { WorkspaceNav } from "@/components/WorkspaceNav";
 import { WATCHLIST } from "@/data/watchlist";
-import { getInitialNotifications, type TerminalNotification, type WorkspaceId } from "@/lib/workspace-data";
+import type { WatchlistItem } from "@/lib/types";
+import { getInitialNotifications, type MarketTickerItem, type TerminalNotification, type WorkspaceId } from "@/lib/workspace-data";
 import {
   dismissNotification,
   selectSymbol,
@@ -29,9 +30,37 @@ export function MarketShell() {
     selectedSymbol: WATCHLIST[0].symbol,
     settingsOpen: false
   });
+  const [watchlistItems, setWatchlistItems] = useState<WatchlistItem[]>(() => WATCHLIST);
   const [notifications, setNotifications] = useState<TerminalNotification[]>(() =>
     getInitialNotifications(WATCHLIST[0].symbol)
   );
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetch("/api/market-data/ticker", { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Watchlist quote request failed: ${response.status}`);
+        }
+
+        return (await response.json()) as { items?: MarketTickerItem[] };
+      })
+      .then((payload) => {
+        if (payload.items && payload.items.length > 0) {
+          setWatchlistItems(hydrateWatchlistItems(WATCHLIST, payload.items));
+        }
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) {
+          console.warn("Watchlist quote provider fallback active", error);
+        }
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, []);
 
   useEffect(() => {
     setNotifications(getInitialNotifications(shellState.selectedSymbol));
@@ -79,7 +108,7 @@ export function MarketShell() {
       <div className={shellState.activeWorkspace === "research" ? "market-shell watchlist-collapsed" : "market-shell"}>
         <WatchlistRail
           collapsed={shellState.activeWorkspace === "research"}
-          items={WATCHLIST}
+          items={watchlistItems}
           selectedSymbol={shellState.selectedSymbol}
           onSelect={handleSelectSymbol}
         />
@@ -94,6 +123,24 @@ export function MarketShell() {
       />
     </main>
   );
+}
+
+function hydrateWatchlistItems(baseItems: WatchlistItem[], tickerItems: MarketTickerItem[]): WatchlistItem[] {
+  const tickerBySymbol = new Map(tickerItems.map((item) => [item.id.toUpperCase(), item]));
+
+  return baseItems.map((item) => {
+    const tickerItem = tickerBySymbol.get(item.symbol);
+
+    if (!tickerItem) {
+      return item;
+    }
+
+    return {
+      ...item,
+      changePercent: tickerItem.changePercent,
+      price: tickerItem.value
+    };
+  });
 }
 
 function WorkspaceContent({
