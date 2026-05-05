@@ -10,6 +10,7 @@ from tradingagents.ui.models import (
     ApprovalRecord,
     BrokerOrderRecord,
     DecisionRecord,
+    MarketDataSnapshotRecord,
     ObservabilityTraceRecord,
     PrivateOfficeEdgeRecord,
     PrivateOfficeEntityRecord,
@@ -401,6 +402,44 @@ class UiRepository:
                 raise KeyError(snapshot_id)
             return self._detach_snapshot_manifest(record)
 
+    def store_market_data_snapshot(
+        self,
+        *,
+        provider_id: str,
+        symbol: str,
+        snapshot_kind: str,
+        feed: str | None = None,
+        timeframe: str | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> MarketDataSnapshotRecord:
+        record = MarketDataSnapshotRecord(
+            provider_id=provider_id,
+            symbol=symbol.upper(),
+            snapshot_kind=snapshot_kind,
+            feed=feed,
+            timeframe=timeframe,
+            payload=payload or {},
+        )
+        with self._session_factory() as session:
+            session.add(record)
+            session.commit()
+            session.refresh(record)
+            return self._detach_market_data_snapshot(record)
+
+    def list_market_data_snapshots(
+        self,
+        *,
+        provider_id: str | None = None,
+        symbol: str | None = None,
+    ) -> list[MarketDataSnapshotRecord]:
+        statement = select(MarketDataSnapshotRecord).order_by(MarketDataSnapshotRecord.created_at.desc())
+        if provider_id is not None:
+            statement = statement.where(MarketDataSnapshotRecord.provider_id == provider_id)
+        if symbol is not None:
+            statement = statement.where(MarketDataSnapshotRecord.symbol == symbol.upper())
+        with self._session_factory() as session:
+            return [self._detach_market_data_snapshot(record) for record in session.exec(statement).all()]
+
     def create_trade_intent(
         self,
         run_id: str,
@@ -724,6 +763,19 @@ class UiRepository:
             encryption_mode=record.encryption_mode,
             offsite_target=record.offsite_target,
             manifest=dict(record.manifest),
+            created_at=record.created_at,
+        )
+
+    @staticmethod
+    def _detach_market_data_snapshot(record: MarketDataSnapshotRecord) -> MarketDataSnapshotRecord:
+        return MarketDataSnapshotRecord(
+            snapshot_id=record.snapshot_id,
+            provider_id=record.provider_id,
+            symbol=record.symbol,
+            snapshot_kind=record.snapshot_kind,
+            feed=record.feed,
+            timeframe=record.timeframe,
+            payload=dict(record.payload),
             created_at=record.created_at,
         )
 
