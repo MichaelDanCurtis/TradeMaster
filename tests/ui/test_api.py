@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from tradingagents.ui.api import create_app
 from tradingagents.ui.db import create_session_factory
 from tradingagents.ui.events import RunConfig, RunEvent
+from tradingagents.ui.brokers.base import BrokerOrder
 from tradingagents.ui.market_data.base import MarketDataBar, MarketDataQuote
 from tradingagents.ui.portfolio_data.base import (
     PortfolioAccount,
@@ -931,6 +932,83 @@ def test_trade_ticket_preview_approval_and_submit(tmp_path: Path):
     assert approval.status_code == 200
     assert submitted.status_code == 200
     assert submitted.json()["status"] == "submitted"
+
+
+def test_trade_ticket_uses_configured_alpaca_paper_broker_after_approval(tmp_path: Path):
+    class RecordingAlpacaPaperBroker:
+        broker_name = "alpaca"
+        environment = "paper"
+
+        def __init__(self) -> None:
+            self.submitted: list[dict[str, object]] = []
+
+        def estimate_price(self, symbol: str) -> float:
+            return 199.5
+
+        def submit_order(self, intent_id: str, symbol: str, side: str, notional: float) -> BrokerOrder:
+            self.submitted.append(
+                {
+                    "intent_id": intent_id,
+                    "notional": notional,
+                    "side": side,
+                    "symbol": symbol,
+                }
+            )
+            return BrokerOrder(
+                intent_id=intent_id,
+                broker="alpaca",
+                environment="paper",
+                status="accepted",
+                broker_order_id="alpaca-paper-order-1",
+            )
+
+    broker = RecordingAlpacaPaperBroker()
+    client = TestClient(
+        create_app(
+            f"sqlite:///{tmp_path / 'ui.db'}",
+            broker_providers={"alpaca-paper-broker": broker},
+        )
+    )
+    client.post(
+        "/api/provider-configs/alpaca-paper-broker",
+        json={
+            "enabled": True,
+            "secret_ref": "keychain:trademaster-alpaca:paper",
+            "status": "available",
+        },
+    )
+    run_id = client.post(
+        "/api/runs",
+        json={"ticker": "NVDA", "trade_date": "2026-04-30", "broker_mode": "paper"},
+    ).json()["run_id"]
+
+    preview = client.post(
+        "/api/trades/preview",
+        json={"run_id": run_id, "symbol": "NVDA", "side": "buy", "notional": 25},
+    )
+    intent_id = preview.json()["intent_id"]
+    blocked_submit = client.post(f"/api/trades/{intent_id}/submit")
+    approval = client.post(
+        f"/api/trades/{intent_id}/approve", json={"actor": "local-user"}
+    )
+    submitted = client.post(f"/api/trades/{intent_id}/submit")
+
+    assert preview.status_code == 200
+    assert preview.json()["broker"] == "alpaca"
+    assert preview.json()["estimated_price"] == 199.5
+    assert blocked_submit.status_code == 403
+    assert approval.status_code == 200
+    assert submitted.status_code == 200
+    assert submitted.json()["broker"] == "alpaca"
+    assert submitted.json()["status"] == "accepted"
+    assert broker.submitted == [
+        {
+            "intent_id": intent_id,
+            "notional": 25,
+            "side": "buy",
+            "symbol": "NVDA",
+        }
+    ]
 
 
 def test_disabled_run_rejects_trade_preview(tmp_path: Path):
