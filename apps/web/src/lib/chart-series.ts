@@ -100,7 +100,7 @@ export function toNewsSeriesMarkers(
   newsEvents: NewsEvent[],
   bars: NormalizedMarketBar[],
   maxMarkers = 20,
-  maxLabeledMarkers = 5
+  maxLabeledMarkers = 0
 ): SeriesMarker<UTCTimestamp>[] {
   const sortedBars = sortBarsByTime(bars);
 
@@ -140,9 +140,9 @@ export function toNewsSeriesMarkers(
       color: getMarkerGroupColor(group.events),
       id: representative.id,
       position: "aboveBar",
-      price: roundPrice(group.bar.high * 1.006),
+      price: roundPrice(group.bar.high * 1.003),
       shape: "circle",
-      size: 0.75,
+      size: 0.45,
       text: !isClustered && index < maxLabeledMarkers ? representative.markerLabel : undefined,
       time: toChartTime(group.bar.timestamp)
     };
