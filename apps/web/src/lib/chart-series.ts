@@ -108,19 +108,43 @@ export function toNewsSeriesMarkers(
     return [];
   }
 
-  return newsEvents.slice(0, maxMarkers).map((event, index) => {
+  const markerGroups = new Map<
+    UTCTimestamp,
+    {
+      bar: NormalizedMarketBar;
+      events: NewsEvent[];
+    }
+  >();
+
+  for (const event of newsEvents) {
     const closestBar = getClosestBar(event.timestamp, sortedBars);
-    const color = getSentimentColor(event.sentiment);
+    const chartTime = toChartTime(closestBar.timestamp);
+    const group = markerGroups.get(chartTime);
+
+    if (group) {
+      group.events.push(event);
+    } else {
+      markerGroups.set(chartTime, { bar: closestBar, events: [event] });
+    }
+
+    if (markerGroups.size >= maxMarkers) {
+      break;
+    }
+  }
+
+  return [...markerGroups.values()].map((group, index) => {
+    const representative = group.events[0];
+    const isClustered = group.events.length > 1;
 
     return {
-      color,
-      id: event.id,
+      color: getMarkerGroupColor(group.events),
+      id: representative.id,
       position: "aboveBar",
-      price: roundPrice(closestBar.high * 1.01),
+      price: roundPrice(group.bar.high * 1.006),
       shape: "circle",
-      size: 1.25,
-      text: index < maxLabeledMarkers ? event.markerLabel : undefined,
-      time: toChartTime(closestBar.timestamp)
+      size: 0.75,
+      text: !isClustered && index < maxLabeledMarkers ? representative.markerLabel : undefined,
+      time: toChartTime(group.bar.timestamp)
     };
   });
 }
@@ -178,6 +202,18 @@ function getSentimentColor(sentiment: NewsEvent["sentiment"]): string {
     default:
       return CHART_NEUTRAL_COLOR;
   }
+}
+
+function getMarkerGroupColor(events: NewsEvent[]): string {
+  if (events.some((event) => event.sentiment === "negative")) {
+    return CHART_DOWN_COLOR;
+  }
+
+  if (events.some((event) => event.sentiment === "positive")) {
+    return CHART_UP_COLOR;
+  }
+
+  return getSentimentColor("neutral");
 }
 
 function roundPrice(value: number): number {
