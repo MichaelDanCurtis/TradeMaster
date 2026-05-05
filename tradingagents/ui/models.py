@@ -178,6 +178,21 @@ class ProviderConfigRecord(SQLModel, table=True):
     )
 
 
+class MarketDataSnapshotRecord(SQLModel, table=True):
+    __tablename__ = "market_data_snapshots"
+
+    snapshot_id: str = Field(default_factory=lambda: new_id("mds"), primary_key=True)
+    provider_id: str = Field(index=True)
+    symbol: str = Field(index=True)
+    snapshot_kind: str = Field(index=True)
+    feed: str | None = Field(default=None, index=True)
+    timeframe: str | None = Field(default=None, index=True)
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
 class PrivateOfficeEventRecord(SQLModel, table=True):
     __tablename__ = "private_office_events"
 

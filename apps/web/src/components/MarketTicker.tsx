@@ -1,7 +1,40 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
 import { getMarketTickerItems, type MarketTickerItem } from "@/lib/workspace-data";
 
 export function MarketTicker() {
-  const tickerItems = getMarketTickerItems();
+  const [tickerItems, setTickerItems] = useState<MarketTickerItem[]>(() => getMarketTickerItems());
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetch("/api/market-data/ticker", { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Ticker request failed: ${response.status}`);
+        }
+
+        return (await response.json()) as { items?: MarketTickerItem[] };
+      })
+      .then((payload) => {
+        if (payload.items && payload.items.length > 0) {
+          setTickerItems(payload.items);
+        }
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        console.warn("Market ticker provider fallback active", error);
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, []);
 
   return (
     <section className="market-ticker-strip" aria-label="Market ticker">

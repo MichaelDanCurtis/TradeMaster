@@ -115,11 +115,12 @@ export function ChartWorkspace({ newsEvents = [], symbol }: { newsEvents?: NewsE
       fetchMarketSnapshot(effectiveCompareSymbol, chartRange, controller.signal)
     ])
       .then(([nextSnapshot, nextComparisonSnapshot]) => {
+        const dataStatus = nextSnapshot.provider === "simulated" ? "fallback" : "live";
         setLiveData({
           comparisonSnapshot: nextComparisonSnapshot,
-          error: null,
+          error: dataStatus === "fallback" ? "Provider credentials are not configured; using simulated market data." : null,
           snapshot: nextSnapshot,
-          status: "live"
+          status: dataStatus
         });
       })
       .catch((error: unknown) => {

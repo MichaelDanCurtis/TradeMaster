@@ -429,6 +429,55 @@ def test_market_data_bars_endpoint_returns_normalized_provider_data(tmp_path: Pa
     assert response.json()["bars"][0]["vwap"] == 838.71
 
 
+def test_market_data_bars_endpoint_records_sqlite_snapshot(tmp_path: Path):
+    class FakeMarketDataProvider:
+        def historical_bars(self, **kwargs):
+            return [
+                MarketDataBar(
+                    symbol=kwargs["symbol"].upper(),
+                    timestamp=datetime(2026, 4, 30, 13, 30, tzinfo=timezone.utc),
+                    open=838.12,
+                    high=841.0,
+                    low=836.5,
+                    close=839.05,
+                    volume=6601542,
+                    vwap=838.71,
+                    trade_count=9342,
+                )
+            ]
+
+        def latest_quote(self, symbol: str, *, feed: str | None = None):
+            raise AssertionError("not used")
+
+    database_url = f"sqlite:///{tmp_path / 'ui.db'}"
+    client = TestClient(
+        create_app(
+            database_url,
+            market_data_providers={"alpaca-market-data": FakeMarketDataProvider()},
+        )
+    )
+
+    response = client.get(
+        "/api/market-data/alpaca-market-data/bars",
+        params={
+            "symbol": "nvda",
+            "start": "2026-04-30T13:30:00Z",
+            "end": "2026-04-30T20:00:00Z",
+            "timeframe": "1Min",
+            "feed": "iex",
+        },
+    )
+
+    assert response.status_code == 200
+    _, session_factory = create_session_factory(database_url)
+    snapshots = UiRepository(session_factory).list_market_data_snapshots(symbol="NVDA")
+    assert len(snapshots) == 1
+    assert snapshots[0].provider_id == "alpaca-market-data"
+    assert snapshots[0].snapshot_kind == "bars"
+    assert snapshots[0].feed == "iex"
+    assert snapshots[0].payload["bars"][0]["close"] == 839.05
+
+
 def test_market_data_quote_endpoint_returns_normalized_provider_data(tmp_path: Path):
     class FakeMarketDataProvider:
         def historical_bars(self, **kwargs):

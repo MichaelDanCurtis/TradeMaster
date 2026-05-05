@@ -522,16 +522,30 @@ def create_app(
         )
         resolved_feed = feed or _configured_feed(provider_config)
         try:
-            return BarsResponse(
-                bars=provider.historical_bars(
-                    symbol=symbol,
-                    start=start,
-                    end=end,
-                    timeframe=timeframe,
-                    limit=limit,
-                    feed=resolved_feed,
-                )
+            bars = provider.historical_bars(
+                symbol=symbol,
+                start=start,
+                end=end,
+                timeframe=timeframe,
+                limit=limit,
+                feed=resolved_feed,
             )
+            repo.store_market_data_snapshot(
+                provider_id=provider_id,
+                symbol=symbol,
+                snapshot_kind="bars",
+                feed=resolved_feed,
+                timeframe=timeframe,
+                payload={
+                    "bars": [bar.model_dump(mode="json") for bar in bars],
+                    "request": {
+                        "end": end.isoformat(),
+                        "limit": limit,
+                        "start": start.isoformat(),
+                    },
+                },
+            )
+            return BarsResponse(bars=bars)
         except SecretNotFoundError as exc:
             raise HTTPException(
                 status_code=403,
@@ -552,12 +566,19 @@ def create_app(
             market_data_http_client,
         )
         try:
-            return QuoteResponse(
-                quote=provider.latest_quote(
-                    symbol,
-                    feed=feed or _configured_feed(provider_config),
-                )
+            resolved_feed = feed or _configured_feed(provider_config)
+            quote = provider.latest_quote(
+                symbol,
+                feed=resolved_feed,
             )
+            repo.store_market_data_snapshot(
+                provider_id=provider_id,
+                symbol=symbol,
+                snapshot_kind="quote",
+                feed=resolved_feed,
+                payload={"quote": quote.model_dump(mode="json")},
+            )
+            return QuoteResponse(quote=quote)
         except SecretNotFoundError as exc:
             raise HTTPException(
                 status_code=403,

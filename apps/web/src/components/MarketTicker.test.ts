@@ -24,4 +24,11 @@ describe("market ticker markup", () => {
     assert.match(source, /\.ticker-copy\s+(strong|span)[\s\S]*color:\s*#fff\b/);
     assert.match(source, /prefers-reduced-motion:\s*reduce/);
   });
+
+  it("hydrates ticker rows from the provider backed ticker endpoint", () => {
+    const source = readFileSync(new URL("./MarketTicker.tsx", import.meta.url), "utf-8");
+
+    assert.match(source, /useEffect/);
+    assert.match(source, /\/api\/market-data\/ticker/);
+  });
 });
