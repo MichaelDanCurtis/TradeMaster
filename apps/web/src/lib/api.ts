@@ -1,5 +1,6 @@
 import type {
   BrokerMode,
+  ExecutionMode,
   OrderPreview,
   OrderSide,
   ProviderCatalog,
@@ -18,6 +19,7 @@ export async function createRun(input: {
   ticker: string;
   tradeDate: string;
   brokerMode: BrokerMode;
+  executionMode?: ExecutionMode;
 }): Promise<RunCreated> {
   const response = await fetch(`${API_BASE}/api/runs`, {
     method: "POST",
@@ -25,7 +27,8 @@ export async function createRun(input: {
     body: JSON.stringify({
       ticker: input.ticker,
       trade_date: input.tradeDate,
-      broker_mode: input.brokerMode
+      broker_mode: input.brokerMode,
+      execution_mode: input.executionMode ?? "simulated"
     })
   });
 

@@ -18,6 +18,7 @@ from tradingagents.ui.brokers.fake import FakePaperBroker
 from tradingagents.ui.brokers.service import BrokerService
 from tradingagents.ui.db import create_session_factory, init_db
 from tradingagents.ui.events import RunConfig, RunCreated, RunEvent
+from tradingagents.ui.llm_runner import LlmResearchRunner
 from tradingagents.ui.market_data.alpaca import AlpacaMarketDataProvider, HttpClient
 from tradingagents.ui.market_data.base import (
     BarTimeframe,
@@ -165,6 +166,7 @@ def create_app(
     portfolio_providers: Mapping[str, PortfolioProvider] | None = None,
     portfolio_http_client: PlaidHttpClient | None = None,
     langfuse_client_factory: LangfuseClientFactory | None = None,
+    llm_client_factory=None,
 ) -> FastAPI:
     resolved_database_url = (
         database_url
@@ -197,7 +199,13 @@ def create_app(
     def run_service(
         repository: UiRepository = Depends(repository),
     ) -> TradingRunService:
-        return TradingRunService(repository, real_runner=resolved_real_runner)
+        llm_runner_kwargs = {"llm_client_factory": llm_client_factory} if llm_client_factory else {}
+        real_runner = resolved_real_runner or LlmResearchRunner(
+            repository,
+            secret_store_factory=_secret_store_for_ref,
+            **llm_runner_kwargs,
+        )
+        return TradingRunService(repository, real_runner=real_runner)
 
     def broker_service(repo: UiRepository = Depends(repository)) -> BrokerService:
         return BrokerService(repo, _resolve_broker_adapter(repo, resolved_broker_providers))

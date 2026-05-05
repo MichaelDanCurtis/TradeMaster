@@ -875,6 +875,100 @@ def test_create_real_run_uses_injected_real_runner(tmp_path: Path):
     ]
 
 
+def test_create_real_run_uses_configured_llm_provider(tmp_path: Path, monkeypatch):
+    class FakeLlm:
+        def invoke(self, prompt: str):
+            assert "Ticker: NVDA" in prompt
+            return type(
+                "FakeResponse",
+                (),
+                {
+                    "content": (
+                        '{"rating":"Overweight","action":"Buy","thesis":"LLM sees a constructive setup.",'
+                        '"risk_notes":"Position sizing and approval gate required.","confidence":0.72}'
+                    )
+                },
+            )()
+
+    class FakeLlmClient:
+        def __init__(self) -> None:
+            self.llm = FakeLlm()
+
+        def get_llm(self):
+            return self.llm
+
+    calls: list[dict[str, object]] = []
+
+    def fake_llm_client_factory(provider: str, model: str, **kwargs):
+        calls.append({"provider": provider, "model": model, **kwargs})
+        return FakeLlmClient()
+
+    monkeypatch.setenv("TRADEMASTER_OPENAI_KEY", "sk-test-not-returned")
+    client = TestClient(
+        create_app(
+            f"sqlite:///{tmp_path / 'ui.db'}",
+            llm_client_factory=fake_llm_client_factory,
+        )
+    )
+    client.post(
+        "/api/provider-configs/openai-llm",
+        json={
+            "enabled": True,
+            "secret_ref": "env:TRADEMASTER_OPENAI_KEY",
+            "config": {"model": "gpt-5.4-mini"},
+        },
+    )
+
+    created = client.post(
+        "/api/runs",
+        json={
+            "ticker": "NVDA",
+            "trade_date": "2026-04-30",
+            "execution_mode": "real",
+            "broker_mode": "disabled",
+        },
+    )
+    run_id = created.json()["run_id"]
+    events = client.get(f"/api/runs/{run_id}/events").json()
+    trace = client.get(f"/api/runs/{run_id}/trace").json()
+
+    assert created.status_code == 200
+    assert created.json()["status"] == "completed"
+    assert calls[0]["provider"] == "openai"
+    assert calls[0]["model"] == "gpt-5.4-mini"
+    assert calls[0]["api_key"] == "sk-test-not-returned"
+    decision = next(event for event in events if event["type"] == "decision.created")
+    assert decision["payload"]["rating"] == "Overweight"
+    assert decision["payload"]["action"] == "Buy"
+    assert decision["payload"]["fallback"] is False
+    assert trace["metadata"]["final_action"] == "Buy"
+    assert "sk-test-not-returned" not in str(events)
+    assert "sk-test-not-returned" not in str(trace)
+
+
+def test_create_real_run_falls_back_when_llm_provider_is_not_configured(tmp_path: Path):
+    client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
+
+    created = client.post(
+        "/api/runs",
+        json={
+            "ticker": "NVDA",
+            "trade_date": "2026-04-30",
+            "execution_mode": "real",
+            "broker_mode": "disabled",
+        },
+    )
+    run_id = created.json()["run_id"]
+    events = client.get(f"/api/runs/{run_id}/events").json()
+
+    assert created.status_code == 200
+    assert created.json()["status"] == "completed"
+    decision = next(event for event in events if event["type"] == "decision.created")
+    assert decision["payload"]["fallback"] is True
+    assert decision["payload"]["action"] == "Hold"
+    assert "provider_not_configured" in str(events)
+
+
 def test_stream_run_events_as_sse(tmp_path: Path):
     client = TestClient(create_app(f"sqlite:///{tmp_path / 'ui.db'}"))
     run_id = client.post(

@@ -1,5 +1,6 @@
 export type RunStatus = "queued" | "running" | "completed" | "failed" | "canceled";
 export type BrokerMode = "disabled" | "paper" | "live_preview";
+export type ExecutionMode = "real" | "simulated";
 export type OrderSide = "buy" | "sell";
 export type ProviderRole = "brokerage" | "llm" | "market-data" | "observability" | "portfolio";
 export type ProviderStatus = "available" | "disabled" | "needs_key" | "planned";

@@ -22,6 +22,11 @@ export function AgentCockpit({ symbol, showTradeTicket = true }: AgentCockpitPro
   const requestIdRef = useRef(0);
   const revealTimersRef = useRef<number[]>([]);
   const activePreview = preview?.symbol === symbol ? preview : null;
+  const decisionEvent = events.find((event) => event.type === "decision.created");
+  const decisionRating = typeof decisionEvent?.payload.rating === "string" ? decisionEvent.payload.rating : null;
+  const decisionAction = typeof decisionEvent?.payload.action === "string" ? decisionEvent.payload.action : null;
+  const decisionThesis = typeof decisionEvent?.payload.thesis === "string" ? decisionEvent.payload.thesis : null;
+  const decisionFallback = decisionEvent?.payload.fallback === true;
 
   useEffect(() => {
     requestIdRef.current += 1;
@@ -51,7 +56,8 @@ export function AgentCockpit({ symbol, showTradeTicket = true }: AgentCockpitPro
       const created = await createRun({
         ticker: requestedSymbol,
         tradeDate: new Date().toISOString().slice(0, 10),
-        brokerMode: showTradeTicket ? "paper" : "disabled"
+        brokerMode: showTradeTicket ? "paper" : "disabled",
+        executionMode: "real"
       });
       if (requestIdRef.current !== requestId) return;
       setRunId(created.run_id);
@@ -127,8 +133,12 @@ export function AgentCockpit({ symbol, showTradeTicket = true }: AgentCockpitPro
       </section>
       <section className="decision-panel">
         <span className="panel-kicker">Decision ledger</span>
-        <strong>{events.some((event) => event.type === "decision.created") ? "Overweight / Buy" : "No decision yet"}</strong>
-        <p>Final reports will land here before any paper ticket can be approved.</p>
+        <strong>{decisionRating && decisionAction ? `${decisionRating} / ${decisionAction}` : "No decision yet"}</strong>
+        <p>
+          {decisionThesis ??
+            "Final reports will land here before any paper ticket can be approved."}
+        </p>
+        {decisionFallback ? <span className="decision-badge">Fallback synthesis</span> : null}
       </section>
       {showTradeTicket && activePreview ? <TradeTicket key={activePreview.intent_id} preview={activePreview} /> : null}
     </aside>
