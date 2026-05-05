@@ -78,14 +78,38 @@ describe("chart series adapters", () => {
         makeNews({ sentiment: "positive", timestamp: "2026-05-01T14:34:00.000Z" }),
         makeNews({ id: "negative", markerLabel: "N2", sentiment: "negative", timestamp: "2026-05-01T14:29:00.000Z" })
       ],
-      bars
+      bars,
+      20,
+      5
     );
 
     assert.deepEqual(
       markers.map((marker) => ({ color: marker.color, id: marker.id, price: marker.price, text: marker.text, time: marker.time })),
       [
-        { color: "#33d17a", id: "news-1", price: 106.64, text: "N1", time: 1777646100 },
-        { color: "#ff6b6b", id: "negative", price: 101.61, text: "N2", time: 1777645800 }
+        { color: "#33d17a", id: "news-1", price: 106.32, text: "N1", time: 1777646100 },
+        { color: "#ff6b6b", id: "negative", price: 101.3, text: "N2", time: 1777645800 }
+      ]
+    );
+  });
+
+  it("keeps default news markers quiet for production chart readability", () => {
+    const bars = [
+      makeBar({ high: 101, timestamp: "2026-05-01T14:30:00.000Z" }),
+      makeBar({ high: 106, timestamp: "2026-05-01T14:35:00.000Z" })
+    ];
+    const markers = toNewsSeriesMarkers(
+      [
+        makeNews({ sentiment: "positive", timestamp: "2026-05-01T14:34:00.000Z" }),
+        makeNews({ id: "negative", markerLabel: "N2", sentiment: "negative", timestamp: "2026-05-01T14:29:00.000Z" })
+      ],
+      bars
+    );
+
+    assert.deepEqual(
+      markers.map((marker) => ({ size: marker.size, text: marker.text })),
+      [
+        { size: 0.45, text: undefined },
+        { size: 0.45, text: undefined }
       ]
     );
   });
@@ -121,13 +145,13 @@ describe("chart series adapters", () => {
       makeNews({ id: "monday", markerLabel: "Mon", timestamp: "2026-05-04T15:00:00.000Z" })
     ];
 
-    const markers = toNewsSeriesMarkers(events, bars);
+    const markers = toNewsSeriesMarkers(events, bars, 20, 5);
 
     assert.deepEqual(
       markers.map((marker) => ({ id: marker.id, size: marker.size, text: marker.text, time: marker.time })),
       [
-        { id: "friday", size: 0.75, text: "Fri", time: 1777645800 },
-        { id: "weekend", size: 0.75, text: undefined, time: 1777905000 }
+        { id: "friday", size: 0.45, text: "Fri", time: 1777645800 },
+        { id: "weekend", size: 0.45, text: undefined, time: 1777905000 }
       ]
     );
   });
