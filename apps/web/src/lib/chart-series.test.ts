@@ -84,19 +84,21 @@ describe("chart series adapters", () => {
     assert.deepEqual(
       markers.map((marker) => ({ color: marker.color, id: marker.id, price: marker.price, text: marker.text, time: marker.time })),
       [
-        { color: "#33d17a", id: "news-1", price: 107.06, text: "N1", time: 1777646100 },
-        { color: "#ff6b6b", id: "negative", price: 102.01, text: "N2", time: 1777645800 }
+        { color: "#33d17a", id: "news-1", price: 106.64, text: "N1", time: 1777646100 },
+        { color: "#ff6b6b", id: "negative", price: 101.61, text: "N2", time: 1777645800 }
       ]
     );
   });
 
   it("limits marker text so labels remain readable on dense event clusters", () => {
-    const bars = [makeBar({ high: 101, timestamp: "2026-05-01T14:30:00.000Z" })];
+    const bars = Array.from({ length: 8 }, (_, index) =>
+      makeBar({ high: 101 + index, timestamp: `2026-05-01T14:${String(30 + index).padStart(2, "0")}:00.000Z` })
+    );
     const events = Array.from({ length: 8 }, (_, index) =>
       makeNews({
         id: `news-${index}`,
         markerLabel: `N${index + 1}`,
-        timestamp: "2026-05-01T14:30:00.000Z"
+        timestamp: `2026-05-01T14:${String(30 + index).padStart(2, "0")}:00.000Z`
       })
     );
 
@@ -105,6 +107,28 @@ describe("chart series adapters", () => {
     assert.deepEqual(
       markers.map((marker) => marker.text),
       ["N1", "N2", "N3", "N4", undefined, undefined, undefined, undefined]
+    );
+  });
+
+  it("clusters multiple news events mapped to the same trading bar into one quiet marker", () => {
+    const bars = [
+      makeBar({ high: 101, timestamp: "2026-05-01T14:30:00.000Z" }),
+      makeBar({ high: 106, timestamp: "2026-05-04T14:30:00.000Z" })
+    ];
+    const events = [
+      makeNews({ id: "friday", markerLabel: "Fri", timestamp: "2026-05-01T15:00:00.000Z" }),
+      makeNews({ id: "weekend", markerLabel: "Sun", timestamp: "2026-05-03T15:00:00.000Z" }),
+      makeNews({ id: "monday", markerLabel: "Mon", timestamp: "2026-05-04T15:00:00.000Z" })
+    ];
+
+    const markers = toNewsSeriesMarkers(events, bars);
+
+    assert.deepEqual(
+      markers.map((marker) => ({ id: marker.id, size: marker.size, text: marker.text, time: marker.time })),
+      [
+        { id: "friday", size: 0.75, text: "Fri", time: 1777645800 },
+        { id: "weekend", size: 0.75, text: undefined, time: 1777905000 }
+      ]
     );
   });
 
