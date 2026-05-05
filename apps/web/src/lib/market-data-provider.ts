@@ -51,7 +51,7 @@ const RANGE_REQUESTS: Record<
     timeframe: "1Min" | "5Min" | "15Min" | "1Hour" | "1Day";
   }
 > = {
-  "1D": { interval: "5m", limit: 78, lookbackMs: 24 * 60 * 60_000, timeframe: "5Min" },
+  "1D": { interval: "1m", limit: 390, lookbackMs: 24 * 60 * 60_000, timeframe: "1Min" },
   "5D": { interval: "15m", limit: 130, lookbackMs: 5 * 24 * 60 * 60_000, timeframe: "15Min" },
   "1M": { interval: "1d", limit: 22, lookbackMs: 31 * 24 * 60 * 60_000, timeframe: "1Day" },
   "YTD": { interval: "1d", limit: 220, lookbackMs: 365 * 24 * 60 * 60_000, timeframe: "1Day" },

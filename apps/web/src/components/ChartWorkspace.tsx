@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type WheelEvent } from "react";
 
 import { EvidenceChart, type EvidenceChartView } from "@/components/EvidenceChart";
+import { getWheelAdjustedRange } from "@/lib/chart-range";
 import {
   calculatePerformanceSpread,
   createComparisonSeries,
@@ -42,6 +43,8 @@ const RANGE_OPTIONS: Array<{ label: string; value: MarketRange }> = [
 
 const COMPARE_OPTIONS = ["SPY", "AAPL", "MSFT", "NVDA"];
 const MAX_CHART_EVENTS = 20;
+const RANGE_WHEEL_COOLDOWN_MS = 260;
+const RANGE_WHEEL_DELTA_THRESHOLD = 18;
 
 type LiveDataState = {
   comparisonSnapshot: MarketDataSnapshot | null;
@@ -85,6 +88,7 @@ export function ChartWorkspace({ newsEvents = [], symbol }: { newsEvents?: NewsE
   const [compareEnabled, setCompareEnabled] = useState(false);
   const [compareSymbol, setCompareSymbol] = useState("SPY");
   const [priorPeriodEnabled, setPriorPeriodEnabled] = useState(false);
+  const lastWheelRangeChangeRef = useRef(0);
   const providerCatalog = useMemo(() => getMarketProviderCatalog(), []);
   const effectiveCompareSymbol =
     compareSymbol === symbol ? (COMPARE_OPTIONS.find((option) => option !== symbol) ?? "SPY") : compareSymbol;
@@ -162,6 +166,29 @@ export function ChartWorkspace({ newsEvents = [], symbol }: { newsEvents?: NewsE
   const sessionChangePercent = (sessionChange / firstBar.open) * 100;
   const range = snapshot.quote.dayHigh - snapshot.quote.dayLow;
   const selectedViewLabel = CHART_VIEWS.find((view) => view.value === chartView)?.label ?? "Candles";
+
+  function handleChartWheel(event: WheelEvent<HTMLDivElement>) {
+    if (Math.abs(event.deltaY) < RANGE_WHEEL_DELTA_THRESHOLD) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const now = Date.now();
+    if (now - lastWheelRangeChangeRef.current < RANGE_WHEEL_COOLDOWN_MS) {
+      return;
+    }
+
+    setChartRange((currentRange) => {
+      const nextRange = getWheelAdjustedRange(currentRange, event.deltaY);
+
+      if (nextRange !== currentRange) {
+        lastWheelRangeChangeRef.current = now;
+      }
+
+      return nextRange;
+    });
+  }
 
   return (
     <section className="chart-workspace">
@@ -253,7 +280,7 @@ export function ChartWorkspace({ newsEvents = [], symbol }: { newsEvents?: NewsE
         </label>
       </div>
 
-      <div className="chart-shell">
+      <div className="chart-shell" onWheel={handleChartWheel}>
         <EvidenceChart
           bars={displayedBars}
           chartRange={chartRange}

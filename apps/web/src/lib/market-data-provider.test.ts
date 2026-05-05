@@ -57,7 +57,7 @@ describe("provider backed market data", () => {
 
     assert.equal(snapshot.provider, "alpaca");
     assert.equal(snapshot.feed, "iex");
-    assert.equal(snapshot.interval, "5m");
+    assert.equal(snapshot.interval, "1m");
     assert.equal(snapshot.generatedAt, "2026-04-30T13:31:01.000Z");
     assert.equal(snapshot.quote.last, 842.25);
     assert.equal(snapshot.quote.bid, 842.1);
@@ -65,7 +65,7 @@ describe("provider backed market data", () => {
     assert.equal(snapshot.quote.dayOpen, 838.12);
     assert.equal(snapshot.quote.dayVolume, 13301542);
     assert.equal(snapshot.bars[0].tradeCount, 9342);
-    assert.ok(calls[0].includes("timeframe=5Min"));
+    assert.ok(calls[0].includes("timeframe=1Min"));
     assert.ok(calls[0].includes("feed=iex"));
     assert.ok(calls[1].includes("/quote"));
   });

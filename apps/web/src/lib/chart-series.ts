@@ -152,7 +152,7 @@ export function toNewsSeriesMarkers(
 export function getInitialVisibleLogicalRange(totalBars: number, range: MarketRange): IRange<number> {
   const safeTotal = Math.max(1, totalBars);
   const visibleBarsByRange: Record<MarketRange, number> = {
-    "1D": 78,
+    "1D": 120,
     "5D": 130,
     "1M": 25,
     "1Y": 150,
