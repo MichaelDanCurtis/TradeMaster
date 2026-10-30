@@ -36,7 +36,7 @@ dependencies = [
     "sqlmodel>=0.0.22",
     "cryptography>=46.0.0",
     "pillow==13.0.0",
-    "pypdfium2==5.13.0",
+    "pypdfium2==5.14.0",
 ]
 
 [project.scripts]
