@@ -2,11 +2,19 @@ name: Checks
 on:
   push:
   pull_request:
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
   python:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+      MKL_NUM_THREADS: "2"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff
@@ -14,11 +22,12 @@ jobs:
           python-version: '3.12'
       - run: python3 scripts/check_publication.py
       - run: uv sync --frozen --extra dev
-      - run: uv run --frozen --extra dev python -m pytest tests -m 'not integration'
-      - run: uv export --frozen --extra dev --no-emit-project --format requirements-txt --output-file /tmp/requirements-audit.txt
+      - run: uv run --frozen --extra dev python -m pytest tests -m 'not integration' --durations=10 -o faulthandler_timeout=120
+      - run: uv export --frozen --extra dev --no-emit-project --format requirements-txt --output-file /tmp/requirements-audit.txt > /dev/null
       - run: uvx pip-audit -r /tmp/requirements-audit.txt --no-deps --disable-pip
   web:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -31,6 +40,7 @@ jobs:
       - run: npm run web:build
   secrets:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
