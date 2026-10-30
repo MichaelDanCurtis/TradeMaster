@@ -11,7 +11,7 @@
     "test": "node --experimental-strip-types --test src/lib/*.test.ts src/components/*.test.ts"
   },
   "dependencies": {
-    "@xyflow/react": "^12.10.2",
+    "@xyflow/react": "^12.12.0",
     "lightweight-charts": "^5.2.0",
     "next": "^15.3.0",
     "react": "^19.0.0",
