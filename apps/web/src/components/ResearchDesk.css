@@ -1,0 +1,13 @@
+.research-desk {padding:28px;max-width:1250px;margin:auto;color:var(--text-primary)}
+.research-desk h1{font-size:32px;margin:10px 0}.research-desk p,.research-desk li{line-height:1.6;color:var(--text-secondary)}
+.research-desk nav,.desk-actions{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0}
+.research-desk button{padding:10px 14px;background:var(--panel-bg);color:var(--text-primary);border:1px solid var(--panel-border-strong);border-radius:8px;cursor:pointer}
+.research-desk button[aria-pressed=true]{border-color:var(--accent-cyan);color:var(--accent-cyan)}
+.research-desk button:disabled{opacity:.5;cursor:wait}.research-desk :is(button,input,textarea,summary):focus-visible{outline:2px solid var(--accent-cyan);outline-offset:3px}
+.research-desk article{padding:24px;margin:18px 0;border:1px solid var(--panel-border);border-radius:12px;background:var(--panel-bg)}
+.research-desk label{display:grid;gap:8px;margin:12px 0;font-size:13px}.desk-field{max-width:520px}
+.research-desk input,.research-desk textarea{padding:10px;color:var(--text-primary);background:var(--app-bg);border:1px solid var(--panel-border-strong);border-radius:6px;min-width:0}
+.research-desk textarea{min-height:80px}.desk-stats{display:flex;gap:16px;flex-wrap:wrap;margin:20px 0}.desk-stats>div{padding:18px;border:1px solid var(--panel-border);border-radius:8px;min-width:150px}.desk-stats span{display:block;font-size:12px;color:var(--text-secondary)}.desk-stats strong{font-size:24px;display:block;margin-top:10px}
+.desk-table{overflow:auto}.research-desk table{width:100%;border-collapse:collapse;text-align:left;font-size:13px}.research-desk td,.research-desk th{padding:12px;border-bottom:1px solid var(--panel-border)}
+.research-desk a{color:var(--accent-cyan);text-decoration:underline}.research-desk code{font-size:11px;overflow-wrap:anywhere}.research-desk .desk-error{color:var(--negative)}.research-desk details{margin:18px 0;font-size:13px}.research-desk summary{cursor:pointer}
+@media(max-width:600px){.research-desk{padding:16px}.research-desk article{padding:16px}.desk-stats>div{flex:1}}

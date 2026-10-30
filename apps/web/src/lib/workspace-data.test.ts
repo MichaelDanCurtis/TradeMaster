@@ -7,14 +7,8 @@ import {
   getConversationActions,
   getDashboardNewsEvents,
   getHistoricalOutcomes,
+  getInitialNotifications,
   getMarketTickerItems,
-  getPrivateOfficeBrief,
-  getPrivateOfficeChannelActions,
-  getPrivateOfficeChannelMessages,
-  getPrivateOfficeChannels,
-  getPrivateOfficeGoalDossier,
-  getPrivateOfficeRunQueue,
-  getPrivateOfficeTeams,
   getResearchReports,
   getTransactionSnapshot
 } from "./workspace-data.ts";
@@ -130,75 +124,13 @@ describe("workspace seeded domain data", () => {
     assert.ok(!freshReports[0].synthesisSteps.includes("mutated synthesis step"));
   });
 
-  it("returns the Wealth Agents private-office team hierarchy", () => {
-    const teams = getPrivateOfficeTeams("NVDA");
-    const ids = teams.map((team) => team.id);
-
-    assert.ok(ids.includes("goals"));
-    assert.ok(ids.includes("advisor"));
-    assert.ok(ids.includes("capital-committee"));
-    assert.ok(ids.includes("property"));
-    assert.ok(ids.includes("communications"));
-    assert.ok(teams.some((team) => team.riskClass === "approval-gated"));
-    assert.ok(teams.every((team) => team.a2uiSurfaces.length > 0));
-  });
-
-  it("returns a symbol-scoped private-office morning brief", () => {
-    const brief = getPrivateOfficeBrief("NVDA");
-
-    assert.equal(brief.symbol, "NVDA");
-    assert.ok(brief.headline.includes("Private Office"));
-    assert.ok(brief.priorityItems.length >= 4);
-    assert.ok(brief.goalSignals.some((signal) => signal.goalName.toLowerCase().includes("yacht")));
-    assert.ok(brief.controlSignals.some((signal) => signal.team === "Communications Team"));
-  });
-
-  it("returns independent private-office arrays", () => {
-    const teams = getPrivateOfficeTeams("NVDA");
-    const brief = getPrivateOfficeBrief("NVDA");
-    const queue = getPrivateOfficeRunQueue("NVDA");
-
-    teams[0].responsibilities.push("mutated responsibility");
-    brief.priorityItems.push("mutated priority");
-    queue[0].steps[0].status = "waiting";
-
-    assert.ok(!getPrivateOfficeTeams("NVDA")[0].responsibilities.includes("mutated responsibility"));
-    assert.ok(!getPrivateOfficeBrief("NVDA").priorityItems.includes("mutated priority"));
-    assert.notEqual(getPrivateOfficeRunQueue("NVDA")[0].steps[0].status, "waiting");
-  });
-
-  it("returns private-office team channels with triage metadata", () => {
-    const channels = getPrivateOfficeChannels("NVDA");
-    const ids = channels.map((channel) => channel.id);
-
-    assert.deepEqual(ids.slice(0, 4), ["advisor", "goals", "capital-committee", "communications"]);
-    assert.ok(channels.some((channel) => channel.notifyMichael === true));
-    assert.ok(channels.some((channel) => channel.delivery === "internal"));
-    assert.ok(channels.every((channel) => channel.a2uiSurface.length > 0));
-  });
-
-  it("returns private-office channel messages and actions", () => {
-    const messages = getPrivateOfficeChannelMessages("goals", "NVDA");
-    const actions = getPrivateOfficeChannelActions("goals", "NVDA");
-
-    assert.ok(messages.some((message) => message.author === "Goal Steward"));
-    assert.ok(actions.some((action) => action.status === "requires-approval"));
-    assert.ok(actions.some((action) => action.delivery === "internal"));
-  });
-
-  it("returns independent yacht goal dossier data", () => {
-    const dossier = getPrivateOfficeGoalDossier("NVDA");
-
-    assert.ok(dossier.goalName.toLowerCase().includes("yacht"));
-    assert.ok(dossier.assetTarget.includes("68"));
-    assert.ok(dossier.blockers.some((blocker) => blocker.owner === "Tax & Structure Body"));
-    assert.ok(dossier.capitalPath.some((item) => item.includes("NVDA")));
-
-    dossier.blockers[0].detail = "mutated";
-    dossier.capitalPath.push("mutated");
-
-    const fresh = getPrivateOfficeGoalDossier("NVDA");
-    assert.notEqual(fresh.blockers[0].detail, "mutated");
-    assert.ok(!fresh.capitalPath.includes("mutated"));
+  it("routes seeded notifications to the current four-room navigation", () => {
+    const notifications = getInitialNotifications(" nvda ");
+    assert.ok(notifications.every((item) => ["portfolio", "research", "quant", "settings"].includes(item.linkedWorkspace)));
+    const approval = notifications.find((item) => item.id === "nvda-approval-required");
+    assert.equal(approval?.linkedWorkspace, "quant");
+    assert.ok(approval?.body.includes("NVDA"));
+    notifications[0].title = "mutated";
+    assert.notEqual(getInitialNotifications("NVDA")[0].title, "mutated");
   });
 });

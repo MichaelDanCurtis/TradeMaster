@@ -111,3 +111,32 @@ def test_alpaca_paper_broker_requires_secret_ref():
             side="buy",
             notional=1000,
         )
+
+
+@pytest.mark.parametrize("price,budget", [(100, 99.99), (100, .01), (float("nan"), 100), (float("inf"), 100), (0, 100)])
+def test_invalid_bracket_size_or_quote_fails_before_credentials_or_http(price, budget):
+    client = RecordingHttpClient()
+    broker = AlpacaPaperBroker(secret_store=EnvSecretStore(), secret_ref="env:MISSING_TEST_SECRET", http_client=client, price_estimator=lambda _: price)
+    with pytest.raises(ValueError):
+        broker.submit_order("subshare", "AAA", "buy", budget, take_profit=200)
+    assert not client.calls
+
+
+@pytest.mark.parametrize("field,value", [("notional", float("nan")), ("notional", float("inf")), ("notional", -.01), ("notional", .009), ("stop_loss", float("nan")), ("take_profit", 0)])
+def test_nonfinite_or_nonpositive_order_values_fail_before_dispatch(field, value):
+    client = RecordingHttpClient()
+    broker = AlpacaPaperBroker(secret_store=EnvSecretStore(), secret_ref="env:MISSING_TEST_SECRET", http_client=client, price_estimator=lambda _: 100)
+    args = {"intent_id": "invalid", "symbol": "AAA", "side": "buy", "notional": 200, field: value}
+    with pytest.raises(ValueError):
+        broker.submit_order(**args)
+    assert not client.calls
+
+
+def test_decimal_share_boundary_and_notional_rounding_do_not_increase_budget(monkeypatch):
+    monkeypatch.setenv("TRADEMASTER_ALPACA_BROKER_CREDS", '{"key_id":"paper-key","secret_key":"paper-secret"}')
+    client = RecordingHttpClient()
+    broker = AlpacaPaperBroker(secret_store=EnvSecretStore(), secret_ref="env:TRADEMASTER_ALPACA_BROKER_CREDS", http_client=client, price_estimator=lambda _: .1)
+    broker.submit_order("whole", "AAA", "buy", .3, take_profit=.2)
+    assert client.calls[-1]["json"]["qty"] == "3"
+    broker.submit_order("cents", "AAA", "buy", 10.999)
+    assert client.calls[-1]["json"]["notional"] == "10.99"

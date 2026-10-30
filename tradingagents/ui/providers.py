@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 
-ProviderRole = Literal["market-data", "portfolio", "brokerage", "llm", "observability"]
+ProviderRole = Literal["market-data", "portfolio", "brokerage", "llm", "observability", "safety"]
 ProviderStatus = Literal["available", "disabled", "needs_key", "planned"]
 ProviderControlSurface = Literal["agent-data", "human-cockpit", "ai-harness", "platform"]
 ProviderWriteAuthority = Literal["none", "read-only", "paper-trading", "live-trading"]
@@ -41,14 +41,20 @@ class ProviderCatalog(BaseModel):
     providers: list[ProviderDescriptor]
 
 
+class ProviderRoleDefault(BaseModel):
+    role_key: str
+    provider_id: str
+    surface: ProviderControlSurface
+
+
 PROVIDERS: tuple[ProviderDescriptor, ...] = (
     ProviderDescriptor(
         id="simulated-market-data",
         name="Simulated Market Data",
         role="market-data",
-        status="available",
+        status="disabled",
         capabilities=["historical-bars", "delayed-bars", "quotes", "volume", "vwap"],
-        primary_use="Local deterministic bars for UI work, demos, and tests.",
+        primary_use="Internal test fixture only. Disabled for the live local product.",
         control_surface="agent-data",
         write_authority="none",
     ),
@@ -113,9 +119,9 @@ PROVIDERS: tuple[ProviderDescriptor, ...] = (
         id="fake-paper-broker",
         name="Fake Paper Broker",
         role="brokerage",
-        status="available",
+        status="disabled",
         capabilities=["paper-trading", "order-preview", "approval-gate"],
-        primary_use="Approval-gated local paper workflow with no real execution.",
+        primary_use="Internal test fixture only. Disabled for the live local product.",
         control_surface="ai-harness",
         write_authority="paper-trading",
     ),
@@ -173,6 +179,79 @@ PROVIDERS: tuple[ProviderDescriptor, ...] = (
         write_authority="none",
     ),
     ProviderDescriptor(
+        id="openai-codex-oauth-llm",
+        name="OpenAI Codex (ChatGPT OAuth)",
+        role="llm",
+        status="available",
+        capabilities=[
+            "developer-mode",
+            "codex-oauth",
+            "responses-api",
+            "tool-calling",
+            "streaming",
+        ],
+        primary_use=(
+            "Routes through chatgpt.com/backend-api/codex using the local "
+            "`codex login` session. Full Responses-API support including "
+            "tool calling and structured output; usable for every LLM role "
+            "in the graph runner."
+        ),
+        control_surface="platform",
+        write_authority="none",
+    ),
+    ProviderDescriptor(
+        id="github-copilot-oauth-llm",
+        name="GitHub Copilot OAuth",
+        role="llm",
+        status="available",
+        capabilities=[
+            "github-oauth",
+            "copilot-business",
+            "openai-compatible",
+            "tool-calling",
+            "structured-output",
+        ],
+        primary_use=(
+            "Routes the research committee through the user's GitHub Copilot "
+            "Business subscription via the local OAuth session. OpenAI-shaped "
+            "Chat Completions (gpt-4o / gpt-4o-mini) with tool calling and "
+            "structured output; not used for broker-facing execution."
+        ),
+        control_surface="platform",
+        write_authority="none",
+    ),
+    ProviderDescriptor(
+        id="kimi-coder-llm",
+        name="Kimi for Coding (Moonshot OAuth)",
+        role="llm",
+        status="available",
+        capabilities=[
+            "kimi-oauth",
+            "anthropic-messages",
+            "reasoning-model",
+            "deep-analysis",
+        ],
+        primary_use=(
+            "Routes through api.kimi.com/coding using the local Kimi OAuth "
+            "session (cliproxy kimi-login). Anthropic-Messages-shaped "
+            "completions with kimi-k2-thinking, a reasoning model best "
+            "suited to deep-analysis roles; wasteful for quick screening. "
+            "Assignable from Settings; not wired to any role by default."
+        ),
+        control_surface="platform",
+        write_authority="none",
+    ),
+    ProviderDescriptor(
+        id="lm-studio-llm",
+        name="LM Studio",
+        role="llm",
+        status="available",
+        capabilities=["openai-compatible", "local-model", "structured-output"],
+        primary_use="Local OpenAI-compatible research LLM endpoint for offline agent tests.",
+        control_surface="ai-harness",
+        write_authority="none",
+    ),
+    ProviderDescriptor(
         id="anthropic-llm",
         name="Anthropic",
         role="llm",
@@ -180,6 +259,26 @@ PROVIDERS: tuple[ProviderDescriptor, ...] = (
         capabilities=["quick-model", "deep-model", "research-reasoning"],
         primary_use="Optional LLM provider for future selectable runs.",
         control_surface="platform",
+        write_authority="none",
+    ),
+    ProviderDescriptor(
+        id="mistral-medium-execution-llm",
+        name="Mistral Medium 3.5",
+        role="llm",
+        status="planned",
+        capabilities=["deterministic-execution", "structured-output", "openrouter"],
+        primary_use="Planned execution-agent LLM for strict broker-adjacent reasoning.",
+        control_surface="ai-harness",
+        write_authority="none",
+    ),
+    ProviderDescriptor(
+        id="pyreason-circuit-breaker",
+        name="PyReason Circuit Breaker",
+        role="safety",
+        status="planned",
+        capabilities=["temporal-rules", "crash-halt", "drawdown-guard", "explainable-policy"],
+        primary_use="Planned symbolic safety provider for execution-agent circuit breakers.",
+        control_surface="ai-harness",
         write_authority="none",
     ),
     ProviderDescriptor(
@@ -194,6 +293,83 @@ PROVIDERS: tuple[ProviderDescriptor, ...] = (
     ),
 )
 
+DEFAULT_PROVIDER_ROLE_ASSIGNMENTS: tuple[ProviderRoleDefault, ...] = (
+    ProviderRoleDefault(role_key="research_llm", provider_id="lm-studio-llm", surface="ai-harness"),
+    ProviderRoleDefault(role_key="research_designer", provider_id="lm-studio-llm", surface="ai-harness"),
+    ProviderRoleDefault(role_key="research_extractor", provider_id="lm-studio-llm", surface="ai-harness"),
+    ProviderRoleDefault(role_key="execution_llm", provider_id="mistral-medium-execution-llm", surface="ai-harness"),
+    ProviderRoleDefault(role_key="market_data", provider_id="alpaca-market-data", surface="agent-data"),
+    ProviderRoleDefault(role_key="broker", provider_id="alpaca-paper-broker", surface="ai-harness"),
+    ProviderRoleDefault(role_key="portfolio", provider_id="plaid-investments", surface="agent-data"),
+    ProviderRoleDefault(role_key="observability", provider_id="langfuse-observability", surface="platform"),
+    ProviderRoleDefault(role_key="safety", provider_id="pyreason-circuit-breaker", surface="ai-harness"),
+)
+
+DEFAULT_PROVIDER_CONFIGS: dict[str, dict[str, object]] = {
+    "openai-codex-oauth-llm": {
+        "config_version": 4,
+        "auth_required": False,
+        "auth_type": "codex-oauth",
+        "provider": "codex-oauth",
+        "model": "gpt-5.4-mini",
+        "quick_model": "gpt-5.4-mini",
+        "deep_model": "gpt-5.4",
+        "role_models": {
+            "coordinator": "gpt-5.4",
+            "agent": "gpt-5.4-mini",
+            "overrides": {},
+        },
+        "timeout": 120,
+        "developer_mode": True,
+        "runner_supported": True,
+        "graph_runner_supported": True,
+    },
+    "github-copilot-oauth-llm": {
+        "config_version": 2,
+        "auth_required": False,
+        "auth_type": "github-copilot-oauth",
+        "provider": "github-copilot-oauth",
+        "model": "gpt-4o",
+        "quick_model": "gpt-4o-mini",
+        "deep_model": "gpt-4o",
+        "role_models": {
+            "coordinator": "gpt-4o",
+            "agent": "gpt-4o-mini",
+            "overrides": {},
+        },
+        "oauth_file": "~/.config/github-copilot/trademaster-oauth.json",
+        "timeout": 120,
+        "runner_supported": True,
+        "graph_runner_supported": True,
+    },
+    "kimi-coder-llm": {
+        "config_version": 1,
+        "auth_required": False,
+        "auth_type": "kimi-oauth",
+        "provider": "kimi-oauth",
+        "model": "kimi-k2-thinking",
+        "quick_model": "kimi-k2-thinking",
+        "deep_model": "kimi-k2-thinking",
+        "role_models": {
+            "coordinator": "kimi-k2-thinking",
+            "agent": "kimi-k2-thinking",
+            "overrides": {},
+        },
+        "auth_dir": "~/.ccs/cliproxy/auth",
+        "timeout": 300,
+        "runner_supported": True,
+        "graph_runner_supported": True,
+    },
+    "lm-studio-llm": {
+        "auth_required": False,
+        "base_url": "http://127.0.0.1:1234/v1",
+        "model": "local-model",
+        "provider": "openai-compatible",
+        "timeout": 60,
+        "disable_structured_output": True,
+    },
+}
+
 
 def get_provider_catalog() -> ProviderCatalog:
     return ProviderCatalog(providers=list(PROVIDERS))
@@ -201,3 +377,7 @@ def get_provider_catalog() -> ProviderCatalog:
 
 def provider_descriptor_by_id(provider_id: str) -> ProviderDescriptor | None:
     return next((provider for provider in PROVIDERS if provider.id == provider_id), None)
+
+
+def default_provider_config(provider_id: str) -> dict[str, object]:
+    return dict(DEFAULT_PROVIDER_CONFIGS.get(provider_id, {}))

@@ -201,7 +201,7 @@ Run:
 
 ```bash
 tmux kill-session -t wealth-agents-web 2>/dev/null || true
-tmux new-session -d -s wealth-agents-web "cd '/Volumes/Main External/Development/TradeMaster/TradingAgents/.worktrees/wealth-agents-v11' && npm --workspace apps/web run start -- --hostname 0.0.0.0 --port 3000"
+tmux new-session -d -s wealth-agents-web "cd '/path/to/TradeMaster/.worktrees/wealth-agents-v11' && npm --workspace apps/web run start -- --hostname 0.0.0.0 --port 3000"
 sleep 1
 curl -I http://127.0.0.1:3000/
 ```

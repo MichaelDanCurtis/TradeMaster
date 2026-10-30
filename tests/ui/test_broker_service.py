@@ -19,13 +19,12 @@ from tradingagents.ui.repository import UiRepository
 
 class CountingFakePaperBroker(FakePaperBroker):
     def __init__(self) -> None:
+        super().__init__()
         self.submit_count = 0
 
-    def submit_order(
-        self, intent_id: str, symbol: str, side: OrderSide, notional: float
-    ) -> BrokerOrder:
+    def submit_exact_order(self, client_order_id, order):
         self.submit_count += 1
-        return super().submit_order(intent_id, symbol, side, notional)
+        return super().submit_exact_order(client_order_id, order)
 
 
 def _service(tmp_path: Path) -> tuple[BrokerService, UiRepository, str]:
@@ -111,11 +110,11 @@ def test_approved_order_submits_to_fake_broker(tmp_path):
     order = service.submit_approved_order(preview.intent_id)
 
     assert order.environment == "paper"
-    assert order.status == "submitted"
+    assert order.status == "accepted"
     assert order.broker_order_id.startswith("fake_order_")
 
 
-def test_duplicate_submit_is_rejected_before_broker_call(tmp_path):
+def test_duplicate_submit_reconciles_without_another_economic_order(tmp_path):
     engine, session_factory = create_session_factory(f"sqlite:///{tmp_path / 'ui.db'}")
     init_db(engine)
     repo = UiRepository(session_factory)
@@ -129,11 +128,11 @@ def test_duplicate_submit_is_rejected_before_broker_call(tmp_path):
     )
 
     service.approve_order(preview.intent_id, actor="local-user")
-    service.submit_approved_order(preview.intent_id)
-
-    with pytest.raises(ValueError, match="already submitted|not previewed"):
-        service.submit_approved_order(preview.intent_id)
+    first = service.submit_approved_order(preview.intent_id)
+    repeated = service.submit_approved_order(preview.intent_id)
+    assert repeated.broker_order_id == first.broker_order_id
     assert broker.submit_count == 1
+    assert broker.economic_orders == 1
 
 
 def test_preview_order_rejects_invalid_side_before_creating_intent(tmp_path):
@@ -182,7 +181,7 @@ def test_preview_order_applies_symbolic_constraint_gate_before_creating_intent(t
         ),
     )
 
-    with pytest.raises(PermissionError, match="max_position_percent"):
+    with pytest.raises(ValueError, match="position concentration"):
         service.preview_order(
             run_id=run.run_id,
             symbol="NVDA",
@@ -193,3 +192,19 @@ def test_preview_order_applies_symbolic_constraint_gate_before_creating_intent(t
     with session_factory() as session:
         intents = session.exec(select(TradeIntentRecord)).all()
     assert intents == []
+
+
+def test_manual_ticket_needs_no_research_run_and_does_not_replace_latest_verdict(tmp_path):
+    service, repo, run_id = _service(tmp_path)
+    before = repo.list_runs()
+    preview = service.preview_order(run_id=None, symbol="NVDA", side="buy", notional=1000)
+    intent = repo.get_trade_intent(preview.intent_id)
+    context = repo.get_run_config(intent.run_id)
+    assert context["purpose"] == "manual_order" and context["analysts"] == []
+    assert context["broker_mode"] == "paper"
+    assert repo.list_runs() == before
+    assert all(row.run_id != intent.run_id for row, _ in repo.latest_completed_runs_by_symbol())
+    assert repo.list_events(intent.run_id) == []
+    service.approve_order(preview.intent_id, actor="fixture-reviewer", expected_order_hash=preview.order_hash)
+    result = service.submit_approved_order(preview.intent_id)
+    assert result.status == "accepted"

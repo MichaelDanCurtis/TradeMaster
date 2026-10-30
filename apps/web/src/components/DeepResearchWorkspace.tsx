@@ -1,398 +1,396 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+/**
+ * DeepResearchWorkspace — the main content of the Research tab.
+ *
+ * Layout (three-column grid `.deep-research-workspace`):
+ *   1. `.research-report-rail`     — sessions / stored reports list
+ *   2. `.private-office-canvas`    — final advisory report + agent reports +
+ *                                    OrderThesis handoff + collapsed trace
+ *   3. `.running-reports-panel`    — current run queue
+ *
+ * Top of the page (`.workspace-header.research-header`) carries the symbol
+ * title and the primary "Run research" / "Export trace" affordances. The trace
+ * disclosure (`.research-trace-disclosure`) collapses the run graph, event
+ * timeline, and LangFuse export status so the thesis reads first and the
+ * mechanics of "how the agents produced it" read second.
+ *
+ * History note: a meta-narrative AdvisorNarrativePanel and a RoomRoadmapPanel
+ * used to live here. Both were removed in the v2 IA cleanup / 4-tab IA
+ * flattening (2026-05-20). The thesis is now the loud top of the page.
+ */
 
+import { useEffect, useState } from "react";
+
+import { AgentReportsPanel } from "@/components/AgentReportsPanel";
 import { AgentRunGraph } from "@/components/AgentRunGraph";
+import { OrderThesisPanel } from "@/components/OrderThesisPanel";
 import { RunTimeline } from "@/components/RunTimeline";
-import { createRun, exportRunTrace, getRunTrace, listRunEvents } from "@/lib/api";
-import {
-  getPrivateOfficeBrief,
-  getPrivateOfficeRunQueue,
-  getPrivateOfficeTeams,
-  getResearchReports
-} from "@/lib/workspace-data";
-import type {
-  PrivateOfficeBrief,
-  PrivateOfficeRunQueueItem,
-  PrivateOfficeTeam,
-  ResearchReport
-} from "@/lib/workspace-data";
-import type { RunEvent, RunTrace } from "@/lib/types";
+import { deriveAgentReports } from "@/lib/agent-reports";
+import { createRun, exportRunTrace, getRunTrace, listRunEvents, listRuns } from "@/lib/api";
+import { englishOrNotice } from "@/lib/language";
+import type { RunEvent, RunSummary, RunTrace } from "@/lib/types";
+import { useRunEventStream } from "@/lib/useRunEventStream";
 
-export function DeepResearchWorkspace({ symbol }: { symbol: string }) {
-  const reports = useMemo(() => getResearchReports(symbol), [symbol]);
-  const brief = useMemo(() => getPrivateOfficeBrief(symbol), [symbol]);
-  const teams = useMemo(() => getPrivateOfficeTeams(symbol), [symbol]);
-  const runQueue = useMemo(() => getPrivateOfficeRunQueue(symbol), [symbol]);
+export function DeepResearchWorkspace({
+  symbol,
+  onOpenBrokerage
+}: {
+  symbol: string;
+  onOpenBrokerage: () => void;
+}) {
+  const [runId, setRunId] = useState<string | null>(null);
+  const [events, setEvents] = useState<RunEvent[]>([]);
+  const [trace, setTrace] = useState<RunTrace | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isLoadingRuns, setIsLoadingRuns] = useState(false);
+  const [recentRuns, setRecentRuns] = useState<RunSummary[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
-  const [runIds, setRunIds] = useState<Record<string, string>>({});
-  const [eventsByReport, setEventsByReport] = useState<Record<string, RunEvent[]>>({});
-  const [traceByReport, setTraceByReport] = useState<Record<string, RunTrace>>({});
-  const [busyReportId, setBusyReportId] = useState<string | null>(null);
-  const [exportingReportId, setExportingReportId] = useState<string | null>(null);
-  const [traceError, setTraceError] = useState<string | null>(null);
-  const selectedReport =
-    reports.find((report) => report.id === selectedReportId) ?? reports[0] ?? null;
+  // `liveRunId` is set when we kick off a new run and want to stream agent
+  // landings live via SSE; it's cleared when the stream terminates so a
+  // subsequent open of a stored run doesn't re-subscribe.
+  const [liveRunId, setLiveRunId] = useState<string | null>(null);
+  const liveStream = useRunEventStream(liveRunId);
+  const decisionEvent = events.find((event) => event.type === "decision.created");
+  const reportEvents = events.filter((event) => event.type === "report.updated");
+  const agentReports = deriveAgentReports(events);
+
+  // Mirror live SSE events into the workspace state so the existing
+  // panels (agent reports, run timeline, decision card) update in real
+  // time without restructuring their data flow.
+  useEffect(() => {
+    if (!liveRunId) return;
+    setEvents(liveStream.events);
+    const firstReport = deriveAgentReports(liveStream.events)[0];
+    if (firstReport) {
+      setSelectedReportId((prev) => prev ?? firstReport.id);
+    }
+  }, [liveRunId, liveStream.events]);
 
   useEffect(() => {
-    setSelectedReportId(reports[0]?.id ?? null);
-    setRunIds({});
-    setEventsByReport({});
-    setTraceByReport({});
-    setTraceError(null);
-  }, [reports]);
+    let isCurrent = true;
 
-  async function startReportRun(report: ResearchReport) {
-    setBusyReportId(report.id);
-    setTraceError(null);
-    setEventsByReport((current) => ({ ...current, [report.id]: [] }));
+    async function loadPersistedRuns() {
+      setIsLoadingRuns(true);
+      setError(null);
+      setEvents([]);
+      setTrace(null);
+      setRunId(null);
+      setSelectedReportId(null);
+
+      try {
+        const runs = await listRuns({ ticker: symbol, limit: 12 });
+        if (!isCurrent) {
+          return;
+        }
+        setRecentRuns(runs);
+
+        const selectedRun = runs[0];
+        if (selectedRun) {
+          await openPersistedRun(selectedRun, isCurrent);
+        }
+      } catch (caught) {
+        if (isCurrent) {
+          setError(caught instanceof Error ? caught.message : "Unable to load stored research runs");
+        }
+      } finally {
+        if (isCurrent) {
+          setIsLoadingRuns(false);
+        }
+      }
+    }
+
+    void loadPersistedRuns();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [symbol]);
+
+  async function openPersistedRun(selectedRun: RunSummary, isCurrent = true) {
+    setError(null);
+    // Tear down any live SSE subscription before showing a historical run,
+    // so the mirror effect doesn't overwrite the loaded events.
+    setLiveRunId(null);
+    setRunId(selectedRun.run_id);
+    setSelectedReportId(null);
+
+    try {
+      const [nextEvents, nextTrace] = await Promise.all([
+        listRunEvents(selectedRun.run_id),
+        getRunTrace(selectedRun.run_id)
+      ]);
+      if (!isCurrent) {
+        return;
+      }
+      setEvents(nextEvents);
+      setTrace(nextTrace);
+      const firstReport = deriveAgentReports(nextEvents)[0];
+      setSelectedReportId(firstReport?.id ?? null);
+    } catch (caught) {
+      if (isCurrent) {
+        setError(caught instanceof Error ? caught.message : "Unable to open stored research run");
+      }
+    }
+  }
+
+  async function startResearchRun() {
+    setIsRunning(true);
+    setError(null);
+    setEvents([]);
+    setTrace(null);
+    setSelectedReportId(null);
+    setLiveRunId(null);
 
     try {
       const created = await createRun({
-        ticker: report.symbol,
-        tradeDate: report.createdAt.slice(0, 10),
-        brokerMode: "disabled"
+        brokerMode: "disabled",
+        executionMode: "real",
+        ticker: symbol,
+        tradeDate: new Date().toISOString().slice(0, 10)
       });
-      setRunIds((current) => ({ ...current, [report.id]: created.run_id }));
-      const [events, trace] = await Promise.all([
-        listRunEvents(created.run_id),
-        getRunTrace(created.run_id)
-      ]);
-      setEventsByReport((current) => ({ ...current, [report.id]: events }));
-      setTraceByReport((current) => ({ ...current, [report.id]: trace }));
+      setRunId(created.run_id);
+      // Open the live SSE subscription. The `useRunEventStream` hook
+      // pipes events into `events` via the mirror effect above, so the
+      // UI updates as agents land instead of waiting for the final batch.
+      setLiveRunId(created.run_id);
     } catch (caught) {
-      setTraceError(caught instanceof Error ? caught.message : "Unable to start report trace");
-    } finally {
-      setBusyReportId(null);
+      setError(caught instanceof Error ? caught.message : "Unable to run deep research");
+      setIsRunning(false);
     }
   }
 
-  async function exportSelectedTrace(report: ResearchReport) {
-    const runId = runIds[report.id] ?? traceByReport[report.id]?.run_id;
+  // When the live stream terminates (run.completed / run.failed / error
+  // fallback), fetch the trace, refresh the run list, and clear the
+  // running flag. This used to live inline inside `startResearchRun`
+  // when we polled; with SSE it has to react to the stream state.
+  useEffect(() => {
+    if (!liveRunId) return;
+    if (liveStream.status !== "completed" && liveStream.status !== "error") {
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const nextTrace = await getRunTrace(liveRunId);
+        if (cancelled) return;
+        setTrace(nextTrace);
+        if (
+          !isTerminalRun(liveStream.events, "run.completed") &&
+          !isTerminalRun(liveStream.events, "run.failed")
+        ) {
+          setError(
+            "Research run is still running. Leave this report open or reload it from Stored reports later."
+          );
+        }
+        const nextRuns = await listRuns({ ticker: symbol, limit: 12 });
+        if (cancelled) return;
+        setRecentRuns(nextRuns);
+      } catch (caught) {
+        if (cancelled) return;
+        setError(caught instanceof Error ? caught.message : "Unable to finalize research run");
+      } finally {
+        if (!cancelled) {
+          setIsRunning(false);
+          setLiveRunId(null);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [liveRunId, liveStream.status, liveStream.events, symbol]);
+
+  async function exportTrace() {
     if (!runId) {
-      setTraceError("Run the report before exporting a trace.");
+      setError("Run a research trace before exporting.");
       return;
     }
 
-    setExportingReportId(report.id);
-    setTraceError(null);
+    setIsExporting(true);
+    setError(null);
     try {
       const exported = await exportRunTrace(runId);
-      setTraceByReport((current) => ({ ...current, [report.id]: exported }));
+      setTrace(exported);
     } catch (caught) {
-      setTraceError(caught instanceof Error ? caught.message : "Unable to export trace");
+      setError(caught instanceof Error ? caught.message : "Unable to export trace");
     } finally {
-      setExportingReportId(null);
+      setIsExporting(false);
     }
   }
 
   return (
-    <section className="deep-research-workspace" aria-label="Deep Research private office workspace">
-      <ReportList
-        reports={reports}
-        selectedReportId={selectedReport?.id ?? null}
-        traceByReport={traceByReport}
-        runIds={runIds}
-        onSelectReport={setSelectedReportId}
-      />
-      <PrivateOfficeCanvas
-        brief={brief}
-        teams={teams}
-        report={selectedReport}
-        symbol={symbol}
-        runId={selectedReport ? runIds[selectedReport.id] ?? null : null}
-        events={selectedReport ? eventsByReport[selectedReport.id] ?? [] : []}
-        trace={selectedReport ? traceByReport[selectedReport.id] ?? null : null}
-        traceError={traceError}
-        isRunning={selectedReport ? busyReportId === selectedReport.id : false}
-        isExporting={selectedReport ? exportingReportId === selectedReport.id : false}
-        onStartReportRun={startReportRun}
-        onExportTrace={exportSelectedTrace}
-      />
-      <RunningReportsPanel queue={runQueue} symbol={symbol} />
-    </section>
-  );
-}
-
-function ReportList({
-  reports,
-  selectedReportId,
-  traceByReport,
-  runIds,
-  onSelectReport
-}: {
-  reports: ResearchReport[];
-  selectedReportId: string | null;
-  traceByReport: Record<string, RunTrace>;
-  runIds: Record<string, string>;
-  onSelectReport: (reportId: string) => void;
-}) {
-  return (
-    <aside className="research-report-rail">
-      <header className="panel-header">
+    <section className="room-workspace-root" aria-label="Deep Research private office workspace">
+      <header className="workspace-header research-header">
         <div>
-          <span className="panel-kicker">Reports</span>
-          <h2>Deep Research</h2>
-        </div>
-        <span className="panel-count">{reports.length}</span>
-      </header>
-      <div className="research-report-list">
-        {reports.map((report) => {
-          const trace = traceByReport[report.id];
-          const traceStatus = trace?.external_trace_id ? "LangFuse" : trace ? trace.status : runIds[report.id] ? "Pending" : "No trace";
-          return (
-            <button
-              className={report.id === selectedReportId ? "research-report-item selected" : "research-report-item"}
-              key={report.id}
-              type="button"
-              onClick={() => onSelectReport(report.id)}
-            >
-              <span>{formatDate(report.createdAt)}</span>
-              <strong>{report.title}</strong>
-              <small>{report.horizon}</small>
-              <div>
-                <span className={`stance-badge ${report.stance}`}>{report.stance}</span>
-                <span>{Math.round(report.confidence * 100)}%</span>
-              </div>
-              <span className={trace?.external_trace_id ? "trace-status exported" : "trace-status"}>{traceStatus}</span>
-            </button>
-          );
-        })}
-      </div>
-    </aside>
-  );
-}
-
-function PrivateOfficeCanvas({
-  brief,
-  teams,
-  report,
-  symbol,
-  runId,
-  events,
-  trace,
-  traceError,
-  isRunning,
-  isExporting,
-  onStartReportRun,
-  onExportTrace
-}: {
-  brief: PrivateOfficeBrief;
-  teams: PrivateOfficeTeam[];
-  report: ResearchReport | null;
-  symbol: string;
-  runId: string | null;
-  events: RunEvent[];
-  trace: RunTrace | null;
-  traceError: string | null;
-  isRunning: boolean;
-  isExporting: boolean;
-  onStartReportRun: (report: ResearchReport) => void;
-  onExportTrace: (report: ResearchReport) => void;
-}) {
-  return (
-    <article className="private-office-canvas">
-      <header className="workspace-header private-office-header">
-        <div>
-          <span className="panel-kicker">A2UI agent canvas</span>
-          <h1>{brief.headline}</h1>
-        </div>
-        <div className="research-meta-strip">
-          <span>{symbol}</span>
-          <span>{formatDate(brief.generatedAt)}</span>
-          <span>Approval gated</span>
-        </div>
-      </header>
-      <section className="a2ui-morning-brief">
-        <div className="section-title">
-          <span>Morning synopsis</span>
-          <strong>{brief.priorityItems.length}</strong>
-        </div>
-        <ol>
-          {brief.priorityItems.map((item, index) => (
-            <li key={item}>
-              <span>{String(index + 1).padStart(2, "0")}</span>
-              <p>{item}</p>
-            </li>
-          ))}
-        </ol>
-      </section>
-      <section className="private-office-grid">
-        <GoalSignalPanel brief={brief} />
-        <ControlSignalPanel brief={brief} />
-      </section>
-      <TeamBodyGrid teams={teams} />
-      {report ? (
-        <ReportA2UIPanel
-          report={report}
-          runId={runId}
-          events={events}
-          trace={trace}
-          traceError={traceError}
-          isRunning={isRunning}
-          isExporting={isExporting}
-          onStartReportRun={onStartReportRun}
-          onExportTrace={onExportTrace}
-        />
-      ) : (
-        <p className="empty-state">No research reports are available.</p>
-      )}
-    </article>
-  );
-}
-
-function GoalSignalPanel({ brief }: { brief: PrivateOfficeBrief }) {
-  return (
-    <section className="private-office-panel">
-      <div className="section-title">
-        <span>Goal signals</span>
-        <strong>{brief.goalSignals.length}</strong>
-      </div>
-      <div className="signal-stack">
-        {brief.goalSignals.map((signal) => (
-          <article className="signal-card" key={signal.goalName}>
-            <span>{signal.status}</span>
-            <strong>{signal.goalName}</strong>
-            <p>{signal.detail}</p>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ControlSignalPanel({ brief }: { brief: PrivateOfficeBrief }) {
-  return (
-    <section className="private-office-panel">
-      <div className="section-title">
-        <span>Control signals</span>
-        <strong>{brief.controlSignals.length}</strong>
-      </div>
-      <div className="signal-stack">
-        {brief.controlSignals.map((signal) => (
-          <article className={`signal-card ${signal.severity}`} key={signal.team}>
-            <span>{signal.severity}</span>
-            <strong>{signal.team}</strong>
-            <p>{signal.detail}</p>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function TeamBodyGrid({ teams }: { teams: PrivateOfficeTeam[] }) {
-  return (
-    <section className="team-body-grid" aria-label="Wealth Agents team bodies">
-      {teams.map((team) => (
-        <article className={`team-body-card ${team.kind}`} key={team.id}>
-          <header>
-            <span>{team.kind}</span>
-            <strong>{team.name}</strong>
-          </header>
-          <p>{team.mission}</p>
-          <div className="team-meta-row">
-            <span>{team.cadence}</span>
-            <span>{team.riskClass}</span>
-          </div>
-          <ul>
-            {team.responsibilities.slice(0, 2).map((responsibility) => (
-              <li key={responsibility}>{responsibility}</li>
-            ))}
-          </ul>
-          <footer>
-            {team.a2uiSurfaces.slice(0, 3).map((surface) => (
-              <span key={surface}>{surface}</span>
-            ))}
-          </footer>
-        </article>
-      ))}
-    </section>
-  );
-}
-
-function ReportA2UIPanel({
-  report,
-  runId,
-  events,
-  trace,
-  traceError,
-  isRunning,
-  isExporting,
-  onStartReportRun,
-  onExportTrace
-}: {
-  report: ResearchReport;
-  runId: string | null;
-  events: RunEvent[];
-  trace: RunTrace | null;
-  traceError: string | null;
-  isRunning: boolean;
-  isExporting: boolean;
-  onStartReportRun: (report: ResearchReport) => void;
-  onExportTrace: (report: ResearchReport) => void;
-}) {
-  const traceUrl =
-    typeof trace?.metadata.external_trace_url === "string" ? trace.metadata.external_trace_url : null;
-  const traceStatus = trace?.status ?? (runId ? "pending" : "not started");
-  const canExport = Boolean(trace && runId && !isRunning && !isExporting);
-
-  return (
-    <section className="report-a2ui-panel">
-      <header>
-        <div>
-          <span className={`stance-badge ${report.stance}`}>{report.stance}</span>
-          <h2>{report.title}</h2>
-        </div>
-        <div className="report-action-cluster">
-          <div className="research-meta-strip">
-            <span>{formatDate(report.createdAt)}</span>
-            <span>{report.horizon}</span>
-            <span>{Math.round(report.confidence * 100)}% confidence</span>
-          </div>
-          <div className="trace-action-row">
-            <button className="trace-action primary" type="button" onClick={() => onStartReportRun(report)} disabled={isRunning}>
-              {isRunning ? "Running..." : "Run trace"}
-            </button>
-            <button className="trace-action" type="button" onClick={() => onExportTrace(report)} disabled={!canExport}>
-              {isExporting ? "Exporting..." : "Export"}
-            </button>
+          <span className="panel-kicker">Brief · Research</span>
+          <h1>
+            <em>{symbol}</em> thesis
+          </h1>
+          <div className="research-meta-strip" aria-label="Research run status">
+            <span>{symbol}</span>
+            <span>{isRunning ? "Running" : runId ? "Trace available" : "Not started"}</span>
+            <span>Approval gated</span>
           </div>
         </div>
+        <div className="research-header-actions">
+          <button className="primary-button compact" type="button" onClick={startResearchRun} disabled={isRunning}>
+            {isRunning ? "Running..." : "Run research"}
+          </button>
+          <button
+            className="secondary-button compact"
+            type="button"
+            onClick={exportTrace}
+            disabled={!trace || !runId || isExporting}
+          >
+            {isExporting ? "Exporting..." : "Export trace"}
+          </button>
+        </div>
       </header>
-      <p>{report.summary}</p>
-      <TraceOperationsPanel trace={trace} traceStatus={traceStatus} runId={runId} traceUrl={traceUrl} traceError={traceError} />
-      {events.length > 0 ? (
-        <section className="report-trace-grid">
-          <AgentRunGraph events={events} />
-          <section className="report-trace-timeline">
-            <div className="section-title">
-              <span>Execution timeline</span>
-              <strong>{events.length}</strong>
-            </div>
-            <RunTimeline events={events} />
+
+      <section className="deep-research-workspace">
+        <aside className="research-report-rail">
+        <header className="panel-header">
+          <div>
+            <span className="panel-kicker">Research sessions</span>
+            <h2>Deep Research</h2>
+          </div>
+          <span className="panel-count">{runId ? 1 : 0}</span>
+        </header>
+        <div className="research-session-list">
+          <section className={runId ? "research-session-card active" : "research-session-card"}>
+            <span>Current run</span>
+            <strong>{runId ? `${symbol} trace` : "No run started"}</strong>
+            <small>{runId ?? "Start a trace to populate the report ledger."}</small>
           </section>
-        </section>
-      ) : null}
-      <section className="research-ledger-grid">
-        <div className="research-ledger-panel">
-          <div className="section-title">
-            <span>Decision ledger</span>
-            <strong>{report.ledgerState.length}</strong>
-          </div>
-          <ol className="decision-ledger-list">
-            {report.ledgerState.map((entry, index) => (
-              <li key={entry}>
-                <span>{String(index + 1).padStart(2, "0")}</span>
-                <p>{entry}</p>
-              </li>
+          <section className="research-session-card">
+            <span>Report output</span>
+            <strong>{formatDecisionTitle(decisionEvent)}</strong>
+            <small>{reportEvents.length} report updates from the TradingAgents graph</small>
+          </section>
+          <section className="research-session-card">
+            <span>Trace export</span>
+            <strong>{trace?.status ?? "Local only"}</strong>
+            <small>{trace?.external_trace_id ?? "Export to LangFuse when the run is ready."}</small>
+          </section>
+          <section className="research-session-card research-history-card">
+            <span>Stored reports</span>
+            <strong>{isLoadingRuns ? "Loading reports" : `${recentRuns.length} saved`}</strong>
+            <small>{recentRuns[0]?.updated_at ? `Latest ${formatShortTimestamp(recentRuns[0].updated_at)}` : "No stored reports for this symbol yet."}</small>
+          </section>
+          {isLoadingRuns && recentRuns.length === 0 ? (
+            <p className="empty-state">Loading stored reports...</p>
+          ) : null}
+          {!isLoadingRuns && recentRuns.length === 0 ? (
+            <p className="empty-state">No stored reports for {symbol}. Run a research trace to populate this list.</p>
+          ) : null}
+          <div className="research-run-list" aria-label={`${symbol} stored reports`}>
+            {recentRuns.map((storedRun) => (
+              <button
+                className={storedRun.run_id === runId ? "research-run-card selected" : "research-run-card"}
+                key={storedRun.run_id}
+                onClick={() => void openPersistedRun(storedRun)}
+                type="button"
+              >
+                <span>{storedRun.status}</span>
+                <strong>{formatStoredRunTitle(storedRun)}</strong>
+                <small>{formatShortTimestamp(storedRun.updated_at)}</small>
+              </button>
             ))}
-          </ol>
+          </div>
         </div>
-        <div className="research-side-panels">
-          <ResearchListPanel title="Risk notes" items={report.riskNotes} />
-          <ResearchListPanel title="Synthesis steps" items={report.synthesisSteps} />
-        </div>
+        </aside>
+
+        <article className="private-office-canvas">
+        <section className="report-a2ui-panel">
+          <header>
+            <div>
+              <span className="stance-badge neutral">{formatDecisionSource(decisionEvent)}</span>
+              <h2>TradingAgents research</h2>
+            </div>
+          </header>
+          <p>
+            This panel starts the configured local research runner and displays only events returned by the API. It labels
+            deterministic fallback output when an LLM provider is not available.
+          </p>
+          <section className="deep-research-report-output">
+            <span className="panel-kicker">Final advisory report</span>
+            <strong>{formatDecisionTitle(decisionEvent)}</strong>
+            <small>
+              {formatDecisionSource(decisionEvent)} - Research only - not an order - See individual agent reports below
+            </small>
+            <p>{formatDecisionBody(decisionEvent)}</p>
+            {decisionEvent?.payload.risk_notes ? (
+              <small>{englishOrNotice(String(decisionEvent.payload.risk_notes))}</small>
+            ) : null}
+          </section>
+          <AgentReportsPanel
+            reports={agentReports}
+            selectedReportId={selectedReportId}
+            onSelectReport={setSelectedReportId}
+          />
+          <OrderThesisPanel
+            symbol={symbol}
+            sourceReportId={runId}
+            onOpenBrokerage={onOpenBrokerage}
+          />
+          {/* Trace plumbing (run graph + event timeline + LangFuse export) is
+           * lower-information-density than the thesis above. Collapse it into
+           * a disclosure so the page reads as "here's the report" first and
+           * "inspect how the agents produced it" second. */}
+          <details className="research-trace-disclosure">
+            <summary>
+              Inspect run · trace, agent graph, timeline ({events.length} events)
+            </summary>
+            <div className="research-trace-disclosure-body">
+              <TraceOperationsPanel trace={trace} runId={runId} error={error} />
+              {events.length > 0 ? (
+                <section className="report-trace-grid">
+                  <AgentRunGraph events={events} />
+                  <section className="report-trace-timeline">
+                    <div className="section-title">
+                      <span>Execution timeline</span>
+                      <strong>{events.length}</strong>
+                    </div>
+                    <RunTimeline events={events} />
+                  </section>
+                </section>
+              ) : (
+                <p className="empty-state">No run events are loaded for this symbol yet.</p>
+              )}
+            </div>
+          </details>
+        </section>
+        </article>
+
+        <aside className="running-reports-panel">
+        <header className="panel-header">
+          <div>
+            <span className="panel-kicker">Running reports</span>
+            <h2>{symbol} queue</h2>
+          </div>
+          <span className="panel-count">{isRunning ? 1 : 0}</span>
+        </header>
+        {isRunning ? (
+          <section className="run-queue-card">
+            <div>
+              <span className="run-state running">running</span>
+              <strong>LLM research trace</strong>
+              <small>{symbol}</small>
+            </div>
+            <ol>
+              <li>
+                <span className="step-dot running" />
+                Waiting for local runner response
+              </li>
+            </ol>
+          </section>
+        ) : (
+          <p className="empty-state">No research run is currently active.</p>
+        )}
+        </aside>
       </section>
     </section>
   );
@@ -400,21 +398,20 @@ function ReportA2UIPanel({
 
 function TraceOperationsPanel({
   trace,
-  traceStatus,
   runId,
-  traceUrl,
-  traceError
+  error
 }: {
   trace: RunTrace | null;
-  traceStatus: string;
   runId: string | null;
-  traceUrl: string | null;
-  traceError: string | null;
+  error: string | null;
 }) {
+  const traceUrl =
+    typeof trace?.metadata.external_trace_url === "string" ? trace.metadata.external_trace_url : null;
+
   return (
     <section className="trace-operations-panel" aria-label="Report trace operations">
       <div className="trace-status-grid">
-        <TraceMetric label="Local trace" value={traceStatus} />
+        <TraceMetric label="Local trace" value={trace?.status ?? (runId ? "pending" : "not started")} />
         <TraceMetric label="Run" value={runId ?? "not started"} />
         <TraceMetric label="Provider" value={trace?.provider ?? "local"} />
         <TraceMetric label="External trace" value={trace?.external_trace_id ?? "not exported"} />
@@ -424,7 +421,7 @@ function TraceOperationsPanel({
           Open LangFuse trace
         </a>
       ) : null}
-      {traceError ? <p className="error">{traceError}</p> : null}
+      {error ? <p className="error">{error}</p> : null}
     </section>
   );
 }
@@ -438,60 +435,40 @@ function TraceMetric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function RunningReportsPanel({ queue, symbol }: { queue: PrivateOfficeRunQueueItem[]; symbol: string }) {
-  return (
-    <aside className="running-reports-panel">
-      <header className="panel-header">
-        <div>
-          <span className="panel-kicker">Running reports</span>
-          <h2>{symbol} queue</h2>
-        </div>
-        <span className="panel-count">{queue.length}</span>
-      </header>
-      <div className="run-queue-list">
-        {queue.map((item) => (
-          <section className="run-queue-card" key={item.id}>
-            <div>
-              <span className={`run-state ${item.status}`}>{item.status}</span>
-              <strong>{item.title}</strong>
-              <small>{item.team}</small>
-            </div>
-            <ol>
-              {item.steps.map((step) => (
-                <li key={step.label}>
-                  <span className={`step-dot ${step.status}`} />
-                  {step.label}
-                </li>
-              ))}
-            </ol>
-          </section>
-        ))}
-      </div>
-    </aside>
-  );
+function formatDecisionTitle(event: RunEvent | undefined): string {
+  const rating = typeof event?.payload.rating === "string" ? event.payload.rating : null;
+  const action = typeof event?.payload.action === "string" ? event.payload.action : null;
+
+  return rating && action ? `${rating} / ${action}` : "Awaiting report";
 }
 
-function ResearchListPanel({ title, items }: { title: string; items: string[] }) {
-  return (
-    <section className="research-list-panel">
-      <div className="section-title">
-        <span>{title}</span>
-        <strong>{items.length}</strong>
-      </div>
-      <ul>
-        {items.map((item) => (
-          <li key={item}>{item}</li>
-        ))}
-      </ul>
-    </section>
-  );
+function formatDecisionBody(event: RunEvent | undefined): string {
+  return typeof event?.payload.thesis === "string"
+    ? englishOrNotice(event.payload.thesis)
+    : "Run a deep research trace to generate the visible report, ledger events, and exportable LangFuse trace.";
 }
 
-function formatDate(value: string): string {
+function formatDecisionSource(event: RunEvent | undefined): string {
+  if (!event) {
+    return "Awaiting runner";
+  }
+  return event.payload.fallback === true ? "Deterministic fallback" : "LLM synthesis";
+}
+
+function isTerminalRun(events: RunEvent[], terminalType: "run.completed" | "run.failed"): boolean {
+  return events.some((event) => event.type === terminalType);
+}
+
+function formatStoredRunTitle(run: RunSummary): string {
+  const stance = run.final_rating && run.final_action ? `${run.final_rating} / ${run.final_action}` : "Research trace";
+  return `${run.ticker} ${stance}`;
+}
+
+function formatShortTimestamp(value: string): string {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
-    hour: "2-digit",
+    hour: "numeric",
     minute: "2-digit"
   }).format(new Date(value));
 }

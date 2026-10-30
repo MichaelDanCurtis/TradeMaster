@@ -39,11 +39,16 @@ class RunConfig(BaseModel):
     )
     research_depth: int = Field(default=1, ge=1, le=5)
     llm_provider: str = "openai"
-    quick_model: str = "gpt-5.4-mini"
-    deep_model: str = "gpt-5.4"
+    # Fallback IDs only; configured provider role models take precedence.
+    quick_model: str = "gpt-5-mini"
+    deep_model: str = "gpt-5"
     checkpoint: bool = False
     broker_mode: BrokerMode = "disabled"
-    execution_mode: ExecutionMode = "simulated"
+    # Default to "real" so a freshly-created run goes through the actual
+    # LangGraph / LLM-research path instead of the fake-event placeholder. The
+    # fake path is still selectable explicitly when an operator wants to
+    # demonstrate the UI without hitting an LLM.
+    execution_mode: ExecutionMode = "real"
 
     @field_validator("ticker")
     @classmethod

@@ -3,6 +3,9 @@
   "workspaces": [
     "apps/web"
   ],
+  "overrides": {
+    "postcss": "^8.5.23"
+  },
   "scripts": {
     "dev:local": "bash scripts/dev-local.sh",
     "stop:local": "bash scripts/stop-local.sh",

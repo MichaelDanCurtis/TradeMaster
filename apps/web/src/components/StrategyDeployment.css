@@ -1,0 +1,18 @@
+.deployment-panel { padding: 24px; margin: 20px; border: 1px solid var(--panel-border-strong); border-radius: 10px; background: var(--panel-bg); min-width: 0; }
+.deployment-panel p, .deployment-panel li { color: var(--text-secondary); line-height: 1.6; overflow-wrap: anywhere; }
+.deployment-panel h2 { margin: 8px 0; font-size: 24px; }
+.deployment-panel label { display: grid; gap: 7px; margin: 10px 0; font-size: 13px; }
+.deployment-panel input, .deployment-panel select, .deployment-panel textarea { width: 100%; min-width: 0; padding: 10px; background: var(--app-bg); color: var(--text-primary); border: 1px solid var(--panel-border-strong); border-radius: 5px; }
+.deployment-panel textarea { min-height: 70px; resize: vertical; }
+.deployment-panel button { color: var(--text-primary); background: var(--panel-bg-raised); border: 1px solid var(--panel-border-strong); border-radius: 5px; padding: 10px 14px; cursor: pointer; }
+.deployment-panel button:disabled { opacity: .5; cursor: not-allowed; }
+.deployment-panel :is(button, input, select, textarea, summary):focus-visible { outline: 2px solid var(--accent-cyan); outline-offset: 3px; }
+.deployment-panel summary { cursor: pointer; padding: 12px 0; }
+.deployment-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 15px 0; }
+.deployment-review { border: 1px solid var(--panel-border-strong); border-radius: 6px; padding: 18px; margin: 18px 0; }
+.deployment-panel pre { max-height: 420px; overflow: auto; font-size: 12px; }
+.deployment-panel table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.deployment-panel th, .deployment-panel td { padding: 10px; text-align: left; border-bottom: 1px solid var(--panel-border-strong); vertical-align: top; }
+.deployment-panel th { color: var(--text-secondary); }
+.deployment-panel .deployment-error { border-left: 3px solid var(--negative); padding: 12px; color: var(--negative); }
+@media (max-width: 700px) { .deployment-panel { margin: 8px; padding: 14px; } }

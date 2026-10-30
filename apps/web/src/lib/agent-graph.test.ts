@@ -13,10 +13,14 @@ describe("agent graph derivation", () => {
       makeEvent(4, "tool.called", "Market Analyst"),
       makeEvent(5, "report.updated", "Market Analyst"),
       makeEvent(6, "agent.started", "News Analyst"),
-      makeEvent(7, "agent.started", "Portfolio Manager"),
-      makeEvent(8, "decision.created", "Portfolio Manager"),
-      makeEvent(9, "trade.previewed", "Broker"),
-      makeEvent(10, "run.completed", null)
+      makeEvent(7, "agent.started", "Bull Researcher"),
+      makeEvent(8, "report.updated", "Bull Researcher"),
+      makeEvent(9, "agent.started", "Trader"),
+      makeEvent(10, "report.updated", "Trader"),
+      makeEvent(11, "agent.started", "Portfolio Manager"),
+      makeEvent(12, "decision.created", "Portfolio Manager"),
+      makeEvent(13, "trade.previewed", "Broker"),
+      makeEvent(14, "run.completed", null)
     ];
 
     const nodes = deriveAgentGraphNodes(events);
@@ -26,6 +30,9 @@ describe("agent graph derivation", () => {
     assert.equal(byId.market.status, "complete");
     assert.equal(byId.news.status, "running");
     assert.equal(byId.social.status, "idle");
+    assert.equal(byId.bull.status, "complete");
+    assert.equal(byId.bear.status, "idle");
+    assert.equal(byId.trader.status, "complete");
     assert.equal(byId.portfolio.status, "complete");
     assert.equal(byId.broker.status, "waiting");
     assert.equal(byId.completed.status, "complete");

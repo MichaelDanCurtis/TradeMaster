@@ -71,6 +71,28 @@ class RunEventRecord(SQLModel, table=True):
     )
 
 
+class ReportScheduleRecord(SQLModel, table=True):
+    __tablename__ = "report_schedules"
+
+    schedule_id: str = Field(default_factory=lambda: new_id("sched"), primary_key=True)
+    name: str
+    symbol: str = Field(index=True)
+    cadence: str = Field(index=True)
+    broker_mode: str = Field(default="disabled", index=True)
+    execution_mode: str = Field(default="real", index=True)
+    enabled: bool = Field(default=True, index=True)
+    last_run_id: str | None = Field(default=None, index=True)
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    last_ran_at: datetime | None = Field(default=None, sa_column=Column(UTCDateTime, index=True))
+    next_run_at: datetime | None = Field(default=None, sa_column=Column(UTCDateTime, index=True))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
 class ObservabilityTraceRecord(SQLModel, table=True):
     __tablename__ = "observability_traces"
 
@@ -137,6 +159,176 @@ class ApprovalRecord(SQLModel, table=True):
     )
 
 
+class ApprovalLedgerRecord(SQLModel, table=True):
+    __tablename__ = "approval_ledger"
+
+    approval_id: str = Field(default_factory=lambda: new_id("ledger"), primary_key=True)
+    room_id: str = Field(index=True)
+    source: str = Field(index=True)
+    entity_type: str = Field(index=True)
+    entity_id: str = Field(index=True)
+    action: str = Field(index=True)
+    actor: str = Field(index=True)
+    summary: str
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
+class AgentTriggerRecord(SQLModel, table=True):
+    __tablename__ = "agent_triggers"
+
+    trigger_id: str = Field(default_factory=lambda: new_id("trigger"), primary_key=True)
+    name: str
+    room_id: str = Field(index=True)
+    trigger_type: str = Field(index=True)
+    target_agent: str = Field(index=True)
+    symbol: str | None = Field(default=None, index=True)
+    condition: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    workflow_id: str | None = Field(default=None, index=True)
+    enabled: bool = Field(default=True, index=True)
+    last_fired_at: datetime | None = Field(default=None, sa_column=Column(UTCDateTime, index=True))
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
+class AgentOperationRecord(SQLModel, table=True):
+    __tablename__ = "agent_operations"
+
+    operation_id: str = Field(default_factory=lambda: new_id("agentop"), primary_key=True)
+    agent_id: str = Field(index=True)
+    agent_name: str
+    room_id: str = Field(index=True)
+    symbol: str = Field(index=True)
+    operation_type: str = Field(index=True)
+    status: str = Field(default="queued", index=True)
+    authority: str = Field(index=True)
+    source_workflow_id: str | None = Field(default=None, index=True)
+    linked_run_id: str | None = Field(default=None, index=True)
+    linked_execution_program_id: str | None = Field(default=None, index=True)
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    started_at: datetime | None = Field(default=None, sa_column=Column(UTCDateTime, index=True))
+    completed_at: datetime | None = Field(default=None, sa_column=Column(UTCDateTime, index=True))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
+class TradeThesisRecord(SQLModel, table=True):
+    __tablename__ = "trade_theses"
+
+    thesis_id: str = Field(default_factory=lambda: new_id("thesis"), primary_key=True)
+    symbol: str = Field(index=True)
+    source_report_id: str | None = Field(default=None, index=True)
+    source_room: str = Field(default="research", index=True)
+    target_room: str = Field(default="market", index=True)
+    direction: str = Field(index=True)
+    horizon: str = Field(index=True)
+    conviction: float = Field(default=0.0, index=True)
+    status: str = Field(default="proposed", index=True)
+    thesis: str
+    catalysts: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    invalidation: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    risk_notes: str | None = None
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
+class PortfolioReviewRecord(SQLModel, table=True):
+    __tablename__ = "portfolio_reviews"
+
+    review_id: str = Field(default_factory=lambda: new_id("preview"), primary_key=True)
+    symbol: str = Field(index=True)
+    room_id: str = Field(default="portfolio", index=True)
+    status: str = Field(default="draft", index=True)
+    goals: str | None = None
+    horizon: str | None = None
+    risk_posture: str | None = None
+    sector_focus: str | None = None
+    constraints: str | None = None
+    liquidity_needs: str | None = None
+    thesis: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    missing_provider_facts: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
+class FundingAllocationReviewRecord(SQLModel, table=True):
+    __tablename__ = "funding_allocation_reviews"
+
+    review_id: str = Field(default_factory=lambda: new_id("funding"), primary_key=True)
+    symbol: str = Field(index=True)
+    source_thesis_id: str | None = Field(default=None, index=True)
+    execution_program_id: str | None = Field(default=None, index=True)
+    status: str = Field(default="draft", index=True)
+    notional: float | None = None
+    tracks: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON))
+    missing_provider_facts: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    approval_next_steps: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
+class ExecutionProgramRecord(SQLModel, table=True):
+    __tablename__ = "execution_programs"
+
+    program_id: str = Field(default_factory=lambda: new_id("program"), primary_key=True)
+    symbol: str = Field(index=True)
+    source_thesis_id: str | None = Field(default=None, index=True)
+    algorithm: str = Field(index=True)
+    state: str = Field(default="preview_ready", index=True)
+    mode: str = Field(default="paper", index=True)
+    approval_status: str = Field(default="required", index=True)
+    live_submission_enabled: bool = Field(default=False, index=True)
+    trigger_points: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON))
+    circuit_breakers: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON))
+    missing_provider_facts: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
+class ExecutionProgramEventRecord(SQLModel, table=True):
+    __tablename__ = "execution_program_events"
+
+    event_id: str = Field(default_factory=lambda: new_id("progevt"), primary_key=True)
+    program_id: str = Field(index=True)
+    event_type: str = Field(index=True)
+    summary: str
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
 class BrokerOrderRecord(SQLModel, table=True):
     __tablename__ = "ui_broker_orders"
 
@@ -178,6 +370,20 @@ class ProviderConfigRecord(SQLModel, table=True):
     )
 
 
+class ProviderRoleAssignmentRecord(SQLModel, table=True):
+    __tablename__ = "provider_role_assignments"
+
+    role_key: str = Field(primary_key=True)
+    provider_id: str = Field(index=True)
+    surface: str = Field(index=True)
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
 class MarketDataSnapshotRecord(SQLModel, table=True):
     __tablename__ = "market_data_snapshots"
 
@@ -203,6 +409,16 @@ class PrivateOfficeEventRecord(SQLModel, table=True):
     entity_id: str | None = Field(default=None, index=True)
     payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
+class AppSettingRecord(SQLModel, table=True):
+    __tablename__ = "app_settings"
+
+    setting_key: str = Field(primary_key=True)
+    value: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    updated_at: datetime = Field(
         default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
     )
 
@@ -259,6 +475,114 @@ class PortfolioMandateRecord(SQLModel, table=True):
     )
 
 
+class AgentWorkflowRecord(SQLModel, table=True):
+    __tablename__ = "agent_workflows"
+
+    workflow_id: str = Field(default_factory=lambda: new_id("workflow"), primary_key=True)
+    name: str
+    agent_class: str = Field(index=True)
+    graph_runtime: str = Field(index=True)
+    status: str = Field(default="draft", index=True)
+    nodes: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON))
+    edges: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON))
+    required_provider_roles: dict[str, str] = Field(default_factory=dict, sa_column=Column(JSON))
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
+class AgentPackRecord(SQLModel, table=True):
+    __tablename__ = "agent_packs"
+
+    pack_id: str = Field(primary_key=True)
+    source_url: str | None = Field(default=None)
+    source_commit: str | None = Field(default=None, index=True)
+    license: str | None = Field(default=None)
+    status: str = Field(default="imported", index=True)
+    manifest: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    imported_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
+class ImportedAgentRecord(SQLModel, table=True):
+    __tablename__ = "imported_agents"
+
+    agent_id: str = Field(primary_key=True)
+    pack_id: str = Field(index=True)
+    source_slug: str = Field(index=True)
+    name: str
+    description: str
+    agent_class: str = Field(index=True)
+    system_prompt: str
+    guardrails: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    skills: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    commands: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    required_provider_roles: dict[str, str] = Field(default_factory=dict, sa_column=Column(JSON))
+    required_connectors: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    tool_policy: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    output_schema: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    security_profile: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    status: str = Field(default="imported", index=True)
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
+class ImportedSkillRecord(SQLModel, table=True):
+    __tablename__ = "imported_skills"
+
+    skill_id: str = Field(primary_key=True)
+    pack_id: str = Field(index=True)
+    source_path: str
+    name: str
+    description: str
+    instructions_markdown: str
+    references: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    scripts: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    artifact_requirements: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    status: str = Field(default="imported", index=True)
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
+class McpConnectorRecord(SQLModel, table=True):
+    __tablename__ = "mcp_connectors"
+
+    connector_id: str = Field(primary_key=True)
+    name: str
+    url: str
+    provider_id: str | None = Field(default=None, index=True)
+    required_secret_ref: str | None = Field(default=None, index=True)
+    capabilities: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    health: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    enabled: bool = Field(default=False, index=True)
+    subscription_required: bool = Field(default=True, index=True)
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
 class SnapshotManifestRecord(SQLModel, table=True):
     __tablename__ = "snapshot_manifests"
 
@@ -270,3 +594,64 @@ class SnapshotManifestRecord(SQLModel, table=True):
     created_at: datetime = Field(
         default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
     )
+
+
+class WatcherRecord(SQLModel, table=True):
+    __tablename__ = "ui_watchers"
+
+    watcher_id: str = Field(default_factory=lambda: new_id("w"), primary_key=True)
+    name: str
+    symbol: str = Field(index=True)
+    condition_type: str = Field(index=True)
+    threshold: float
+    enabled: bool = Field(default=True, index=True)
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    linked_position_id: str | None = Field(default=None, index=True)
+    linked_run_id: str | None = Field(default=None, index=True)
+    last_fired_at: datetime | None = Field(
+        default=None, sa_column=Column(UTCDateTime, index=True)
+    )
+    fire_count: int = Field(default=0)
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+    updated_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
+class QuickScanRecord(SQLModel, table=True):
+    """One cheap wide-pass LLM read of a symbol (Quick Scan funnel stage).
+
+    Deliberately flat: the scan is a screening verdict, not a committee
+    decision — stance/conviction/thesis/catalyst/risk are the whole payload.
+    """
+
+    __tablename__ = "ui_quick_scans"
+
+    scan_row_id: str = Field(default_factory=lambda: new_id("qs"), primary_key=True)
+    symbol: str = Field(index=True)
+    stance: str = Field(index=True)
+    conviction: int = Field(default=0)
+    thesis: str
+    catalyst: str
+    risk: str
+    model: str
+    created_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+
+
+class WatcherFireRecord(SQLModel, table=True):
+    __tablename__ = "ui_watcher_fires"
+
+    fire_id: str = Field(default_factory=lambda: new_id("wf"), primary_key=True)
+    watcher_id: str = Field(index=True)
+    symbol: str = Field(index=True)
+    fired_at: datetime = Field(
+        default_factory=now_utc, sa_column=Column(UTCDateTime, index=True)
+    )
+    observed_value: float
+    threshold: float
+    condition_type: str
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))

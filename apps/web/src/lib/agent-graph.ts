@@ -15,7 +15,10 @@ const AGENT_GRAPH_TEMPLATE: AgentGraphNode[] = [
   { detail: "Headlines and filings", id: "news", label: "News", status: "idle" },
   { detail: "Sentiment scan", id: "social", label: "Social", status: "idle" },
   { detail: "Financial context", id: "fundamentals", label: "Fundamentals", status: "idle" },
-  { detail: "Bull/bear synthesis", id: "research", label: "Research", status: "idle" },
+  { detail: "Constructive thesis", id: "bull", label: "Bull", status: "idle" },
+  { detail: "Downside thesis", id: "bear", label: "Bear", status: "idle" },
+  { detail: "Debate synthesis", id: "research", label: "Research", status: "idle" },
+  { detail: "Trade proposal", id: "trader", label: "Trader", status: "idle" },
   { detail: "Risk debate", id: "risk", label: "Risk", status: "idle" },
   { detail: "Decision", id: "portfolio", label: "Portfolio", status: "idle" },
   { detail: "Approval required", id: "broker", label: "Broker", status: "idle" },
@@ -24,13 +27,16 @@ const AGENT_GRAPH_TEMPLATE: AgentGraphNode[] = [
 
 const NODE_TO_ID: Record<string, string> = {
   Broker: "broker",
+  "Bear Researcher": "bear",
+  "Bull Researcher": "bull",
   "Fundamentals Analyst": "fundamentals",
   "Market Analyst": "market",
   "News Analyst": "news",
   "Portfolio Manager": "portfolio",
   "Research Manager": "research",
   "Risk Manager": "risk",
-  "Social Analyst": "social"
+  "Social Analyst": "social",
+  Trader: "trader"
 };
 
 export function deriveAgentGraphNodes(events: RunEvent[]): AgentGraphNode[] {

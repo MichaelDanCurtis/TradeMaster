@@ -27,6 +27,8 @@ def test_provider_configs_seed_from_catalog_with_role_boundaries(tmp_path: Path)
     assert by_id["plaid-investments"].role == "portfolio"
     assert by_id["plaid-investments"].write_authority == "read-only"
     assert by_id["alpaca-paper-broker"].write_authority == "paper-trading"
+    assert by_id["lm-studio-llm"].config["provider"] == "openai-compatible"
+    assert by_id["lm-studio-llm"].config["auth_required"] is False
 
 
 def test_provider_config_stores_secret_reference_not_secret_value(tmp_path: Path):
@@ -58,6 +60,20 @@ def test_provider_catalog_documents_alpaca_webull_and_plaid_roles():
     assert by_id["plaid-investments"].primary_use.lower().startswith("read-only")
     assert by_id["langfuse-observability"].role == "observability"
     assert "trace-export" in by_id["langfuse-observability"].capabilities
+
+
+def test_provider_catalog_includes_oauth_llm_sources_for_testing():
+    catalog = get_provider_catalog()
+    by_id = {provider.id: provider for provider in catalog.providers}
+
+    assert by_id["openai-codex-oauth-llm"].role == "llm"
+    assert by_id["openai-codex-oauth-llm"].status == "available"
+    assert "developer-mode" in by_id["openai-codex-oauth-llm"].capabilities
+    assert "codex-oauth" in by_id["openai-codex-oauth-llm"].capabilities
+    assert "tool-calling" in by_id["openai-codex-oauth-llm"].capabilities
+    assert by_id["github-copilot-oauth-llm"].role == "llm"
+    assert by_id["github-copilot-oauth-llm"].status == "available"
+    assert "github-oauth" in by_id["github-copilot-oauth-llm"].capabilities
 
 
 def test_env_secret_store_resolves_only_env_references(monkeypatch: pytest.MonkeyPatch):

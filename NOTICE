@@ -1,0 +1,10 @@
+TradeMaster
+An independent derivative of TauricResearch/TradingAgents.
+Upstream: https://github.com/TauricResearch/TradingAgents
+
+The upstream Apache License 2.0 and existing copyright notices are retained.
+TradeMaster adds a local web workbench, provider integrations, research tools,
+forecast experiments, and paper-execution controls. These files have been modified
+from the upstream distribution; Git history records the original and local changes.
+Third-party notices are retained in docs/third-party/ and relevant source headers.
+No third-party model weights or private account datasets are distributed here.

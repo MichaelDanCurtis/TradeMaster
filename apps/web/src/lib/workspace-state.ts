@@ -3,7 +3,6 @@ import type { TerminalNotification, WorkspaceId } from "./workspace-data.ts";
 export type WorkspaceShellState = {
   activeWorkspace: WorkspaceId;
   selectedSymbol: string;
-  settingsOpen: boolean;
 };
 
 export function setWorkspace(state: WorkspaceShellState, activeWorkspace: WorkspaceId): WorkspaceShellState {
@@ -20,13 +19,6 @@ export function selectSymbol(state: WorkspaceShellState, selectedSymbol: string)
   };
 }
 
-export function toggleSettings(state: WorkspaceShellState): WorkspaceShellState {
-  return {
-    ...state,
-    settingsOpen: !state.settingsOpen
-  };
-}
-
 export function dismissNotification(
   notifications: TerminalNotification[],
   notificationId: string
@@ -38,5 +30,7 @@ export function visibleNotifications(
   state: WorkspaceShellState,
   notifications: TerminalNotification[]
 ): TerminalNotification[] {
-  return state.settingsOpen ? [] : notifications;
+  // Settings is an admin/configuration surface — suppress symbol-context toasts
+  // while the operator is configuring providers, secrets, snapshots.
+  return state.activeWorkspace === "settings" ? [] : notifications;
 }

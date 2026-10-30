@@ -1,0 +1,36 @@
+flowchart TB
+  subgraph research[Research Office — proposed strategy workflow]
+    hypothesis[Research: hypothesis and frozen test plan]
+    astra[Astra: evidence extraction and critique]
+    version[Immutable strategy version]
+  end
+  subgraph evaluation[Evaluation — proposed evidence layer]
+    data[(Point-in-time data snapshots)]
+    quant[Quant runner adapter]
+    ledger[(All-trials experiment ledger)]
+    evidence[Baseline vs Astra challenger]
+  end
+  subgraph execution[Quant — extend existing execution surface]
+    deployment[Quant: paper portfolio deployment]
+    risk[Current risk checks and order approval]
+    broker[Existing BrokerService: single paper writer]
+  end
+  subgraph performance[Performance — proposed accounting and attribution]
+    fills[Performance: fills, cash and reconciliation]
+    outcomes[Expected vs observed outcomes]
+  end
+  review{Human evidence and funding review}
+  hypothesis --> astra
+  astra --> version
+  version --> quant
+  data --> quant
+  quant --> ledger
+  ledger --> evidence
+  evidence --> review
+  review -->|Approve paper| deployment
+  data -.->|Same features| deployment
+  deployment --> risk
+  risk --> broker
+  broker --> fills
+  fills --> outcomes
+  outcomes -.->|Propose new version| hypothesis

@@ -14,13 +14,24 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Invalid symbol" }, { status: 400 });
   }
 
-  const snapshot = await fetchProviderBackedMarketSnapshot(symbol, range);
+  try {
+    const period = url.searchParams.get("period") === "previous" ? "previous" : "current";
+    const snapshot = await fetchProviderBackedMarketSnapshot(symbol, range, { period });
 
-  return NextResponse.json(snapshot, {
-    headers: {
-      "Cache-Control": "no-store"
-    }
-  });
+    return NextResponse.json(snapshot, {
+      headers: {
+        "Cache-Control": "no-store"
+      }
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        detail: error instanceof Error ? error.message : "Provider request failed",
+        error: "Market data unavailable"
+      },
+      { status: 503, headers: { "Cache-Control": "no-store" } }
+    );
+  }
 }
 
 function parseRange(value: string | null): MarketRange {

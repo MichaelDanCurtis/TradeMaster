@@ -41,6 +41,7 @@ from tradingagents.agents.utils.agent_utils import (
 
 from .checkpointer import checkpoint_step, clear_checkpoint, get_checkpointer, thread_id
 from .conditional_logic import ConditionalLogic
+from .role_models import ALL_ROLES, build_role_model_map
 from .setup import GraphSetup
 from .propagation import Propagator
 from .reflection import Reflector
@@ -83,22 +84,49 @@ class TradingAgentsGraph:
         if self.callbacks:
             llm_kwargs["callbacks"] = self.callbacks
 
-        deep_client = create_llm_client(
-            provider=self.config["llm_provider"],
-            model=self.config["deep_think_llm"],
-            base_url=self.config.get("backend_url"),
-            **llm_kwargs,
+        # Build per-role LLM map. ``role_models`` (new schema) takes
+        # precedence; if absent we synthesize a tier map from the
+        # legacy ``quick_think_llm`` / ``deep_think_llm`` config keys
+        # so existing CLI scripts keep working unchanged. Distinct
+        # model names are constructed once and shared across roles
+        # that resolve to the same name.
+        role_models_cfg = self.config.get("role_models")
+        if not role_models_cfg:
+            role_models_cfg = {
+                "coordinator": self.config.get("deep_think_llm"),
+                "agent": self.config.get("quick_think_llm"),
+                "overrides": {},
+            }
+        fallback_model = (
+            self.config.get("model")
+            or self.config.get("quick_think_llm")
+            or self.config.get("deep_think_llm")
+            or ""
         )
-        quick_client = create_llm_client(
-            provider=self.config["llm_provider"],
-            model=self.config["quick_think_llm"],
-            base_url=self.config.get("backend_url"),
-            **llm_kwargs,
+        role_to_model = build_role_model_map(
+            role_models=role_models_cfg, fallback_model=fallback_model
         )
 
-        self.deep_thinking_llm = deep_client.get_llm()
-        self.quick_thinking_llm = quick_client.get_llm()
-        
+        llm_by_model: Dict[str, Any] = {}
+        self.role_llms: Dict[str, Any] = {}
+        for role_key, model_name in role_to_model.items():
+            if model_name not in llm_by_model:
+                client = create_llm_client(
+                    provider=self.config["llm_provider"],
+                    model=model_name,
+                    base_url=self.config.get("backend_url"),
+                    **llm_kwargs,
+                )
+                llm_by_model[model_name] = client.get_llm()
+            self.role_llms[role_key] = llm_by_model[model_name]
+
+        # Preserve the legacy attribute names. Pick the LLM bound to a
+        # representative coordinator role for ``deep_thinking_llm`` and
+        # an agent role for ``quick_thinking_llm``; both still work as
+        # an "average" for callers that don't care about per-role.
+        self.deep_thinking_llm = self.role_llms["research_manager"]
+        self.quick_thinking_llm = self.role_llms["market_analyst"]
+
         self.memory_log = TradingMemoryLog(self.config)
 
         # Create tool nodes
@@ -110,15 +138,16 @@ class TradingAgentsGraph:
             max_risk_discuss_rounds=self.config["max_risk_discuss_rounds"],
         )
         self.graph_setup = GraphSetup(
-            self.quick_thinking_llm,
-            self.deep_thinking_llm,
-            self.tool_nodes,
-            self.conditional_logic,
+            tool_nodes=self.tool_nodes,
+            conditional_logic=self.conditional_logic,
+            role_llms=self.role_llms,
         )
 
-        self.propagator = Propagator()
-        self.reflector = Reflector(self.quick_thinking_llm)
-        self.signal_processor = SignalProcessor(self.quick_thinking_llm)
+        self.propagator = Propagator(
+            max_recur_limit=int(self.config.get("max_recur_limit", 100))
+        )
+        self.reflector = Reflector(self.role_llms["reflector"])
+        self.signal_processor = SignalProcessor(self.role_llms["signal_processor"])
 
         # State tracking
         self.curr_state = None
@@ -134,6 +163,13 @@ class TradingAgentsGraph:
         """Get provider-specific kwargs for LLM client creation."""
         kwargs = {}
         provider = self.config.get("llm_provider", "").lower()
+
+        if self.config.get("api_key"):
+            kwargs["api_key"] = self.config["api_key"]
+        if self.config.get("timeout") is not None:
+            kwargs["timeout"] = self.config["timeout"]
+        if self.config.get("disable_structured_output"):
+            kwargs["disable_structured_output"] = True
 
         if provider == "google":
             thinking_level = self.config.get("google_thinking_level")

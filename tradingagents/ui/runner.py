@@ -1,13 +1,32 @@
 from __future__ import annotations
 
+import asyncio
 import json
-from collections.abc import Iterator
+import time
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import timezone
 from typing import Any, Protocol
 
 from tradingagents.ui.events import RunConfig, RunCreated, RunEvent, RunStatus
 from tradingagents.ui.repository import UiRepository
+
+
+ANALYST_PROGRESS_NODES = {
+    "market": "Market Analyst",
+    "news": "News Analyst",
+    "social": "Social Analyst",
+    "fundamentals": "Fundamentals Analyst",
+}
+
+DOWNSTREAM_PROGRESS_NODES = [
+    "Bull Researcher",
+    "Bear Researcher",
+    "Research Manager",
+    "Trader",
+    "Risk Manager",
+    "Portfolio Manager",
+]
 
 
 @dataclass(frozen=True)
@@ -58,43 +77,121 @@ class TradingRunService:
     def list_events(self, run_id: str) -> list[RunEvent]:
         return self._repository.list_events(run_id)
 
-    def stream_sse(self, run_id: str) -> Iterator[str]:
-        for event in self.list_events(run_id):
-            data = json.dumps(self._serialize_event(event), separators=(",", ":"))
-            yield f"event: {event.type}\ndata: {data}\n\n"
+    async def stream_sse(
+        self,
+        run_id: str,
+        *,
+        poll_interval: float = 1.0,
+        heartbeat_every: float = 15.0,
+    ) -> AsyncIterator[str]:
+        """Tail run events as Server-Sent Events.
+
+        Polls the repository at ``poll_interval`` seconds for events with
+        sequence greater than the last one yielded. Emits ``:keepalive``
+        comments at most every ``heartbeat_every`` seconds so proxies and
+        browsers keep the connection open during quiet periods. Closes the
+        stream once a terminal ``run.completed`` / ``run.failed`` /
+        ``run.canceled`` event has been emitted.
+        """
+
+        terminal_types = {"run.completed", "run.failed", "run.canceled"}
+        last_sequence = 0
+        last_emit_at = time.monotonic()
+
+        while True:
+            events = self._repository.list_events_since(
+                run_id, after_sequence=last_sequence
+            )
+            terminal = False
+            for event in events:
+                data = json.dumps(
+                    self._serialize_event(event), separators=(",", ":")
+                )
+                yield f"event: {event.type}\ndata: {data}\n\n"
+                last_sequence = event.sequence
+                last_emit_at = time.monotonic()
+                if event.type in terminal_types:
+                    terminal = True
+            if terminal:
+                return
+
+            if time.monotonic() - last_emit_at >= heartbeat_every:
+                yield ":keepalive\n\n"
+                last_emit_at = time.monotonic()
+
+            await asyncio.sleep(poll_interval)
+
+    def queue_real_run(self, config: RunConfig) -> RunCreated:
+        run = self._repository.create_run(config)
+        self._repository.start_observability_trace(
+            run_id=run.run_id,
+            metadata=self._trace_metadata(config),
+        )
+        self._repository.set_run_status(run.run_id, RunStatus.RUNNING)
+        next_sequence = self._append_real_run_start_events(run.run_id, config, start_sequence=1)
+        self._append_real_run_progress_events(
+            run.run_id,
+            config,
+            start_sequence=next_sequence,
+            runner_progress=self._runner_progress_metadata(),
+        )
+        return RunCreated(run_id=run.run_id, status=RunStatus.RUNNING)
+
+    def complete_queued_real_run(self, run_id: str, config: RunConfig) -> RunCreated:
+        next_sequence = self._next_event_sequence(run_id)
+        if self._real_runner is None:
+            self._append_real_run_not_configured_events(run_id, config)
+            self._repository.update_observability_trace(
+                run_id,
+                status=RunStatus.FAILED.value,
+                metadata={"failure_reason": "real_runner_not_configured"},
+            )
+            return RunCreated(run_id=run_id, status=RunStatus.FAILED)
+        return self._complete_real_run_events(run_id, config, next_sequence)
+
+    def fail_interrupted_runs(self, *, reason: str = "server_restart") -> int:
+        failed_count = 0
+        for run in self._repository.list_runs():
+            if run.status != RunStatus.RUNNING.value:
+                continue
+            next_sequence = self._next_event_sequence(run.run_id)
+            self._append_events(
+                run.run_id,
+                [
+                    RunEvent(
+                        run_id=run.run_id,
+                        sequence=next_sequence,
+                        type="run.failed",
+                        node=None,
+                        message="Run was interrupted before completion.",
+                        payload={
+                            "status": RunStatus.FAILED.value,
+                            "reason": reason,
+                        },
+                    )
+                ],
+                start_sequence=next_sequence,
+            )
+            self._repository.set_run_status(run.run_id, RunStatus.FAILED)
+            self._repository.update_observability_trace(
+                run.run_id,
+                status=RunStatus.FAILED.value,
+                metadata={"failure_reason": reason},
+            )
+            failed_count += 1
+        return failed_count
 
     def _append_real_run_events(self, run_id: str, config: RunConfig) -> RunCreated:
         self._repository.set_run_status(run_id, RunStatus.RUNNING)
-        next_sequence = self._append_events(
-            run_id,
-            [
-                RunEvent(
-                    run_id=run_id,
-                    sequence=1,
-                    type="run.created",
-                    node=None,
-                    message=f"Created real TradingAgents run for {config.ticker}.",
-                    payload={
-                        "ticker": config.ticker,
-                        "trade_date": config.trade_date,
-                        "execution_mode": config.execution_mode,
-                    },
-                ),
-                RunEvent(
-                    run_id=run_id,
-                    sequence=2,
-                    type="run.started",
-                    node=None,
-                    message="Started real TradingAgents execution.",
-                    payload={
-                        "llm_provider": config.llm_provider,
-                        "quick_model": config.quick_model,
-                        "deep_model": config.deep_model,
-                    },
-                ),
-            ],
-            start_sequence=1,
-        )
+        next_sequence = self._append_real_run_start_events(run_id, config, start_sequence=1)
+        return self._complete_real_run_events(run_id, config, next_sequence)
+
+    def _complete_real_run_events(
+        self,
+        run_id: str,
+        config: RunConfig,
+        next_sequence: int,
+    ) -> RunCreated:
         try:
             result = self._real_runner(run_id, config)
         except Exception as exc:
@@ -139,6 +236,14 @@ class TradingRunService:
             thesis=result.thesis,
             risk_notes=result.risk_notes,
         )
+        # Subscribers may read the trace as soon as run.completed is visible.
+        # Persist the terminal metadata and status before publishing that event.
+        self._repository.update_observability_trace(
+            run_id,
+            status=RunStatus.COMPLETED.value,
+            metadata={"final_rating": result.rating, "final_action": result.action},
+        )
+        self._repository.set_run_status(run_id, RunStatus.COMPLETED)
         self._append_events(
             run_id,
             [
@@ -153,16 +258,86 @@ class TradingRunService:
             ],
             start_sequence=next_sequence,
         )
-        self._repository.set_run_status(run_id, RunStatus.COMPLETED)
-        self._repository.update_observability_trace(
-            run_id,
-            status=RunStatus.COMPLETED.value,
-            metadata={
-                "final_rating": result.rating,
-                "final_action": result.action,
-            },
-        )
         return RunCreated(run_id=run_id, status=RunStatus.COMPLETED)
+
+    def _append_real_run_start_events(
+        self,
+        run_id: str,
+        config: RunConfig,
+        *,
+        start_sequence: int,
+    ) -> int:
+        return self._append_events(
+            run_id,
+            [
+                RunEvent(
+                    run_id=run_id,
+                    sequence=start_sequence,
+                    type="run.created",
+                    node=None,
+                    message=f"Created real TradingAgents run for {config.ticker}.",
+                    payload={
+                        "ticker": config.ticker,
+                        "trade_date": config.trade_date,
+                        "execution_mode": config.execution_mode,
+                    },
+                ),
+                RunEvent(
+                    run_id=run_id,
+                    sequence=start_sequence + 1,
+                    type="run.started",
+                    node=None,
+                    message="Started real TradingAgents execution.",
+                    payload={
+                        "llm_provider": config.llm_provider,
+                        "quick_model": config.quick_model,
+                        "deep_model": config.deep_model,
+                    },
+                ),
+            ],
+            start_sequence=start_sequence,
+        )
+
+    def _append_real_run_progress_events(
+        self,
+        run_id: str,
+        config: RunConfig,
+        *,
+        start_sequence: int,
+        runner_progress: tuple[str, str],
+    ) -> int:
+        runner_label, runner_source = runner_progress
+        selected_analysts = set(config.analysts)
+        nodes = [
+            node
+            for analyst, node in ANALYST_PROGRESS_NODES.items()
+            if analyst in selected_analysts
+        ] + DOWNSTREAM_PROGRESS_NODES
+        return self._append_events(
+            run_id,
+            [
+                RunEvent(
+                    run_id=run_id,
+                    sequence=start_sequence + index,
+                    type="agent.started",
+                    node=node,
+                    message=f"{node} queued in the {runner_label}.",
+                    payload={
+                        "source": runner_source,
+                        "status": "queued",
+                        "ticker": config.ticker,
+                        "runner": runner_label,
+                    },
+                )
+                for index, node in enumerate(nodes)
+            ],
+            start_sequence=start_sequence,
+        )
+
+    def _runner_progress_metadata(self) -> tuple[str, str]:
+        if self._real_runner is not None and self._real_runner.__class__.__name__ == "TradingAgentsGraphRunner":
+            return "full TradingAgents graph", "tradingagents-graph"
+        return "safe synthesis runner", "safe-synthesis-runner"
 
     def _append_real_run_not_configured_events(self, run_id: str, config: RunConfig) -> None:
         events: list[dict[str, Any]] = [
@@ -400,6 +575,12 @@ class TradingRunService:
             next_sequence += 1
         return next_sequence
 
+    def _next_event_sequence(self, run_id: str) -> int:
+        events = self._repository.list_events(run_id)
+        if not events:
+            return 1
+        return max(event.sequence for event in events) + 1
+
     @staticmethod
     def _serialize_event(event: RunEvent) -> dict[str, Any]:
         created_at = event.created_at.astimezone(timezone.utc)
@@ -413,9 +594,8 @@ class TradingRunService:
             "created_at": created_at.isoformat().replace("+00:00", "Z"),
         }
 
-    @staticmethod
-    def _trace_metadata(config: RunConfig) -> dict[str, Any]:
-        return {
+    def _trace_metadata(self, config: RunConfig) -> dict[str, Any]:
+        metadata = {
             "ticker": config.ticker,
             "trade_date": config.trade_date,
             "execution_mode": config.execution_mode,
@@ -426,3 +606,14 @@ class TradingRunService:
             "checkpoint": config.checkpoint,
             "analysts": list(config.analysts),
         }
+        # The graph runner resolves the research_llm provider role at run time
+        # and overrides llm_provider/quick/deep — record the RESOLVED values
+        # (e.g. github-copilot-oauth / gpt-4o-mini / gpt-4o) instead of the
+        # inert RunConfig defaults so the trace surface is truthful.
+        resolver = getattr(self._real_runner, "resolved_llm_metadata", None)
+        if callable(resolver):
+            try:
+                metadata.update(resolver(config))
+            except Exception:  # noqa: BLE001 — metadata must never block run creation
+                pass
+        return metadata

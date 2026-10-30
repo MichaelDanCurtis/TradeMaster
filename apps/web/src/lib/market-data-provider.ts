@@ -1,5 +1,4 @@
 import {
-  createSimulatedHistoricalSnapshot,
   type MarketDataSnapshot,
   type MarketFeed,
   type MarketInterval,
@@ -35,12 +34,22 @@ type ProviderBackedOptions = {
   apiBase?: string;
   feed?: string;
   fetcher?: BackendFetch;
+  period?: "current" | "previous";
   providerId?: string;
 };
 
-const DEFAULT_API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8787";
+const DEFAULT_API_BASE =
+  process.env.TRADEMASTER_API_BASE ?? process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8797";
 const DEFAULT_PROVIDER_ID = "alpaca-market-data";
 const DEFAULT_FEED = "iex";
+const TICKER_SPARKLINE_POINTS = 12;
+
+export class MarketDataProviderUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MarketDataProviderUnavailableError";
+  }
+}
 
 const RANGE_REQUESTS: Record<
   MarketRange,
@@ -72,41 +81,42 @@ export async function fetchProviderBackedMarketSnapshot(
   const feed = options.feed ?? DEFAULT_FEED;
   const apiBase = options.apiBase ?? DEFAULT_API_BASE;
   const providerId = options.providerId ?? DEFAULT_PROVIDER_ID;
-  const end = new Date();
+  const end =
+    options.period === "previous"
+      ? new Date(Date.now() - requestConfig.lookbackMs)
+      : new Date();
   const start = new Date(end.getTime() - requestConfig.lookbackMs);
 
-  try {
-    const barsUrl = buildBackendUrl(apiBase, `/api/market-data/${providerId}/bars`, {
-      end: end.toISOString(),
-      feed,
-      limit: String(requestConfig.limit),
-      start: start.toISOString(),
-      symbol: normalizedSymbol,
-      timeframe: requestConfig.timeframe
-    });
-    const quoteUrl = buildBackendUrl(apiBase, `/api/market-data/${providerId}/quote`, {
-      feed,
-      symbol: normalizedSymbol
-    });
-    const [barsResponse, quoteResponse] = await Promise.all([fetcher(barsUrl), fetcher(quoteUrl)]);
+  const barsUrl = buildBackendUrl(apiBase, `/api/market-data/${providerId}/bars`, {
+    end: end.toISOString(),
+    feed,
+    limit: String(requestConfig.limit),
+    start: start.toISOString(),
+    symbol: normalizedSymbol,
+    timeframe: requestConfig.timeframe
+  });
+  const quoteUrl = buildBackendUrl(apiBase, `/api/market-data/${providerId}/quote`, {
+    feed,
+    symbol: normalizedSymbol
+  });
+  const [barsResponse, quoteResponse] = await Promise.all([fetcher(barsUrl), fetcher(quoteUrl)]);
 
-    if (!barsResponse.ok || !quoteResponse.ok) {
-      return createSimulatedHistoricalSnapshot(normalizedSymbol, range);
-    }
-
-    const barsPayload = (await barsResponse.json()) as { bars?: BackendBar[] };
-    const quotePayload = (await quoteResponse.json()) as { quote?: BackendQuote };
-    const backendBars = barsPayload.bars ?? [];
-    const backendQuote = quotePayload.quote;
-
-    if (backendBars.length === 0 || backendQuote === undefined) {
-      return createSimulatedHistoricalSnapshot(normalizedSymbol, range);
-    }
-
-    return normalizeBackendSnapshot(backendBars, backendQuote, requestConfig.interval, feed);
-  } catch {
-    return createSimulatedHistoricalSnapshot(normalizedSymbol, range);
+  if (!barsResponse.ok || !quoteResponse.ok) {
+    throw new MarketDataProviderUnavailableError(
+      `${normalizedSymbol} market data unavailable from ${providerId}: bars ${barsResponse.status}, quote ${quoteResponse.status}`
+    );
   }
+
+  const barsPayload = await readBackendJson<{ bars?: BackendBar[] }>(barsResponse, `${providerId} bars`);
+  const quotePayload = await readBackendJson<{ quote?: BackendQuote }>(quoteResponse, `${providerId} quote`);
+  const backendBars = barsPayload.bars ?? [];
+  const backendQuote = quotePayload.quote;
+
+  if (backendBars.length === 0 || backendQuote === undefined) {
+    throw new MarketDataProviderUnavailableError(`${normalizedSymbol} market data unavailable from ${providerId}`);
+  }
+
+  return normalizeBackendSnapshot(backendBars, backendQuote, requestConfig.interval, feed);
 }
 
 export function createTickerItemsFromSnapshots(
@@ -126,7 +136,7 @@ export function createTickerItemsFromSnapshots(
       changePercent,
       id: snapshot.symbol.toLowerCase(),
       label: labelBySymbol[snapshot.symbol] ?? snapshot.symbol,
-      sparkline: snapshot.bars.slice(-12).map((bar) => bar.close),
+      sparkline: createTickerSparkline(snapshot.bars, open, lastBar?.close ?? last),
       value: lastBar?.close ?? last
     };
   });
@@ -138,7 +148,9 @@ function normalizeBackendSnapshot(
   interval: MarketInterval,
   feed: string
 ): MarketDataSnapshot {
-  const bars = backendBars.map((bar) => normalizeBackendBar(bar, interval, feed));
+  const bars = backendBars
+    .map((bar) => normalizeBackendBar(bar, interval, feed))
+    .sort(compareBarsByTimestamp);
   const firstBar = bars[0];
   const lastBar = bars.at(-1) ?? firstBar;
   const dayHigh = Math.max(...bars.map((bar) => bar.high));
@@ -168,6 +180,40 @@ function normalizeBackendSnapshot(
   };
 }
 
+function createTickerSparkline(bars: NormalizedMarketBar[], open: number, latest: number): number[] {
+  const orderedBars = [...bars].sort(compareBarsByTimestamp);
+  const source = [open, ...orderedBars.slice(1).map((bar) => bar.close)];
+
+  if (source.length === 1 || source.at(-1) !== latest) {
+    source.push(latest);
+  }
+
+  return sampleSeries(source, TICKER_SPARKLINE_POINTS);
+}
+
+function sampleSeries(values: number[], maxPoints: number): number[] {
+  if (values.length <= maxPoints) {
+    return values;
+  }
+
+  const sampled: number[] = [];
+  const lastIndex = values.length - 1;
+
+  for (let index = 0; index < maxPoints; index += 1) {
+    const sourceIndex = Math.round((index / (maxPoints - 1)) * lastIndex);
+    sampled.push(values[sourceIndex]);
+  }
+
+  sampled[0] = values[0];
+  sampled[sampled.length - 1] = values[lastIndex];
+
+  return sampled;
+}
+
+function compareBarsByTimestamp(left: NormalizedMarketBar, right: NormalizedMarketBar): number {
+  return Date.parse(left.timestamp) - Date.parse(right.timestamp);
+}
+
 function normalizeBackendBar(bar: BackendBar, interval: MarketInterval, feed: string): NormalizedMarketBar {
   return {
     close: bar.close,
@@ -193,6 +239,18 @@ function buildBackendUrl(apiBase: string, pathname: string, params: Record<strin
   });
 
   return url;
+}
+
+async function readBackendJson<T>(response: Response, label: string): Promise<T> {
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (!contentType.includes("application/json")) {
+    throw new MarketDataProviderUnavailableError(
+      `${label} endpoint returned ${contentType || "unknown content type"} instead of JSON`
+    );
+  }
+
+  return (await response.json()) as T;
 }
 
 function normalizeSymbol(symbol: string): string {

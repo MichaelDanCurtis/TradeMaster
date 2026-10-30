@@ -96,6 +96,36 @@ class AlpacaMarketDataProvider:
         response.raise_for_status()
         return _quote_from_alpaca(normalized_symbol, response.json()["quote"])
 
+    def stock_movers(self, *, top: int = 25) -> dict[str, Any]:
+        """Top market movers from the Alpaca stock screener.
+
+        Returns the raw payload: ``{"gainers": [{"symbol", "price", "change",
+        "percent_change"}], "losers": [...], "last_updated", "market_type"}``.
+        """
+        response = self._http_client.get(
+            f"{self._base_url}/v1beta1/screener/stocks/movers",
+            headers=self._headers(),
+            params={"top": top},
+            timeout=self._timeout,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def most_active_stocks(self, *, by: str = "volume", top: int = 25) -> dict[str, Any]:
+        """Most-active stocks from the Alpaca stock screener.
+
+        Returns the raw payload: ``{"most_actives": [{"symbol", "volume",
+        "trade_count"}], "last_updated"}``. Entries carry no price.
+        """
+        response = self._http_client.get(
+            f"{self._base_url}/v1beta1/screener/stocks/most-actives",
+            headers=self._headers(),
+            params={"by": by, "top": top},
+            timeout=self._timeout,
+        )
+        response.raise_for_status()
+        return response.json()
+
     def _headers(self) -> dict[str, str]:
         credentials = _parse_credentials(self._secret_store.get_secret(self._secret_ref))
         return {

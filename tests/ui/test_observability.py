@@ -157,8 +157,8 @@ def test_observability_service_exports_run_trace_to_langfuse(tmp_path, monkeypat
         "broker_mode": "paper",
         "execution_mode": "simulated",
         "llm_provider": "openai",
-        "quick_model": "gpt-5.4-mini",
-        "deep_model": "gpt-5.4",
+        "quick_model": "gpt-5-mini",
+        "deep_model": "gpt-5",
         "local_status": "completed",
     } == observation["metadata"]
     assert fake_client.last_observation is not None

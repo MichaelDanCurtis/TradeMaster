@@ -18,6 +18,7 @@ from langchain_core.prompt_values import ChatPromptValue
 
 from tradingagents.llm_clients.openai_client import (
     DeepSeekChatOpenAI,
+    FreeTextOnlyChatOpenAI,
     NormalizedChatOpenAI,
     _input_to_messages,
 )
@@ -151,6 +152,23 @@ class TestDeepSeekReasonerStructuredOutput:
         # require a real key; we only assert binding succeeds.)
         wrapped = client.with_structured_output(_Sample)
         assert wrapped is not None
+
+
+@pytest.mark.unit
+class TestFreeTextOnlyStructuredOutput:
+    def test_with_structured_output_raises_when_provider_disables_structured_output(self):
+        client = FreeTextOnlyChatOpenAI(
+            model="local-model",
+            api_key="placeholder",
+            base_url="http://127.0.0.1:1234/v1",
+        )
+        from pydantic import BaseModel
+
+        class _Sample(BaseModel):
+            answer: str
+
+        with pytest.raises(NotImplementedError, match="Structured output is disabled"):
+            client.with_structured_output(_Sample)
 
 
 # ---------------------------------------------------------------------------

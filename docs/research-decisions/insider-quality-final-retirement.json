@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "hypothesis_id": "insider-quality-final-v1",
+  "status": "retired",
+  "recorded_at": "2026-09-08T01:19:59.332484+00:00",
+  "decision_date_local": "2026-09-07",
+  "authorization": "User approved retiring this particular strategy: Ok let’s do it",
+  "scope": "Fixed insider purchase ranking plus annual positive earnings/operating cash flow/free cash flow and portfolio risk controls",
+  "reason": "Failed all four frozen performance gates at both transaction-cost levels; no demonstrated advantage over risk-controlled SPY",
+  "future_tuning": "closed",
+  "deployment_promotion": "closed",
+  "reopening": "Requires a new explicit user decision",
+  "evidence_preserved": {
+    ".research-artifacts/insider-quality-final-2026-09-07/protocol.json": "ad5a0e8922daa55721f0656f3ba704c5babce891c192abb9d9d4b1b2ee4b3a5c",
+    ".research-artifacts/insider-quality-final-2026-09-07/targets-lock.json": "8ba2ff05c9f109e62f0a5fc4acc93b3b6f1b1d1f10e0bb00405214d8bc9b7441",
+    ".research-artifacts/insider-quality-final-2026-09-07/results.json": "7a0b3ede34711f395be9f4370e2ad9fc5329794b9534a5a0321667e18508e243",
+    ".research-artifacts/insider-quality-final-2026-09-07/report.md": "a88732d05ea337ec4bf5fa1776585e629b6aaea3b4db33a834fddc2e675cc90c",
+    ".research-artifacts/insider-quality-final-2026-09-07/manifest.json": "5e65dac34b92ae956f401fda89111931d763558fa4cf47b828761a4e1284f9d8"
+  },
+  "operational_scope": "Research disposition record only. This offline experiment has no application deployment integration; no orders, runtime settings or unrelated trials changed."
+}

@@ -4,6 +4,7 @@ import warnings
 import pytest
 
 from tradingagents.llm_clients.base_client import BaseLLMClient
+from tradingagents.llm_clients.factory import create_llm_client
 from tradingagents.llm_clients.model_catalog import get_known_models
 from tradingagents.llm_clients.validators import validate_model
 
@@ -53,3 +54,14 @@ class ModelValidationTests(unittest.TestCase):
                     client.get_llm()
 
                 self.assertEqual(caught, [])
+
+    def test_openai_compatible_factory_accepts_local_lm_studio_provider(self):
+        client = create_llm_client(
+            "openai-compatible",
+            "local-model",
+            base_url="http://127.0.0.1:1234/v1",
+            api_key="lm-studio",
+        )
+
+        self.assertEqual(client.provider, "openai-compatible")
+        self.assertEqual(client.base_url, "http://127.0.0.1:1234/v1")

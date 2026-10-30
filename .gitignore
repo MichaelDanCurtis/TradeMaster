@@ -14,7 +14,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+/lib/
 lib64/
 parts/
 sdist/
@@ -151,6 +151,8 @@ activemq-data/
 .env
 .envrc
 .venv
+.venv-timesfm/
+.venv-timesfm-mlx/
 env/
 venv/
 ENV/
@@ -228,6 +230,37 @@ apps/web/.next/
 
 # Local TradingAgents UI runtime state
 .tradingagents-ui.db
+.research-artifacts/
 
 # Superpowers visual companion scratch files
 .superpowers/
+
+# Isolated UX verification build
+apps/web/.next-ux-audit/
+
+# Private machine state and credentials (including nested workspace files)
+.DS_Store
+.omc/
+.codex/
+.claude/
+.env.*
+!.env.example
+!.env.enterprise.example
+.venv*/
+*.tsbuildinfo
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.pem
+*.key
+*.p12
+*.pfx
+auth.json
+credentials.json
+
+# Account-specific trial records stay on the operator's machine.
+docs/PAPER_TRIAL_*.md
+docs/PAPER_TRIAL_*.json

@@ -12,7 +12,7 @@
 
 ## File Structure
 
-- Modify `/Volumes/Main External/Development/TradeMaster/TRADEMASTER_VISION.md`: record SQLite-first, pgvector migration, provider roles, Plaid banking, and high-risk AI-managed portfolio distinction.
+- Modify `/path/to/TradeMaster-workspace/TRADEMASTER_VISION.md`: record SQLite-first, pgvector migration, provider roles, Plaid banking, and high-risk AI-managed portfolio distinction.
 - Modify `tradingagents/ui/models.py`: add provider config, private-office event, entity, edge, portfolio mandate, and snapshot manifest records.
 - Modify `tradingagents/ui/repository.py`: add persistence methods for the new records.
 - Modify `tradingagents/ui/providers.py`: expose durable provider descriptors with `secret_ref`, `control_mode`, and runtime configuration conversion.

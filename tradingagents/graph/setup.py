@@ -8,6 +8,7 @@ from tradingagents.agents import *
 from tradingagents.agents.utils.agent_states import AgentState
 
 from .conditional_logic import ConditionalLogic
+from .role_models import ALL_ROLES, COORDINATOR_ROLES
 
 
 class GraphSetup:
@@ -15,14 +16,48 @@ class GraphSetup:
 
     def __init__(
         self,
-        quick_thinking_llm: Any,
-        deep_thinking_llm: Any,
-        tool_nodes: Dict[str, ToolNode],
-        conditional_logic: ConditionalLogic,
+        quick_thinking_llm: Any = None,
+        deep_thinking_llm: Any = None,
+        tool_nodes: Dict[str, ToolNode] | None = None,
+        conditional_logic: ConditionalLogic | None = None,
+        *,
+        role_llms: Dict[str, Any] | None = None,
     ):
-        """Initialize with required components."""
-        self.quick_thinking_llm = quick_thinking_llm
-        self.deep_thinking_llm = deep_thinking_llm
+        """Initialize with required components.
+
+        Two construction modes are supported:
+
+        * **Per-role mode (preferred):** pass ``role_llms`` as a
+          ``{role_key: llm_instance}`` map covering every key in
+          ``ALL_ROLES``. Each agent factory gets the LLM bound to its
+          own role, so callers can use different models per agent.
+        * **Legacy two-LLM mode:** pass ``quick_thinking_llm`` and
+          ``deep_thinking_llm`` (positional or keyword). We expand
+          that into a per-role map by tier: roles in
+          ``COORDINATOR_ROLES`` get ``deep_thinking_llm``; everything
+          else gets ``quick_thinking_llm``. This keeps existing CLI
+          and test callers working without modification.
+        """
+        if role_llms is None:
+            if quick_thinking_llm is None or deep_thinking_llm is None:
+                raise ValueError(
+                    "GraphSetup requires either role_llms or both "
+                    "quick_thinking_llm and deep_thinking_llm"
+                )
+            role_llms = {
+                role_key: (
+                    deep_thinking_llm
+                    if role_key in COORDINATOR_ROLES
+                    else quick_thinking_llm
+                )
+                for role_key in ALL_ROLES
+            }
+
+        self.role_llms = role_llms
+        # Preserve the legacy attribute names for downstream callers
+        # (instrumentation, tests) that read them directly.
+        self.quick_thinking_llm = quick_thinking_llm or role_llms["market_analyst"]
+        self.deep_thinking_llm = deep_thinking_llm or role_llms["research_manager"]
         self.tool_nodes = tool_nodes
         self.conditional_logic = conditional_logic
 
@@ -48,43 +83,43 @@ class GraphSetup:
 
         if "market" in selected_analysts:
             analyst_nodes["market"] = create_market_analyst(
-                self.quick_thinking_llm
+                self.role_llms["market_analyst"]
             )
             delete_nodes["market"] = create_msg_delete()
             tool_nodes["market"] = self.tool_nodes["market"]
 
         if "social" in selected_analysts:
             analyst_nodes["social"] = create_social_media_analyst(
-                self.quick_thinking_llm
+                self.role_llms["social_analyst"]
             )
             delete_nodes["social"] = create_msg_delete()
             tool_nodes["social"] = self.tool_nodes["social"]
 
         if "news" in selected_analysts:
             analyst_nodes["news"] = create_news_analyst(
-                self.quick_thinking_llm
+                self.role_llms["news_analyst"]
             )
             delete_nodes["news"] = create_msg_delete()
             tool_nodes["news"] = self.tool_nodes["news"]
 
         if "fundamentals" in selected_analysts:
             analyst_nodes["fundamentals"] = create_fundamentals_analyst(
-                self.quick_thinking_llm
+                self.role_llms["fundamentals_analyst"]
             )
             delete_nodes["fundamentals"] = create_msg_delete()
             tool_nodes["fundamentals"] = self.tool_nodes["fundamentals"]
 
         # Create researcher and manager nodes
-        bull_researcher_node = create_bull_researcher(self.quick_thinking_llm)
-        bear_researcher_node = create_bear_researcher(self.quick_thinking_llm)
-        research_manager_node = create_research_manager(self.deep_thinking_llm)
-        trader_node = create_trader(self.quick_thinking_llm)
+        bull_researcher_node = create_bull_researcher(self.role_llms["bull_researcher"])
+        bear_researcher_node = create_bear_researcher(self.role_llms["bear_researcher"])
+        research_manager_node = create_research_manager(self.role_llms["research_manager"])
+        trader_node = create_trader(self.role_llms["trader"])
 
         # Create risk analysis nodes
-        aggressive_analyst = create_aggressive_debator(self.quick_thinking_llm)
-        neutral_analyst = create_neutral_debator(self.quick_thinking_llm)
-        conservative_analyst = create_conservative_debator(self.quick_thinking_llm)
-        portfolio_manager_node = create_portfolio_manager(self.deep_thinking_llm)
+        aggressive_analyst = create_aggressive_debator(self.role_llms["aggressive_analyst"])
+        neutral_analyst = create_neutral_debator(self.role_llms["neutral_analyst"])
+        conservative_analyst = create_conservative_debator(self.role_llms["conservative_analyst"])
+        portfolio_manager_node = create_portfolio_manager(self.role_llms["portfolio_manager"])
 
         # Create workflow
         workflow = StateGraph(AgentState)

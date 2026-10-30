@@ -6,7 +6,7 @@ def main() -> None:
         "tradingagents.ui.api:create_app",
         factory=True,
         host="127.0.0.1",
-        port=8787,
+        port=8797,
         reload=False,
     )
 

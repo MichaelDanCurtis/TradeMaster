@@ -2,18 +2,24 @@
 
 TradeMaster is intended to run as a local MacBook server during this phase. The web app and FastAPI backend should be started together so Settings, provider registry, snapshots, agent runs, and trade previews all point at the same local API.
 
+Both HTTP servers bind to `127.0.0.1`. The application has no multi-user authentication;
+do not expose it to public networks or a shared LAN.
+
 ## Start
 
 ```bash
 npm run dev:local
 ```
 
-This starts two tmux sessions:
+This starts five tmux sessions:
 
-- `trademaster-api`: FastAPI on `http://127.0.0.1:8787`
+- `trademaster-api`: FastAPI on `http://127.0.0.1:8797`
 - `wealth-agents-web`: Next.js on `http://127.0.0.1:3000`
+- `trademaster-research`: queued research jobs
+- `trademaster-deployments`: account observation and deployment evaluation
+- `trademaster-scheduler`: explicitly approved TWAP/DCA paper schedules
 
-The script waits for both health checks before exiting.
+The script waits for both HTTP health checks and all three worker heartbeats before exiting. See [Paper execution scheduler](EXECUTION_SCHEDULER.md) for approval, timing, and cancellation behavior.
 
 If `.venv`, `node_modules`, or the Next.js production build is missing, the script creates them before starting the tmux sessions.
 

@@ -4,7 +4,7 @@ from .base_client import BaseLLMClient
 
 # Providers that use the OpenAI-compatible chat completions API
 _OPENAI_COMPATIBLE = (
-    "openai", "xai", "deepseek", "qwen", "glm", "ollama", "openrouter",
+    "openai", "openai-compatible", "xai", "deepseek", "qwen", "glm", "ollama", "openrouter",
 )
 
 
@@ -33,6 +33,18 @@ def create_llm_client(
         ValueError: If provider is not supported
     """
     provider_lower = provider.lower()
+
+    if provider_lower == "codex-oauth":
+        from .codex_oauth_client import CodexOAuthClient
+        return CodexOAuthClient(model, base_url, **kwargs)
+
+    if provider_lower in ("github-copilot-oauth", "copilot", "github_copilot", "github-copilot"):
+        from .copilot_oauth_client import CopilotOAuthClient
+        return CopilotOAuthClient(model, base_url, **kwargs)
+
+    if provider_lower in ("kimi-oauth", "kimi", "moonshot"):
+        from .kimi_oauth_client import KimiOAuthClient
+        return KimiOAuthClient(model, base_url, **kwargs)
 
     if provider_lower in _OPENAI_COMPATIBLE:
         from .openai_client import OpenAIClient

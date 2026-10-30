@@ -11,7 +11,7 @@ from tradingagents.ui.events import (
 )
 
 
-def test_run_config_defaults_to_safe_report_only_mode():
+def test_run_config_defaults_to_real_research_with_broker_disabled():
     config = RunConfig(ticker="nvda", trade_date="2026-04-30")
 
     assert config.ticker == "NVDA"
@@ -19,7 +19,7 @@ def test_run_config_defaults_to_safe_report_only_mode():
     assert config.analysts == ["market", "social", "news", "fundamentals"]
     assert config.research_depth == 1
     assert config.broker_mode == "disabled"
-    assert config.execution_mode == "simulated"
+    assert config.execution_mode == "real"
 
 
 def test_run_event_serializes_timestamp_as_iso_string():

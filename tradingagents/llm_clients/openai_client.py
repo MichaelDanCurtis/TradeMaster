@@ -32,6 +32,15 @@ class NormalizedChatOpenAI(ChatOpenAI):
         return super().with_structured_output(schema, method=method, **kwargs)
 
 
+class FreeTextOnlyChatOpenAI(NormalizedChatOpenAI):
+    """ChatOpenAI variant for compatible gateways that reject tool-choice payloads."""
+
+    def with_structured_output(self, schema, *, method=None, **kwargs):
+        raise NotImplementedError(
+            "Structured output is disabled for this provider configuration."
+        )
+
+
 def _input_to_messages(input_: Any) -> list:
     """Normalise a langchain LLM input to a list of message objects.
 
@@ -106,7 +115,7 @@ class DeepSeekChatOpenAI(NormalizedChatOpenAI):
 # Kwargs forwarded from user config to ChatOpenAI
 _PASSTHROUGH_KWARGS = (
     "timeout", "max_retries", "reasoning_effort",
-    "api_key", "callbacks", "http_client", "http_async_client",
+    "api_key", "callbacks", "http_client", "http_async_client", "max_tokens",
 )
 
 # Provider base URLs and API key env vars
@@ -171,7 +180,10 @@ class OpenAIClient(BaseLLMClient):
 
         # DeepSeek's thinking-mode quirks live in their own subclass so the
         # base NormalizedChatOpenAI stays free of provider-specific branches.
-        chat_cls = DeepSeekChatOpenAI if self.provider == "deepseek" else NormalizedChatOpenAI
+        if self.kwargs.get("disable_structured_output"):
+            chat_cls = FreeTextOnlyChatOpenAI
+        else:
+            chat_cls = DeepSeekChatOpenAI if self.provider == "deepseek" else NormalizedChatOpenAI
         return chat_cls(**llm_kwargs)
 
     def validate_model(self) -> bool:

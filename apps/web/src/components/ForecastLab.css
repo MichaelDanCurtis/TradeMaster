@@ -1,0 +1,8 @@
+.forecast-lab select{padding:10px;color:var(--text-primary);background:var(--app-bg);border:1px solid var(--panel-border-strong);border-radius:6px;min-width:0;max-width:100%}
+.forecast-lab select:focus-visible{outline:2px solid var(--accent-cyan);outline-offset:3px}
+.forecast-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 20px}
+.forecast-lab .forecast-run{border-color:var(--accent-cyan);color:var(--accent-cyan)}
+.forecast-journal{margin:24px 0}.forecast-chart{margin:24px 0}.forecast-chart svg{width:100%;height:auto;min-height:180px}.forecast-chart text{fill:var(--text-secondary);font-size:12px}.forecast-chart figcaption{color:var(--text-secondary);font-size:12px;line-height:1.7}
+.forecast-grid{stroke:var(--panel-border)}.forecast-band{fill:var(--accent-cyan);opacity:.13}
+.forecast-history,.forecast-point,.forecast-baseline,.forecast-actual{fill:none;stroke-width:2.5;vector-effect:non-scaling-stroke}
+.forecast-history{stroke:var(--text-secondary)}.forecast-point{stroke:var(--accent-cyan)}.forecast-baseline{stroke:var(--text-secondary);stroke-dasharray:5 5;stroke-width:1.5}.forecast-actual{stroke:#eeb957}.forecast-cutoff{stroke:var(--text-secondary);stroke-dasharray:3 5;opacity:.5}

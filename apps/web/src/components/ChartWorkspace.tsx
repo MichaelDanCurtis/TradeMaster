@@ -8,8 +8,6 @@ import {
   calculatePerformanceSpread,
   createComparisonSeries,
   createHeikinAshiBars,
-  createPriorPeriodBars,
-  createSimulatedHistoricalSnapshot,
   createVolumeProfileBins,
   getMarketProviderCatalog,
   normalizePerformanceSeries,
@@ -49,8 +47,9 @@ const RANGE_WHEEL_DELTA_THRESHOLD = 18;
 type LiveDataState = {
   comparisonSnapshot: MarketDataSnapshot | null;
   error: string | null;
+  priorPeriodSnapshot: MarketDataSnapshot | null;
   snapshot: MarketDataSnapshot | null;
-  status: "fallback" | "loading" | "live";
+  status: "loading" | "live" | "unavailable";
 };
 
 function formatVolume(value: number): string {
@@ -92,14 +91,10 @@ export function ChartWorkspace({ newsEvents = [], symbol }: { newsEvents?: NewsE
   const providerCatalog = useMemo(() => getMarketProviderCatalog(), []);
   const effectiveCompareSymbol =
     compareSymbol === symbol ? (COMPARE_OPTIONS.find((option) => option !== symbol) ?? "SPY") : compareSymbol;
-  const simulatedSnapshot = useMemo(() => createSimulatedHistoricalSnapshot(symbol, chartRange), [chartRange, symbol]);
-  const simulatedComparisonSnapshot = useMemo(
-    () => createSimulatedHistoricalSnapshot(effectiveCompareSymbol, chartRange),
-    [chartRange, effectiveCompareSymbol]
-  );
   const [liveData, setLiveData] = useState<LiveDataState>({
     comparisonSnapshot: null,
     error: null,
+    priorPeriodSnapshot: null,
     snapshot: null,
     status: "loading"
   });
@@ -110,21 +105,41 @@ export function ChartWorkspace({ newsEvents = [], symbol }: { newsEvents?: NewsE
     setLiveData({
       comparisonSnapshot: null,
       error: null,
+      priorPeriodSnapshot: null,
       snapshot: null,
       status: "loading"
     });
 
-    Promise.all([
-      fetchMarketSnapshot(symbol, chartRange, controller.signal),
-      fetchMarketSnapshot(effectiveCompareSymbol, chartRange, controller.signal)
-    ])
-      .then(([nextSnapshot, nextComparisonSnapshot]) => {
-        const dataStatus = nextSnapshot.provider === "simulated" ? "fallback" : "live";
+    fetchMarketSnapshot(symbol, chartRange, controller.signal)
+      .then(async (nextSnapshot) => {
+        let nextComparisonSnapshot: MarketDataSnapshot | null = null;
+        let nextPriorPeriodSnapshot: MarketDataSnapshot | null = null;
+        const secondaryErrors: string[] = [];
+
+        if (compareEnabled) {
+          try {
+            nextComparisonSnapshot = await fetchMarketSnapshot(effectiveCompareSymbol, chartRange, controller.signal);
+          } catch (error) {
+            secondaryErrors.push(
+              error instanceof Error ? `${effectiveCompareSymbol}: ${error.message}` : `${effectiveCompareSymbol}: unavailable`
+            );
+          }
+        }
+
+        if (priorPeriodEnabled) {
+          try {
+            nextPriorPeriodSnapshot = await fetchMarketSnapshot(symbol, chartRange, controller.signal, "previous");
+          } catch (error) {
+            secondaryErrors.push(error instanceof Error ? `Prior period: ${error.message}` : "Prior period unavailable");
+          }
+        }
+
         setLiveData({
           comparisonSnapshot: nextComparisonSnapshot,
-          error: dataStatus === "fallback" ? "Provider credentials are not configured; using simulated market data." : null,
+          error: secondaryErrors.length > 0 ? secondaryErrors.join(" ") : null,
+          priorPeriodSnapshot: nextPriorPeriodSnapshot,
           snapshot: nextSnapshot,
-          status: dataStatus
+          status: "live"
         });
       })
       .catch((error: unknown) => {
@@ -135,37 +150,41 @@ export function ChartWorkspace({ newsEvents = [], symbol }: { newsEvents?: NewsE
         setLiveData({
           comparisonSnapshot: null,
           error: error instanceof Error ? error.message : "Live data request failed",
+          priorPeriodSnapshot: null,
           snapshot: null,
-          status: "fallback"
+          status: "unavailable"
         });
       });
 
     return () => {
       controller.abort();
     };
-  }, [chartRange, effectiveCompareSymbol, symbol]);
+  }, [chartRange, compareEnabled, effectiveCompareSymbol, priorPeriodEnabled, symbol]);
 
-  const snapshot = liveData.snapshot ?? simulatedSnapshot;
-  const comparisonSnapshot = liveData.comparisonSnapshot ?? simulatedComparisonSnapshot;
-  const priorPeriodBars = useMemo(() => createPriorPeriodBars(symbol, chartRange), [chartRange, symbol]);
+  const snapshot = liveData.snapshot;
+  const comparisonSnapshot = liveData.comparisonSnapshot;
   const displayedBars = useMemo(
-    () => (chartView === "heikin-ashi" ? createHeikinAshiBars(snapshot.bars) : snapshot.bars),
-    [chartView, snapshot.bars]
+    () => (chartView === "heikin-ashi" ? createHeikinAshiBars(snapshot?.bars ?? []) : (snapshot?.bars ?? [])),
+    [chartView, snapshot?.bars]
   );
   const volumeProfileBins = useMemo(() => createVolumeProfileBins(displayedBars, 18), [displayedBars]);
-  const performanceSeries = useMemo(() => normalizePerformanceSeries(snapshot.bars), [snapshot.bars]);
+  const performanceSeries = useMemo(() => normalizePerformanceSeries(snapshot?.bars ?? []), [snapshot?.bars]);
   const comparisonSeries = useMemo(
-    () => createComparisonSeries(snapshot.bars, comparisonSnapshot.bars),
-    [comparisonSnapshot.bars, snapshot.bars]
+    () => (snapshot && comparisonSnapshot ? createComparisonSeries(snapshot.bars, comparisonSnapshot.bars) : []),
+    [comparisonSnapshot, snapshot]
   );
-  const priorPerformanceSeries = useMemo(() => normalizePerformanceSeries(priorPeriodBars), [priorPeriodBars]);
+  const priorPerformanceSeries = useMemo(
+    () => normalizePerformanceSeries(liveData.priorPeriodSnapshot?.bars ?? []),
+    [liveData.priorPeriodSnapshot]
+  );
   const performanceSpread = useMemo(() => calculatePerformanceSpread(comparisonSeries), [comparisonSeries]);
-  const lastBar = snapshot.bars[snapshot.bars.length - 1];
-  const firstBar = snapshot.bars[0];
-  const sessionChange = lastBar.close - firstBar.open;
-  const sessionChangePercent = (sessionChange / firstBar.open) * 100;
-  const range = snapshot.quote.dayHigh - snapshot.quote.dayLow;
+  const lastBar = snapshot?.bars.at(-1) ?? null;
+  const firstBar = snapshot?.bars[0] ?? null;
+  const sessionChange = firstBar && lastBar ? lastBar.close - firstBar.open : null;
+  const sessionChangePercent = firstBar && sessionChange !== null ? (sessionChange / firstBar.open) * 100 : null;
+  const range = snapshot ? snapshot.quote.dayHigh - snapshot.quote.dayLow : null;
   const selectedViewLabel = CHART_VIEWS.find((view) => view.value === chartView)?.label ?? "Candles";
+  const providerName = snapshot ? (providerCatalog[snapshot.provider]?.name ?? snapshot.provider) : "No provider data";
 
   function handleChartWheel(event: WheelEvent<HTMLDivElement>) {
     if (Math.abs(event.deltaY) < RANGE_WHEEL_DELTA_THRESHOLD) {
@@ -199,17 +218,21 @@ export function ChartWorkspace({ newsEvents = [], symbol }: { newsEvents?: NewsE
         </div>
         <div className="quote-strip" aria-label={`${symbol} quote snapshot`}>
           <span>Last</span>
-          <strong>{snapshot.quote.last.toFixed(2)}</strong>
-          <span className={sessionChange >= 0 ? "positive" : "negative"}>
-            {formatSigned(sessionChange)} ({formatSigned(sessionChangePercent)}%)
-          </span>
+          <strong>{snapshot ? snapshot.quote.last.toFixed(2) : "--"}</strong>
+          {sessionChange !== null && sessionChangePercent !== null ? (
+            <span className={sessionChange >= 0 ? "positive" : "negative"}>
+              {formatSigned(sessionChange)} ({formatSigned(sessionChangePercent)}%)
+            </span>
+          ) : (
+            <span>Provider unavailable</span>
+          )}
         </div>
       </header>
 
       <div className="data-source-strip" aria-label="Market data provider status">
         <div>
           <span>Feed</span>
-          <strong>{providerCatalog[snapshot.provider].name}</strong>
+          <strong>{providerName}</strong>
         </div>
         <div>
           <span>Mode</span>
@@ -224,7 +247,7 @@ export function ChartWorkspace({ newsEvents = [], symbol }: { newsEvents?: NewsE
               ? "Loading real bars"
               : liveData.status === "live"
                 ? "Real OHLCV, delayed"
-                : "Simulated fallback"}
+                : "Unavailable"}
           </strong>
         </div>
       </div>
@@ -281,42 +304,49 @@ export function ChartWorkspace({ newsEvents = [], symbol }: { newsEvents?: NewsE
       </div>
 
       <div className="chart-shell" onWheel={handleChartWheel}>
-        <EvidenceChart
-          bars={displayedBars}
-          chartRange={chartRange}
-          chartView={chartView}
-          compareEnabled={compareEnabled}
-          comparisonSeries={comparisonSeries}
-          effectiveCompareSymbol={effectiveCompareSymbol}
-          newsEvents={newsEvents}
-          performanceSeries={performanceSeries}
-          priorPeriodEnabled={priorPeriodEnabled}
-          priorPerformanceSeries={priorPerformanceSeries}
-          symbol={symbol}
-          volumeProfileBins={volumeProfileBins}
-        />
+        {snapshot && displayedBars.length > 0 ? (
+          <EvidenceChart
+            bars={displayedBars}
+            chartRange={chartRange}
+            chartView={chartView}
+            compareEnabled={compareEnabled && comparisonSnapshot !== null}
+            comparisonSeries={comparisonSeries}
+            effectiveCompareSymbol={effectiveCompareSymbol}
+            newsEvents={newsEvents}
+            performanceSeries={performanceSeries}
+            priorPeriodEnabled={priorPeriodEnabled && liveData.priorPeriodSnapshot !== null}
+            priorPerformanceSeries={priorPerformanceSeries}
+            symbol={symbol}
+            volumeProfileBins={volumeProfileBins}
+          />
+        ) : (
+          <div className="chart-unavailable-state" role="status">
+            <strong>{liveData.status === "loading" ? "Loading market bars" : "Market data unavailable"}</strong>
+            <span>{liveData.error ?? "Connect a market data provider to render real chart bars."}</span>
+          </div>
+        )}
       </div>
 
       <footer className="market-readout">
         <div>
           <span>Open</span>
-          <strong>{lastBar.open.toFixed(2)}</strong>
+          <strong>{lastBar ? lastBar.open.toFixed(2) : "--"}</strong>
         </div>
         <div>
           <span>High</span>
-          <strong>{snapshot.quote.dayHigh.toFixed(2)}</strong>
+          <strong>{snapshot ? snapshot.quote.dayHigh.toFixed(2) : "--"}</strong>
         </div>
         <div>
           <span>Low</span>
-          <strong>{snapshot.quote.dayLow.toFixed(2)}</strong>
+          <strong>{snapshot ? snapshot.quote.dayLow.toFixed(2) : "--"}</strong>
         </div>
         <div>
           <span>Range</span>
-          <strong>{range.toFixed(2)}</strong>
+          <strong>{range === null ? "--" : range.toFixed(2)}</strong>
         </div>
         <div>
           <span>{chartRange} Return</span>
-          <strong>{formatSigned(sessionChangePercent)}%</strong>
+          <strong>{sessionChangePercent === null ? "--" : `${formatSigned(sessionChangePercent)}%`}</strong>
         </div>
         <div>
           <span>Relative</span>
@@ -324,13 +354,11 @@ export function ChartWorkspace({ newsEvents = [], symbol }: { newsEvents?: NewsE
         </div>
         <div>
           <span>Bid / Ask</span>
-          <strong>
-            {snapshot.quote.bid.toFixed(2)} / {snapshot.quote.ask.toFixed(2)}
-          </strong>
+          <strong>{snapshot ? `${snapshot.quote.bid.toFixed(2)} / ${snapshot.quote.ask.toFixed(2)}` : "--"}</strong>
         </div>
         <div>
           <span>Volume</span>
-          <strong>{formatVolume(snapshot.quote.dayVolume)}</strong>
+          <strong>{snapshot ? formatVolume(snapshot.quote.dayVolume) : "--"}</strong>
         </div>
       </footer>
 
@@ -340,8 +368,10 @@ export function ChartWorkspace({ newsEvents = [], symbol }: { newsEvents?: NewsE
           <strong>Awaiting latest agent report</strong>
         </div>
         <p>
-          {liveData.status === "fallback" && liveData.error
-            ? `Live market data unavailable: ${liveData.error}. Simulated bars remain active.`
+          {liveData.status === "unavailable" && liveData.error
+            ? `Live market data unavailable: ${liveData.error}.`
+            : liveData.error
+              ? `Comparison unavailable: ${liveData.error}.`
             : "Run the analyst team from the cockpit to populate a decision, trace, and approval-gated paper order."}
         </p>
       </section>
@@ -376,11 +406,14 @@ export function ChartWorkspace({ newsEvents = [], symbol }: { newsEvents?: NewsE
 async function fetchMarketSnapshot(
   symbol: string,
   range: MarketRange,
-  signal: AbortSignal
+  signal: AbortSignal,
+  period: "current" | "previous" = "current"
 ): Promise<MarketDataSnapshot> {
-  const response = await fetch(`/api/market-data?symbol=${encodeURIComponent(symbol)}&range=${range}`, {
-    signal
-  });
+  const params = new URLSearchParams({ range, symbol });
+  if (period === "previous") {
+    params.set("period", "previous");
+  }
+  const response = await fetch(`/api/market-data?${params.toString()}`, { signal });
 
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as { error?: string } | null;

@@ -10,7 +10,8 @@ const ROLE_LABELS: Record<ProviderRole, string> = {
   llm: "LLM",
   "market-data": "Market",
   observability: "Observability",
-  portfolio: "Portfolio"
+  portfolio: "Portfolio",
+  safety: "Safety"
 };
 
 export function ProviderPanel() {
