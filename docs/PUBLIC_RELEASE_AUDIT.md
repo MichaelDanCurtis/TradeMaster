@@ -39,4 +39,5 @@ research tool without multi-user authentication. Do not expose its API or web se
 to public networks or an untrusted LAN. No live trading, provider spending, order
 submission, or investment performance was validated by these tests. Optional model
 weights and services require separate installation, license review and validation.
-Existing private runtime environments were not upgraded or restarted by this review.
+The existing broker-connected Python environment and worker processes were not
+upgraded or restarted by this review.
