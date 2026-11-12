@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { apiBase } from "@/lib/api";
 import {
   age,
@@ -19,6 +25,15 @@ import {
   type PulseProvider,
   type PulseQuote,
 } from "@/lib/market-pulse";
+import {
+  DeskControls,
+  DeskDropZones,
+  DeskResize,
+  usePulseDesk,
+} from "@/components/PulseDeskControls";
+import { InstrumentIdentity, PulseCompany } from "@/components/PulseCompany";
+import { PulseChart } from "@/components/PulseChart";
+import type { CompanyProfile, SecurityIdentity } from "@/lib/pulse-workbench";
 import "./MarketPulse.css";
 
 async function request<T>(
@@ -69,6 +84,14 @@ export function MarketPulse({
   onOpenSettings: () => void;
   onAddToWatchlist?: (symbol: string) => void;
 }) {
+  const { layout, setLayout } = usePulseDesk();
+  const [dragging, setDragging] = useState(false);
+  const [identities, setIdentities] = useState<
+    Record<string, SecurityIdentity>
+  >({});
+  const [company, setCompany] = useState<CompanyProfile | null>(null);
+  const [companyLoading, setCompanyLoading] = useState(false);
+  const [companyError, setCompanyError] = useState("");
   const [board, setBoard] = useState<PulseBoard | null>(null);
   const [provider, setProvider] = useState<PulseProvider | null>(null);
   const [analysis, setAnalysis] = useState<PulseAnalysis | null>(null);
@@ -225,6 +248,65 @@ export function MarketPulse({
   const movers = board ? [...board.gainers, ...board.losers] : [];
   const symbol = selected ?? movers[0]?.symbol ?? null;
   const mover = movers.find((row) => row.symbol === symbol);
+  const companyForSymbol = company?.symbol === symbol ? company : null;
+  const identityKey = board
+    ? [
+        ...new Set(
+          [
+            ...board.gainers.slice(0, expanded ? 25 : 5),
+            ...board.losers.slice(0, expanded ? 25 : 5),
+          ]
+            .map((row) => row.symbol)
+            .concat(symbol ? [symbol] : []),
+        ),
+      ]
+        .sort()
+        .join(",")
+    : (symbol ?? "");
+  useEffect(() => {
+    if (!identityKey) return;
+    const controller = new AbortController();
+    void request<{ items: SecurityIdentity[] }>(
+      `/api/market-pulse/identities?symbols=${encodeURIComponent(identityKey)}`,
+      controller.signal,
+    )
+      .then((value) => {
+        if (!controller.signal.aborted)
+          setIdentities((current) => ({
+            ...current,
+            ...Object.fromEntries(
+              value.items.map((item) => [item.symbol, item]),
+            ),
+          }));
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [identityKey]);
+  useEffect(() => {
+    if (!symbol) return;
+    const controller = new AbortController();
+    setCompanyLoading(true);
+    setCompanyError("");
+    void request<CompanyProfile>(
+      `/api/market-pulse/company/${encodeURIComponent(symbol)}`,
+      controller.signal,
+    )
+      .then((value) => {
+        if (!controller.signal.aborted && value.symbol === symbol) {
+          setCompany(value);
+          setCompanyLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setCompanyLoading(false);
+          setCompanyError(
+            "Company details could not be loaded. Select the stock again to retry.",
+          );
+        }
+      });
+    return () => controller.abort();
+  }, [symbol]);
   const explanation =
     analysis?.state === "completed"
       ? analysis.receipt?.proposal?.explanations.find(
@@ -327,7 +409,7 @@ export function MarketPulse({
             type="button"
             className="pulse-benchmark"
             key={row.symbol}
-            onClick={() => onOpenResearch(row.symbol)}
+            onClick={() => setSelected(row.symbol)}
             title={`${row.label} ETF proxy · ${dateTime(row.price_at)}`}
           >
             <span className="pulse-tile-heading">
@@ -352,7 +434,18 @@ export function MarketPulse({
           </p>
         )}
       </div>
-      <div className="pulse-body">
+      <div
+        className={`pulse-body pulse-dock-${layout.dock}`}
+        style={{ "--pulse-desk-width": `${layout.width}px` } as CSSProperties}
+      >
+        {dragging && (
+          <DeskDropZones
+            onDrop={(dock) => {
+              setLayout({ ...layout, dock });
+              setDragging(false);
+            }}
+          />
+        )}
         <div className="pulse-market-column">
           <section
             className="pulse-panel pulse-sector-panel"
@@ -371,7 +464,7 @@ export function MarketPulse({
                 <button
                   type="button"
                   key={row.symbol}
-                  onClick={() => onOpenResearch(row.symbol)}
+                  onClick={() => setSelected(row.symbol)}
                   className={`pulse-sector ${tone(row.change_pct)}`}
                   style={{
                     backgroundColor:
@@ -403,6 +496,7 @@ export function MarketPulse({
             </div>
             <div className="pulse-movers">
               <MoversTable
+                identities={identities}
                 title="Gainers"
                 rows={(board?.gainers ?? []).slice(0, expanded ? 25 : 5)}
                 symbol={symbol}
@@ -412,6 +506,7 @@ export function MarketPulse({
                 matched={matched}
               />
               <MoversTable
+                identities={identities}
                 title="Losers"
                 rows={(board?.losers ?? []).slice(0, expanded ? 25 : 5)}
                 symbol={symbol}
@@ -454,7 +549,7 @@ export function MarketPulse({
                 <button
                   type="button"
                   key={row.symbol}
-                  onClick={() => onOpenResearch(row.symbol)}
+                  onClick={() => setSelected(row.symbol)}
                   title={`Price: ${dateTime(row.price_at)}`}
                 >
                   <b>{row.symbol}</b>
@@ -485,154 +580,203 @@ export function MarketPulse({
           className="pulse-panel pulse-intelligence"
           aria-label="Why stocks are moving"
         >
-          <div className="pulse-intelligence-header">
-            <span className="pulse-eyebrow">CATALYST DESK</span>
-            <h2>
-              Behind the move<span>✦</span>
-            </h2>
-            <p>Possible causes, grounded in dated news.</p>
-          </div>
-          <div className="pulse-ai-action">
-            <button
-              type="button"
-              className="pulse-primary"
-              disabled={!!disabledReason || starting || running}
-              title={disabledReason}
-              onClick={() => void explain()}
-            >
-              {starting
-                ? "Starting…"
-                : running
-                  ? "Reading the evidence…"
-                  : `✦ Explain top ${count || 10}`}
-            </button>
-            <span>
-              One Codex assessment · top 5 gainers + top 5 losers
-              <br />
-              Automatic refresh updates prices only. News uses{" "}
-              {board?.news_provider === "alpaca" ? "Alpaca" : "Finnhub"}.
-            </span>
-            {!provider?.available && (
-              <button
-                type="button"
-                className="pulse-text-button"
-                onClick={onOpenSettings}
-              >
-                {provider
-                  ? "Connect Codex in Settings →"
-                  : "Checking Codex connection…"}
-              </button>
+          <DeskResize layout={layout} onChange={setLayout} />
+          <DeskControls
+            layout={layout}
+            onChange={setLayout}
+            onDrag={setDragging}
+          />
+          {symbol && (
+            <InstrumentIdentity
+              symbol={symbol}
+              identity={identities[symbol]}
+              company={companyForSymbol}
+              loading={companyLoading}
+            />
+          )}
+          <div
+            id="pulse-detail-panel"
+            role="tabpanel"
+            tabIndex={0}
+            aria-labelledby={`pulse-tab-${layout.tab}`}
+          >
+            {layout.tab === "catalyst" ? (
+              <>
+                <div className="pulse-intelligence-header">
+                  <span className="pulse-eyebrow">CATALYST DESK</span>
+                  <h2>
+                    Behind the move<span>✦</span>
+                  </h2>
+                  <p>Possible causes, grounded in dated news.</p>
+                </div>
+                <div className="pulse-ai-action">
+                  <button
+                    type="button"
+                    className="pulse-primary"
+                    disabled={!!disabledReason || starting || running}
+                    title={disabledReason}
+                    onClick={() => void explain()}
+                  >
+                    {starting
+                      ? "Starting…"
+                      : running
+                        ? "Reading the evidence…"
+                        : `✦ Explain top ${count || 10}`}
+                  </button>
+                  <span>
+                    One Codex assessment · top 5 gainers + top 5 losers
+                    <br />
+                    Automatic refresh updates prices only. News uses{" "}
+                    {board?.news_provider === "alpaca" ? "Alpaca" : "Finnhub"}.
+                  </span>
+                  {!provider?.available && (
+                    <button
+                      type="button"
+                      className="pulse-text-button"
+                      onClick={onOpenSettings}
+                    >
+                      {provider
+                        ? "Connect Codex in Settings →"
+                        : "Checking Codex connection…"}
+                    </button>
+                  )}
+                  {provider?.available && (
+                    <span>
+                      Model: {provider.model_id} · uses subscription allowance
+                    </span>
+                  )}
+                  {provider?.available && !rankingReady(board, now) && (
+                    <span>Waiting for valid, dated mover rankings.</span>
+                  )}
+                  {aiError && (
+                    <p className="pulse-alert" role="alert">
+                      {aiError}
+                    </p>
+                  )}
+                </div>
+                {analysis && (
+                  <div className="pulse-analysis-status" role="status">
+                    <b>
+                      {running
+                        ? "Assessment in progress"
+                        : analysis.state === "completed"
+                          ? "Assessment saved"
+                          : analysis.state.replaceAll("_", " ")}
+                    </b>
+                    <span>
+                      {matched
+                        ? "Matches this capture"
+                        : "Earlier capture — prices may have changed"}{" "}
+                      · {dateTime(analysis.packet?.collected_at)}
+                    </span>
+                    {analysis.state !== "completed" && (
+                      <p>{analysis.message}</p>
+                    )}
+                  </div>
+                )}
+                {symbol ? (
+                  <div className="pulse-detail">
+                    <div className="pulse-detail-symbol">
+                      <h3>{symbol}</h3>
+                      {mover && (
+                        <div>
+                          <strong className={tone(mover.change_pct)}>
+                            {pct(mover.change_pct)}
+                          </strong>
+                          <span>${price(mover.price)} · ranked price</span>
+                        </div>
+                      )}
+                    </div>
+                    {mover && (
+                      <QuoteMetrics
+                        row={mover.snapshot}
+                        feed={board?.feed ?? ""}
+                        now={now}
+                      />
+                    )}
+                    {explanation && analysis ? (
+                      <Explanation
+                        item={explanation}
+                        analysis={analysis}
+                        symbol={symbol}
+                        matched={matched}
+                      />
+                    ) : (
+                      <div className="pulse-unexplained">
+                        <span className="pulse-outline-symbol">?</span>
+                        <h4>
+                          {running
+                            ? "Checking news and alternative explanations"
+                            : "A price move is only half the story."}
+                        </h4>
+                        <p>
+                          {analysis?.state === "insufficient_evidence"
+                            ? "No usable company news was returned. No AI call was made and no cause has been assigned."
+                            : analysis?.state === "completed"
+                              ? "This ticker was not explained in the saved assessment. Refresh and explain the current top movers to investigate."
+                              : "Ask Codex to review the top movers together. It will connect relevant headlines, identify uncertainty, and show the evidence behind each explanation."}
+                        </p>
+                      </div>
+                    )}
+                    <div className="pulse-detail-actions">
+                      <button
+                        type="button"
+                        onClick={() => onOpenResearch(symbol)}
+                      >
+                        Research {symbol} ↗
+                      </button>
+                      {onAddToWatchlist && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onAddToWatchlist(symbol);
+                            setWatched(symbol);
+                          }}
+                        >
+                          {watched === symbol
+                            ? "✓ In watchlist"
+                            : "+ Watchlist"}
+                        </button>
+                      )}
+                    </div>
+                    {analysis?.packet?.gaps
+                      .filter((gap) => gap.startsWith(symbol + ":"))
+                      .map((gap) => (
+                        <p className="pulse-footnote" key={gap}>
+                          {gap}
+                        </p>
+                      ))}
+                  </div>
+                ) : (
+                  <p className="pulse-placeholder">
+                    The first available mover will appear here.
+                  </p>
+                )}
+                <p className="pulse-caveat">
+                  News timing can suggest a connection; it does not prove
+                  causation. Only linked headlines and summaries are read. This
+                  view does not place trades.
+                </p>
+              </>
+            ) : symbol ? (
+              layout.tab === "charts" ? (
+                <PulseChart symbol={symbol} now={now} />
+              ) : (
+                <PulseCompany
+                  company={companyForSymbol}
+                  loading={companyLoading}
+                  identity={identities[symbol]}
+                />
+              )
+            ) : (
+              <p className="pulse-placeholder">Select a stock to inspect it.</p>
             )}
-            {provider?.available && (
-              <span>
-                Model: {provider.model_id} · uses subscription allowance
-              </span>
-            )}
-            {provider?.available && !rankingReady(board, now) && (
-              <span>Waiting for valid, dated mover rankings.</span>
-            )}
-            {aiError && (
-              <p className="pulse-alert" role="alert">
-                {aiError}
+            {companyError && (
+              <p className="pulse-footnote" role="status">
+                {companyError}
               </p>
             )}
           </div>
-          {analysis && (
-            <div className="pulse-analysis-status" role="status">
-              <b>
-                {running
-                  ? "Assessment in progress"
-                  : analysis.state === "completed"
-                    ? "Assessment saved"
-                    : analysis.state.replaceAll("_", " ")}
-              </b>
-              <span>
-                {matched
-                  ? "Matches this capture"
-                  : "Earlier capture — prices may have changed"}{" "}
-                · {dateTime(analysis.packet?.collected_at)}
-              </span>
-              {analysis.state !== "completed" && <p>{analysis.message}</p>}
-            </div>
-          )}
-          {symbol ? (
-            <div className="pulse-detail">
-              <div className="pulse-detail-symbol">
-                <h3>{symbol}</h3>
-                {mover && (
-                  <div>
-                    <strong className={tone(mover.change_pct)}>
-                      {pct(mover.change_pct)}
-                    </strong>
-                    <span>${price(mover.price)} · ranked price</span>
-                  </div>
-                )}
-              </div>
-              {mover && (
-                <QuoteMetrics
-                  row={mover.snapshot}
-                  feed={board?.feed ?? ""}
-                  now={now}
-                />
-              )}
-              {explanation && analysis ? (
-                <Explanation
-                  item={explanation}
-                  analysis={analysis}
-                  symbol={symbol}
-                  matched={matched}
-                />
-              ) : (
-                <div className="pulse-unexplained">
-                  <span className="pulse-outline-symbol">?</span>
-                  <h4>
-                    {running
-                      ? "Checking news and alternative explanations"
-                      : "A price move is only half the story."}
-                  </h4>
-                  <p>
-                    {analysis?.state === "insufficient_evidence"
-                      ? "No usable company news was returned. No AI call was made and no cause has been assigned."
-                      : analysis?.state === "completed"
-                        ? "This ticker was not explained in the saved assessment. Refresh and explain the current top movers to investigate."
-                        : "Ask Codex to review the top movers together. It will connect relevant headlines, identify uncertainty, and show the evidence behind each explanation."}
-                  </p>
-                </div>
-              )}
-              <div className="pulse-detail-actions">
-                <button type="button" onClick={() => onOpenResearch(symbol)}>
-                  Research {symbol} ↗
-                </button>
-                {onAddToWatchlist && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onAddToWatchlist(symbol);
-                      setWatched(symbol);
-                    }}
-                  >
-                    {watched === symbol ? "✓ In watchlist" : "+ Watchlist"}
-                  </button>
-                )}
-              </div>
-              {analysis?.packet?.gaps
-                .filter((gap) => gap.startsWith(symbol + ":"))
-                .map((gap) => (
-                  <p className="pulse-footnote" key={gap}>
-                    {gap}
-                  </p>
-                ))}
-            </div>
-          ) : (
-            <p className="pulse-placeholder">
-              The first available mover will appear here.
-            </p>
-          )}
-          <p className="pulse-caveat">
-            News timing can suggest a connection; it does not prove causation.
-            Only linked headlines and summaries are read. This view does not
-            place trades.
-          </p>
         </aside>
       </div>
     </section>
@@ -647,7 +791,9 @@ function MoversTable({
   now,
   analysis,
   matched,
+  identities,
 }: {
+  identities: Record<string, SecurityIdentity>;
   title: string;
   rows: PulseMover[];
   symbol: string | null;
@@ -702,6 +848,14 @@ function MoversTable({
                     >
                       <span className="pulse-rank">{i + 1}</span>
                       {row.symbol}
+                      {identities[row.symbol]?.name && (
+                        <small
+                          className="pulse-row-company"
+                          title={identities[row.symbol].name!}
+                        >
+                          {identities[row.symbol].name}
+                        </small>
+                      )}
                     </button>
                   </th>
                   <td title={dateTime(row.as_of)}>{price(row.price)}</td>

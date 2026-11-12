@@ -744,3 +744,407 @@
     font-size: 18px;
   }
 }
+
+/* Dockable selected-security workbench. Position changes preserve React state. */
+.pulse-body {
+  position: relative;
+}
+.pulse-body.pulse-dock-right {
+  grid-template-columns: minmax(0, 1fr) var(--pulse-desk-width, 420px);
+}
+.pulse-body.pulse-dock-left {
+  grid-template-columns: var(--pulse-desk-width, 420px) minmax(0, 1fr);
+}
+.pulse-dock-left .pulse-market-column {
+  grid-column: 2;
+  grid-row: 1;
+}
+.pulse-dock-left .pulse-intelligence {
+  grid-column: 1;
+  grid-row: 1;
+}
+.pulse-body.pulse-dock-bottom {
+  grid-template-columns: minmax(0, 1fr);
+}
+.pulse-dock-bottom .pulse-intelligence {
+  grid-column: 1;
+  grid-row: 2;
+}
+.pulse-intelligence {
+  position: relative;
+  overflow: visible;
+}
+.pulse-desk-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--panel-border);
+}
+.pulse .pulse-desk-controls button {
+  padding: 4px 5px;
+  font-size: 10px;
+  border: 0;
+}
+.pulse .pulse-drag-handle {
+  cursor: grab;
+  font-size: 18px;
+  color: #a4b5d8;
+}
+.pulse-drag-handle span {
+  font-size: 10px;
+  vertical-align: middle;
+}
+.pulse-desk-controls label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--pulse-muted);
+  font-size: 10px;
+}
+.pulse select {
+  background: #182031;
+  color: #c7d3ea;
+  border: 1px solid #3b4963;
+  padding: 5px 6px;
+  border-radius: 4px;
+  font: inherit;
+}
+.pulse-detail-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 8px 10px 0;
+  border-bottom: 1px solid var(--panel-border);
+}
+.pulse .pulse-detail-tabs button {
+  flex: 1;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 10px 5px;
+  font-size: 10px;
+  color: #9cabca;
+}
+.pulse .pulse-detail-tabs button[aria-selected="true"] {
+  color: #d7e3ff;
+  border-color: #759cff;
+  background: rgba(90, 130, 220, 0.08);
+}
+.pulse-instrument-identity {
+  padding: 17px 20px;
+  border-bottom: 1px solid var(--panel-border);
+}
+.pulse-instrument-identity h3 {
+  font-size: 17px;
+  line-height: 1.4;
+  margin: 8px 0 5px;
+  font-weight: 500;
+  color: #e2e8f3;
+}
+.pulse-instrument-identity > span:not(.pulse-eyebrow) {
+  color: var(--pulse-muted);
+  font-size: 10px;
+}
+.pulse-instrument-identity p {
+  font-size: 11px;
+  line-height: 1.65;
+  margin: 10px 0 0;
+  color: #b3bfd4;
+}
+.pulse-instrument-identity .pulse-owner-preview {
+  padding-top: 10px;
+  border-top: 1px solid var(--panel-border);
+  font-size: 10px;
+}
+.pulse-owner-preview strong {
+  font-weight: 500;
+  color: #d4def1;
+}
+.pulse-row-company {
+  display: block;
+  max-width: 150px;
+  font:
+    9px/1.5 var(--font-sans),
+    sans-serif;
+  color: var(--pulse-muted);
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 4px;
+}
+.pulse-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -11px;
+  width: 12px;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pulse-resize span {
+  width: 3px;
+  height: 48px;
+  border-radius: 3px;
+  background: #435371;
+}
+.pulse-resize:hover span,
+.pulse-resize:focus-visible span {
+  background: #88aaff;
+}
+.pulse-resize:focus-visible {
+  outline: 2px solid #88aaff;
+}
+.pulse-dock-left .pulse-resize {
+  left: auto;
+  right: -11px;
+}
+.pulse-dropzones {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: minmax(180px, 1fr) 180px;
+  gap: 20px;
+  padding: 10px;
+  background: rgba(9, 14, 25, 0.6);
+}
+.pulse-dropzones > div {
+  display: grid;
+  place-items: center;
+  color: #d1ddfa;
+  font-size: 18px;
+  border: 2px dashed #7b9de3;
+  border-radius: 10px;
+  background: rgba(44, 84, 156, 0.3);
+}
+.pulse-dropzones > div:hover {
+  background: rgba(60, 110, 210, 0.5);
+}
+.pulse-drop-bottom {
+  grid-column: 1/-1;
+}
+.pulse-company-tab,
+.pulse-chart-tab {
+  padding: 18px 20px;
+  min-width: 0;
+}
+.pulse-company-tab h4 {
+  margin: 7px 0 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #dbe5f7;
+}
+.pulse-company-tab h4 > span {
+  color: var(--pulse-muted);
+  font-size: 10px;
+}
+.pulse-company-tab h5 {
+  margin: 20px 0 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #bfcde6;
+}
+.pulse-company-facts {
+  display: grid;
+  gap: 13px;
+  margin: 0;
+}
+.pulse-company-facts dt {
+  font-size: 10px;
+  color: var(--pulse-muted);
+  margin-bottom: 5px;
+}
+.pulse-company-facts dd {
+  font-size: 12px;
+  margin: 0;
+  line-height: 1.5;
+}
+.pulse-company-tab .pulse-footnote {
+  padding: 11px 0;
+}
+.pulse-company-links {
+  display: flex;
+  gap: 15px;
+  padding: 5px 0 22px;
+}
+.pulse-company-links a,
+.pulse-source-link {
+  color: #a8c2ff;
+  text-decoration: none;
+  font-size: 11px;
+}
+.pulse-ownership-totals {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.pulse-ownership-totals > div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+}
+.pulse-ownership-totals span {
+  color: var(--pulse-muted);
+  font-size: 10px;
+}
+.pulse-ownership-totals strong {
+  font:
+    18px var(--font-mono),
+    monospace;
+}
+.pulse .pulse-holders-table th,
+.pulse .pulse-holders-table td {
+  padding: 9px 6px;
+  font-size: 10px;
+}
+.pulse .pulse-holders-table tbody th {
+  white-space: normal;
+  font-family: inherit;
+  line-height: 1.5;
+  font-weight: 400;
+  max-width: 220px;
+}
+.pulse-holders-table small {
+  display: block;
+  margin-top: 4px;
+  color: var(--pulse-muted);
+}
+.pulse-insiders {
+  display: grid;
+  gap: 9px;
+  margin-bottom: 15px;
+}
+.pulse-insiders > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.025);
+  border-radius: 4px;
+}
+.pulse-insiders strong {
+  font-size: 11px;
+  font-weight: 500;
+}
+.pulse-insiders span {
+  color: var(--pulse-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.pulse-company-metrics {
+  margin-bottom: 15px;
+}
+.pulse-chart-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.pulse-chart-controls > div {
+  display: flex;
+  gap: 3px;
+}
+.pulse .pulse-chart-controls button,
+.pulse-chart-controls select {
+  font-size: 10px;
+  padding: 6px;
+}
+.pulse-chart-controls button[aria-pressed="true"] {
+  background: #28416d;
+  border-color: #6587c2;
+}
+.pulse-chart-summary {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  margin-bottom: 15px;
+}
+.pulse-chart-summary strong {
+  font:
+    23px var(--font-mono),
+    monospace;
+}
+.pulse-chart-summary > span {
+  font-size: 10px;
+}
+.pulse-chart-summary > span:last-child {
+  color: var(--pulse-muted);
+}
+.pulse-chart-tab .evidence-chart-frame {
+  height: 360px;
+  min-height: 0;
+  width: 100%;
+}
+.pulse-chart-tab .evidence-chart {
+  height: 100%;
+  min-height: 0;
+}
+.pulse-chart-empty {
+  min-height: 300px;
+  display: grid;
+  place-items: center;
+  color: var(--pulse-muted);
+  text-align: center;
+}
+.pulse-dock-bottom .pulse-company-tab {
+  max-width: 1100px;
+  margin: auto;
+}
+.pulse-dock-bottom .pulse-company-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 1000px) {
+  .pulse-body.pulse-dock-left,
+  .pulse-body.pulse-dock-right {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pulse-body .pulse-market-column {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .pulse-body .pulse-intelligence {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .pulse-resize,
+  .pulse-drag-handle {
+    display: none;
+  }
+}
+@media (max-width: 480px) {
+  .pulse-company-tab,
+  .pulse-chart-tab,
+  .pulse-instrument-identity {
+    padding: 14px;
+  }
+  .pulse-dock-bottom .pulse-company-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+  .pulse-row-company {
+    max-width: 95px;
+  }
+  .pulse-detail-tabs {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+}
+
+@media (min-width: 1001px) {
+  .pulse #pulse-detail-panel {
+    max-height: 650px;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    overscroll-behavior-y: contain;
+  }
+}

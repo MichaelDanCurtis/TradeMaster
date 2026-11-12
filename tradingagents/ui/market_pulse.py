@@ -360,6 +360,8 @@ def validate_movers(completion, packet, binding):
 def create_pulse_router(sessions, market_factory):
     router = APIRouter(prefix='/api/market-pulse', tags=['market-pulse'])
     service = MarketPulseService(sessions, market_factory)
+    from tradingagents.ui.market_identity import install_instrument_routes
+    install_instrument_routes(router, market_factory)
 
     @router.get('/snapshot')
     def board(refresh: bool = False):

@@ -369,6 +369,13 @@ function formatTickMark(time: string, range: MarketRange): string {
     return "";
   }
 
+  if (range === "1D" || range === "5D") {
+    return date.toLocaleString("en-US", {
+      ...(range === "5D" ? { month: "short", day: "numeric" } as const : {}),
+      hour: "2-digit", minute: "2-digit", hour12: false
+    });
+  }
+
   if (range === "1M" || range === "YTD") {
     return date.toLocaleDateString("en-US", { day: "numeric", month: "short" });
   }

@@ -33,6 +33,39 @@ capture and provider configuration are deduplicated. Explanations survive reload
 After prices refresh, earlier assessments are labeled as earlier captures and their
 catalyst badges are not applied to the new ranking.
 
+## Selected-stock workbench
+
+Click a mover, benchmark, sector ETF or volume leader to update the detail desk.
+The selected security stays visible while switching between **Catalyst Desk**,
+**Charts**, and **Company & Figures**. Company identity and ownership do not depend
+on an AI explanation being available.
+
+- **Identity:** exact-symbol names and security types from Alpaca's read-only
+  paper asset directory, with company names beneath mover tickers.
+- **Company & Figures:** a public Yahoo Finance profile, business description,
+  financial figures, up to ten reported institutional positions and ten reported
+  insider/beneficial-owner positions. Holdings include report dates; direct and
+  indirect positions remain separate. These records may be old, incomplete or
+  overlapping. A parent is displayed only when explicitly supplied by the source;
+  otherwise it says the parent is not established. Fund sponsorship and management
+  roles are not treated as proof of ownership or control. Warrant symbols are not
+  silently replaced with common-share symbols.
+- **Charts:** configured-feed Alpaca bars in 1D, 5D, 1M and 1Y ranges, with candle
+  and line views, volume, zoom and pan. 1D uses the latest available trading
+  session. Bars are unadjusted and may show stock-split jumps. Intraday axis labels
+  use the browser's local time. Missing data stays unavailable.
+- **Layout:** use the position menu or drag the Detail desk handle to dock left,
+  right or below. Drag the outside edge to resize, or focus it and use arrow keys.
+  Position, width and selected tab are saved in this browser. Reset restores the
+  default. Narrow screens stack the desk below the board.
+
+The read-only routes are `/api/market-pulse/identities`,
+`/api/market-pulse/company/{symbol}` and `/api/market-pulse/chart/{symbol}`.
+Successful lookups are cached for 24 hours, six hours and 60 seconds respectively;
+failed lookups are cached for 60 seconds. Public company requests run in a child
+process with a 25-second deadline and without broker credentials. Neither tab
+switching nor selecting a stock starts an AI assessment.
+
 ## What the numbers mean
 
 - **Movers and volume rankings:** Alpaca's SIP screener, independently of the
@@ -84,7 +117,7 @@ provider timeouts have an unknown usage outcome and are not automatically retrie
 ## Verification
 
 ```sh
-uv run --frozen --extra dev pytest tests/ui/test_market_pulse.py tests/ui/test_market_data.py tests/ui/test_explorer_briefs.py
+uv run --frozen --extra dev pytest tests/ui/test_market_identity.py tests/ui/test_market_pulse.py tests/ui/test_market_data.py tests/ui/test_explorer_briefs.py
 npm --workspace apps/web test
 npm run web:build
 ```
@@ -110,3 +143,9 @@ boundary. An opt-in runtime check starts no model turn:
 ```sh
 TRADEMASTER_CODEX_SMOKE=1 uv run pytest tests/research/test_codex_research.py -k installed_codex
 ```
+
+The selected-stock workbench was also checked against real Alpaca bars and asset
+names and Yahoo company/ownership records. Browser checks covered exact warrant
+identity, holder dates, missing parent data, chart ranges, stock switching, all
+three dock positions, pointer dragging, keyboard resizing, saved preferences, reset
+and narrow screens, with no AI requests triggered.

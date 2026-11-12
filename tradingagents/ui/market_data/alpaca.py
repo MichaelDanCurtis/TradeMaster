@@ -139,6 +139,19 @@ class AlpacaMarketDataProvider:
         response.raise_for_status()
         return response.json()
 
+    def asset_metadata(self, symbol: str) -> dict[str, Any]:
+        """Read a security's name from the paper asset directory; no account/order writes."""
+        import re
+        symbol = symbol.strip().upper()
+        if not re.fullmatch(r"[A-Z][A-Z0-9.\-]{0,11}", symbol):
+            raise ValueError("Invalid security symbol")
+        response = self._http_client.get(
+            f"https://paper-api.alpaca.markets/v2/assets/{symbol}", headers=self._headers(),
+            params={}, timeout=self._timeout,
+        )
+        response.raise_for_status()
+        return response.json()
+
     def company_news(self, symbol: str, *, start: datetime, end: datetime) -> list[dict[str, Any]]:
         """One bounded news page using the existing account; never fetch article bodies."""
         response = self._http_client.get(
