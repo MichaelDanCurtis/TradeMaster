@@ -1,0 +1,811 @@
+/* Market workstation: bounded panes, compact rows, persistent linked chart. */
+.pulse.pulse-terminal {
+  height: calc(100dvh - 92px);
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: #101115;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  scrollbar-gutter: auto;
+  --panel-border: #2b2e35;
+  --pulse-muted: #9399a5;
+}
+.pulse-terminal button,
+.pulse-terminal select,
+.pulse-terminal input {
+  border-radius: 2px;
+}
+.pulse-terminal button {
+  padding: 4px 7px;
+  transition: none;
+}
+.pulse-terminal .pulse-toolbar {
+  flex: 0 0 34px;
+  padding: 0 10px;
+  margin: 0;
+  border-bottom: 1px solid var(--panel-border);
+}
+.pulse-terminal .pulse-toolbar > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.pulse-terminal .pulse-toolbar h1 {
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: 0;
+  margin: 0;
+}
+.pulse-terminal .pulse-toolbar .pulse-eyebrow {
+  font-size: 9px;
+  letter-spacing: 1px;
+}
+.pulse-terminal .pulse-dot {
+  height: 5px;
+  width: 5px;
+  margin-left: 7px;
+}
+.pulse-terminal .pulse-controls {
+  gap: 12px;
+  font-size: 10px;
+}
+.pulse-terminal .pulse-benchmarks {
+  display: flex;
+  flex: 0 0 46px;
+  border: 0;
+  border-bottom: 1px solid var(--panel-border);
+  border-radius: 0;
+  margin: 0;
+  overflow-x: auto;
+}
+.pulse-terminal .pulse-benchmark {
+  flex: 1;
+  min-width: 130px;
+  padding: 5px 10px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 8px;
+  border: 0;
+  border-right: 1px solid var(--panel-border);
+  border-radius: 0;
+  background: #15171d;
+  text-align: left;
+}
+.pulse-terminal .pulse-tile-heading {
+  gap: 8px;
+  grid-column: 1 / -1;
+  font-size: 10px;
+}
+.pulse-terminal .pulse-tile-heading > span {
+  font-size: 9px;
+}
+.pulse-terminal .pulse-tile-price {
+  grid-column: 1 / -1;
+  display: flex;
+  font-size: 14px;
+  line-height: 16px;
+  font-family: ui-monospace, monospace;
+}
+.pulse-terminal .pulse-tile-price b {
+  font-size: 11px;
+}
+.pulse-terminal .pulse-tile-time {
+  display: none;
+}
+.pulse-terminal .pulse-sector-panel {
+  display: flex;
+  flex: 0 0 28px;
+  align-items: center;
+  border: 0;
+  border-bottom: 1px solid var(--panel-border);
+  background: #111217;
+  overflow-x: auto;
+}
+.pulse-terminal .pulse-sector-panel .pulse-panel-heading {
+  flex: 0 0 110px;
+  padding: 0 8px;
+  display: block;
+  border: 0;
+}
+.pulse-terminal .pulse-sector-panel h2 {
+  font-size: 10px;
+  margin: 0;
+}
+.pulse-terminal .pulse-sector-panel h2 span {
+  display: none;
+}
+.pulse-terminal .pulse-sector-panel .pulse-panel-heading > span {
+  font-size: 9px;
+  color: var(--pulse-muted);
+}
+.pulse-terminal .pulse-sector-grid {
+  display: flex;
+  gap: 1px;
+  flex: 1;
+  padding: 0;
+}
+.pulse-terminal .pulse-sector {
+  min-width: 89px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 7px;
+  border: 0;
+  border-radius: 0;
+  gap: 6px;
+}
+.pulse-terminal .pulse-sector b,
+.pulse-terminal .pulse-sector strong {
+  font-size: 10px;
+  font-weight: 500;
+}
+.pulse-terminal .pulse-sector span {
+  display: none;
+}
+.pulse-terminal .pulse-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: 3px;
+  padding: 3px;
+  margin: 0;
+  overflow: hidden;
+}
+.pulse-terminal .pulse-body.pulse-dock-bottom {
+  grid-template-columns:
+    minmax(320px, min(var(--pulse-desk-width), 48%))
+    minmax(0, 1fr);
+  grid-template-rows: minmax(0, 58fr) minmax(0, 42fr);
+}
+.pulse-terminal .pulse-dock-bottom .pulse-market-column {
+  grid-column: 1;
+  grid-row: 1;
+}
+.pulse-terminal .pulse-dock-bottom .pulse-intelligence {
+  grid-column: 1;
+  grid-row: 2;
+}
+.pulse-terminal .pulse-dock-bottom .pulse-main-chart {
+  grid-column: 2;
+  grid-row: 1 / 3;
+}
+.pulse-terminal .pulse-body.pulse-dock-right {
+  grid-template-columns: minmax(310px, 1fr) minmax(350px, 1.6fr) minmax(
+      320px,
+      min(var(--pulse-desk-width), 32%)
+    );
+  grid-template-rows: minmax(0, 1fr);
+}
+.pulse-terminal .pulse-dock-right .pulse-market-column {
+  grid-column: 1;
+  grid-row: 1;
+}
+.pulse-terminal .pulse-dock-right .pulse-main-chart {
+  grid-column: 2;
+  grid-row: 1;
+}
+.pulse-terminal .pulse-dock-right .pulse-intelligence {
+  grid-column: 3;
+  grid-row: 1;
+}
+.pulse-terminal .pulse-body.pulse-dock-left {
+  grid-template-columns:
+    minmax(320px, min(var(--pulse-desk-width), 32%))
+    minmax(310px, 1fr) minmax(350px, 1.6fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.pulse-terminal .pulse-dock-left .pulse-intelligence {
+  grid-column: 1;
+  grid-row: 1;
+}
+.pulse-terminal .pulse-dock-left .pulse-market-column {
+  grid-column: 2;
+  grid-row: 1;
+}
+.pulse-terminal .pulse-dock-left .pulse-main-chart {
+  grid-column: 3;
+  grid-row: 1;
+}
+.pulse-terminal .pulse-panel {
+  border-radius: 0;
+  background: #111217;
+  min-width: 0;
+  min-height: 0;
+}
+.pulse-terminal .pulse-market-column {
+  display: flex;
+  min-height: 0;
+  gap: 0;
+}
+.terminal-panel-title {
+  display: flex;
+  flex: 0 0 27px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 9px;
+  background: #1b1d24;
+  border-bottom: 1px solid var(--panel-border);
+  gap: 12px;
+}
+.terminal-panel-title strong {
+  font-size: 11px;
+  font-weight: 500;
+}
+.terminal-panel-title > span {
+  font-size: 9px;
+  color: var(--pulse-muted);
+}
+.pulse-terminal .pulse-scanner {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.pulse-scanner-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 5px;
+  border-bottom: 1px solid var(--panel-border);
+}
+.pulse-scanner-tools > div {
+  display: flex;
+  gap: 2px;
+}
+.pulse-scanner-tools button {
+  font-size: 10px;
+  padding: 4px 6px;
+  border-color: transparent;
+}
+.pulse-scanner-tools button[aria-pressed="true"] {
+  border-bottom-color: #5897ed;
+  color: #bcd6ff;
+  background: #1d2636;
+}
+.pulse-scanner-tools input {
+  flex: 1;
+  min-width: 120px;
+  width: 140px;
+  height: 24px;
+  border: 1px solid #353941;
+  background: #191b21;
+  color: #e0e4eb;
+  font-size: 10px;
+  padding: 3px 7px;
+}
+.pulse-scanner-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.pulse-terminal .pulse-scanner table {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: auto;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.pulse-terminal .pulse-scanner thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #1a1c22;
+}
+.pulse-terminal .pulse-scanner th,
+.pulse-terminal .pulse-scanner td {
+  height: 25px;
+  padding: 0 8px;
+  border-bottom: 1px solid #20232a;
+  text-align: right;
+  line-height: 24px;
+  font-weight: 400;
+}
+.pulse-terminal .pulse-scanner thead th {
+  height: 25px;
+  color: #a8aeba;
+  font-size: 10px;
+}
+.pulse-terminal .pulse-scanner th:first-child,
+.pulse-terminal .pulse-scanner th:nth-child(2),
+.pulse-terminal .pulse-scanner .scanner-company {
+  text-align: left;
+}
+.pulse-terminal .pulse-scanner th button {
+  padding: 0;
+  border: 0;
+  font-size: inherit;
+  line-height: 24px;
+  border-radius: 0;
+}
+.pulse-terminal .pulse-scanner tbody th button {
+  color: #e2e8f3;
+  font-weight: 600;
+}
+.pulse-terminal .pulse-scanner tbody tr {
+  cursor: pointer;
+}
+.pulse-terminal .pulse-scanner tbody tr:hover {
+  background: #1b202b;
+}
+.pulse-terminal .pulse-scanner tbody tr.selected {
+  background: #23334d;
+  box-shadow: inset 2px 0 #539bff;
+}
+.pulse-terminal .pulse-scanner td {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 10px;
+}
+.pulse-terminal .pulse-scanner .scanner-company {
+  min-width: 100px;
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #9ba3b1;
+  font:
+    10px/24px Arial,
+    sans-serif;
+}
+.pulse-terminal .pulse-scanner .scanner-catalyst {
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #aabbd9;
+  font:
+    10px/24px Arial,
+    sans-serif;
+}
+.pulse-scanner-status {
+  padding: 4px 7px;
+  font-size: 9px;
+  color: var(--pulse-muted);
+  background: #17191e;
+  border-top: 1px solid var(--panel-border);
+}
+.pulse-terminal .pulse-main-chart {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.pulse-link-indicator {
+  color: #6e9edd;
+  font-size: 9px;
+  padding-left: 12px;
+}
+.pulse-chart-security {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--panel-border);
+  min-height: 33px;
+}
+.pulse-chart-security > strong {
+  font-size: 14px;
+}
+.pulse-chart-security > span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #b5bbc6;
+  font-size: 11px;
+}
+.pulse-chart-security > button {
+  font-size: 10px;
+}
+.pulse-terminal .pulse-main-chart .pulse-chart-tab {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+}
+.pulse-terminal .pulse-chart-controls {
+  flex: 0 0 32px;
+  display: flex;
+  padding: 3px 8px;
+  margin: 0;
+  border-bottom: 1px solid var(--panel-border);
+}
+.pulse-terminal .pulse-chart-controls button,
+.pulse-terminal .pulse-chart-controls select {
+  padding: 3px 7px;
+  font-size: 10px;
+}
+.pulse-terminal .pulse-chart-controls button:last-child {
+  margin-left: auto;
+}
+.pulse-terminal .pulse-chart-summary {
+  flex: 0 0 34px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 10px;
+  margin: 0;
+}
+.pulse-terminal .pulse-chart-summary strong {
+  font-size: 18px;
+}
+.pulse-terminal .pulse-chart-summary span {
+  font-size: 10px;
+}
+.pulse-terminal .pulse-main-chart .evidence-chart-frame {
+  height: auto;
+  min-height: 0;
+  flex: 1;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: #101217;
+  display: flex;
+  flex-direction: column;
+}
+.pulse-terminal .pulse-main-chart .evidence-chart {
+  height: auto;
+  min-height: 0;
+  flex: 1;
+  border-radius: 0;
+}
+.pulse-terminal .pulse-main-chart .chart-engine-legend {
+  padding: 4px 10px;
+  font-size: 9px;
+}
+.pulse-terminal .pulse-chart-tab > .pulse-metrics {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 25px;
+  margin: 0;
+  padding: 5px 10px;
+  border-top: 1px solid var(--panel-border);
+}
+.pulse-terminal .pulse-chart-tab .pulse-metrics div {
+  padding: 0;
+}
+.pulse-terminal .pulse-metrics dt {
+  font-size: 9px;
+}
+.pulse-terminal .pulse-metrics dd {
+  font-size: 11px;
+  margin-top: 3px;
+}
+.pulse-terminal .pulse-chart-tab > .pulse-footnote {
+  padding: 4px 10px;
+  font-size: 9px;
+  line-height: 1.4;
+  margin: 0;
+}
+.pulse-terminal .pulse-chart-empty {
+  flex: 1;
+  min-height: 0;
+}
+.pulse-terminal .pulse-intelligence {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  overflow: visible;
+  min-height: 0;
+}
+.pulse-terminal .pulse-desk-controls {
+  padding: 3px 7px;
+  min-height: 27px;
+  gap: 7px;
+  background: #1b1d24;
+}
+.pulse-terminal .pulse-desk-controls button,
+.pulse-terminal .pulse-desk-controls select {
+  font-size: 10px;
+  padding: 2px 5px;
+}
+.pulse-terminal .pulse-detail-tabs {
+  padding: 0 5px;
+  flex: 0 0 28px;
+}
+.pulse-terminal .pulse-detail-tabs button {
+  flex: initial;
+  padding: 5px 12px;
+  font-size: 10px;
+}
+.pulse-desk-security {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--panel-border);
+}
+.pulse-desk-security > span {
+  color: #8f99a8;
+  font-size: 10px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.pulse-terminal #pulse-detail-panel {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+  scrollbar-gutter: auto;
+}
+.pulse-terminal .pulse-intelligence-header {
+  display: none;
+}
+.pulse-terminal .pulse-ai-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 12px;
+  padding: 6px 10px;
+}
+.pulse-terminal .pulse-ai-action .pulse-primary {
+  width: auto;
+  padding: 5px 10px;
+  font-size: 10px;
+}
+.pulse-terminal .pulse-ai-action > span {
+  font-size: 9px;
+  line-height: 1.4;
+}
+.pulse-terminal .pulse-ai-action > span br {
+  display: none;
+}
+.pulse-terminal .pulse-analysis-status {
+  padding: 5px 10px;
+  font-size: 9px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.pulse-terminal .pulse-detail {
+  padding: 8px 10px;
+}
+.pulse-terminal .pulse-detail-symbol {
+  margin: 0 0 5px;
+}
+.pulse-terminal .pulse-detail-symbol h3 {
+  font-size: 12px;
+  margin: 0;
+}
+.pulse-terminal .pulse-detail-symbol strong {
+  font-size: 12px;
+}
+.pulse-terminal .pulse-detail-symbol > div {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.pulse-terminal .pulse-detail-symbol span {
+  font-size: 9px;
+}
+.pulse-terminal .pulse-unexplained {
+  text-align: left;
+  padding: 5px 0;
+  margin: 0;
+}
+.pulse-terminal .pulse-outline-symbol {
+  display: none;
+}
+.pulse-terminal .pulse-unexplained h4 {
+  font-size: 11px;
+  margin: 3px 0;
+}
+.pulse-terminal .pulse-unexplained p,
+.pulse-terminal .pulse-summary,
+.pulse-terminal .pulse-explanation p {
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 5px 0;
+}
+.pulse-terminal .pulse-explanation h4 {
+  font-size: 10px;
+  margin: 8px 0 4px;
+}
+.pulse-terminal .pulse-explanation .pulse-prior {
+  font-size: 9px;
+  padding: 5px 7px;
+}
+.pulse-terminal .pulse-source {
+  padding: 6px 8px;
+  margin: 5px 0;
+  border-radius: 0;
+}
+.pulse-terminal .pulse-source strong {
+  font-size: 11px;
+}
+.pulse-terminal .pulse-source span,
+.pulse-terminal .pulse-source q,
+.pulse-terminal .pulse-source time {
+  font-size: 9px;
+  line-height: 1.4;
+}
+.pulse-terminal .pulse-detail-actions {
+  margin-top: 8px;
+}
+.pulse-terminal .pulse-detail-actions button {
+  font-size: 10px;
+  padding: 4px 8px;
+}
+.pulse-terminal .pulse-caveat {
+  padding: 4px 10px;
+  margin: 0;
+  font-size: 9px;
+  line-height: 1.4;
+}
+.pulse-terminal .pulse-company-tab,
+.pulse-terminal .pulse-chart-figures {
+  max-width: none;
+  padding: 10px;
+  font-size: 11px;
+}
+.pulse-terminal .pulse-company-tab h4 {
+  font-size: 12px;
+  margin: 5px 0 8px;
+}
+.pulse-terminal .pulse-company-tab h5 {
+  margin: 10px 0 5px;
+}
+.pulse-terminal .pulse-company-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+}
+.pulse-terminal .pulse-company-facts div {
+  margin: 0;
+}
+.pulse-terminal .pulse-company-facts dd {
+  font-size: 11px;
+}
+.pulse-terminal .pulse-insiders {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+.pulse-terminal .pulse-insiders > div {
+  padding: 6px;
+}
+.pulse-terminal .pulse-ownership-totals {
+  gap: 6px;
+}
+.pulse-terminal .pulse-ownership-totals > div {
+  padding: 6px;
+}
+.pulse-terminal .pulse-ownership-totals strong {
+  font-size: 16px;
+}
+.pulse-terminal .pulse-dock-bottom .pulse-resize {
+  left: auto;
+  right: -4px;
+  z-index: 5;
+}
+.pulse-terminal .pulse-terminal-status {
+  flex: 0 0 21px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 0 8px;
+  border-top: 1px solid var(--panel-border);
+  background: #17191f;
+  color: #8b94a3;
+  font-size: 9px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.pulse-terminal .pulse-terminal-status > span:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pulse-terminal .pulse-alert {
+  margin: 0;
+  padding: 5px 10px;
+  font-size: 11px;
+}
+@media (max-width: 1200px) and (min-width: 801px) {
+  .pulse-terminal .pulse-body.pulse-dock-left,
+  .pulse-terminal .pulse-body.pulse-dock-right {
+    grid-template-columns: minmax(320px, 44%) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .pulse-terminal .pulse-body .pulse-market-column {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .pulse-terminal .pulse-body .pulse-intelligence {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .pulse-terminal .pulse-body .pulse-main-chart {
+    grid-column: 2;
+    grid-row: 1 / 3;
+  }
+}
+@media (max-width: 800px) {
+  .pulse.pulse-terminal {
+    height: auto;
+    min-height: calc(100dvh - 92px);
+    overflow: auto;
+  }
+  .pulse-terminal .pulse-toolbar {
+    flex-wrap: wrap;
+    gap: 7px;
+    padding: 7px;
+  }
+  .pulse-terminal .pulse-toolbar .pulse-eyebrow {
+    display: none;
+  }
+  .pulse-terminal .pulse-controls {
+    gap: 6px;
+  }
+  .pulse-terminal .pulse-body {
+    display: flex !important;
+    flex-direction: column;
+    overflow: visible;
+    flex: none;
+  }
+  .pulse-terminal .pulse-market-column {
+    height: 380px;
+    flex: none;
+  }
+  .pulse-terminal .pulse-main-chart {
+    height: 520px;
+    flex: none;
+  }
+  .pulse-terminal .pulse-intelligence {
+    height: 420px;
+    flex: none;
+  }
+  .pulse-terminal .pulse-company-facts,
+  .pulse-terminal .pulse-insiders {
+    grid-template-columns: 1fr;
+  }
+  .pulse-terminal .pulse-resize,
+  .pulse-terminal .pulse-drag-handle {
+    display: none;
+  }
+  .pulse-terminal .pulse-main-chart .pulse-metrics {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .pulse-terminal .pulse-terminal-status > span:not(:first-child) {
+    display: none;
+  }
+}
+/* Bound the existing application shell before allocating workstation rows. */
+@media (min-width: 801px) {
+  .terminal-shell:has(.pulse-terminal) {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .pulse.pulse-terminal {
+    flex: 1 1 0;
+  }
+}
+.pulse-terminal .pulse-body {
+  align-items: stretch;
+}
+.pulse-terminal .pulse-tile-price {
+  margin: 0;
+  letter-spacing: 0;
+}
+.pulse-terminal .pulse-ai-action {
+  flex-direction: row;
+}
+.pulse-terminal .pulse-analysis-status {
+  flex-direction: row;
+}
+
+.pulse-terminal .pulse-sector {
+  flex-direction: row;
+}
+
+.pulse-terminal .pulse-detail-symbol {
+  display: none;
+}

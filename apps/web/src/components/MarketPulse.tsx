@@ -21,7 +21,6 @@ import {
   type PulseAnalysis,
   type PulseBoard,
   type PulseExplanation,
-  type PulseMover,
   type PulseProvider,
   type PulseQuote,
 } from "@/lib/market-pulse";
@@ -31,10 +30,12 @@ import {
   DeskResize,
   usePulseDesk,
 } from "@/components/PulseDeskControls";
-import { InstrumentIdentity, PulseCompany } from "@/components/PulseCompany";
+import { PulseCompany } from "@/components/PulseCompany";
+import { PulseScanner } from "@/components/PulseScanner";
 import { PulseChart } from "@/components/PulseChart";
 import type { CompanyProfile, SecurityIdentity } from "@/lib/pulse-workbench";
 import "./MarketPulse.css";
+import "./PulseTerminal.css";
 
 async function request<T>(
   path: string,
@@ -99,7 +100,6 @@ export function MarketPulse({
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [automatic, setAutomatic] = useState(true);
-  const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState("");
   const [aiError, setAiError] = useState("");
   const [watched, setWatched] = useState<string | null>(null);
@@ -252,10 +252,7 @@ export function MarketPulse({
   const identityKey = board
     ? [
         ...new Set(
-          [
-            ...board.gainers.slice(0, expanded ? 25 : 5),
-            ...board.losers.slice(0, expanded ? 25 : 5),
-          ]
+          [...board.gainers, ...board.losers, ...board.activity.slice(0, 12)]
             .map((row) => row.symbol)
             .concat(symbol ? [symbol] : []),
         ),
@@ -333,10 +330,10 @@ export function MarketPulse({
         : "";
 
   return (
-    <section className="pulse" aria-label="Market Pulse">
+    <section className="pulse pulse-terminal" aria-label="Market Pulse">
       <header className="pulse-toolbar">
         <div>
-          <span className="pulse-eyebrow">THE MARKET, AT A GLANCE</span>
+          <span className="pulse-eyebrow">WORKSPACE / MARKETS</span>
           <h1>
             Market Pulse
             <span className="pulse-dot" />
@@ -434,6 +431,40 @@ export function MarketPulse({
           </p>
         )}
       </div>
+      <section
+        className="pulse-panel pulse-sector-panel"
+        aria-label="Sector ETF performance"
+      >
+        <div className="pulse-panel-heading">
+          <h2>
+            Sector map <span>11 ETF proxies</span>
+          </h2>
+          <span>
+            {positiveSectors}/{sectors.length} reporting ETFs up
+          </span>
+        </div>
+        <div className="pulse-sector-grid">
+          {board?.sectors.map((row) => (
+            <button
+              type="button"
+              key={row.symbol}
+              onClick={() => setSelected(row.symbol)}
+              className={`pulse-sector ${tone(row.change_pct)}`}
+              style={{
+                backgroundColor:
+                  row.change_pct == null
+                    ? undefined
+                    : `rgba(${row.change_pct >= 0 ? "38,166,154" : "239,83,80"},${Math.min(0.35, 0.07 + Math.abs(row.change_pct) * 0.06)})`,
+              }}
+              title={`${row.label} · ${dateTime(row.price_at)}`}
+            >
+              <b>{row.symbol}</b>
+              <strong>{pct(row.change_pct)}</strong>
+              <span>{row.label}</span>
+            </button>
+          ))}
+        </div>
+      </section>
       <div
         className={`pulse-body pulse-dock-${layout.dock}`}
         style={{ "--pulse-desk-width": `${layout.width}px` } as CSSProperties}
@@ -447,135 +478,49 @@ export function MarketPulse({
           />
         )}
         <div className="pulse-market-column">
-          <section
-            className="pulse-panel pulse-sector-panel"
-            aria-label="Sector ETF performance"
-          >
-            <div className="pulse-panel-heading">
-              <h2>
-                Sector map <span>11 ETF proxies</span>
-              </h2>
-              <span>
-                {positiveSectors}/{sectors.length} reporting ETFs up
-              </span>
-            </div>
-            <div className="pulse-sector-grid">
-              {board?.sectors.map((row) => (
-                <button
-                  type="button"
-                  key={row.symbol}
-                  onClick={() => setSelected(row.symbol)}
-                  className={`pulse-sector ${tone(row.change_pct)}`}
-                  style={{
-                    backgroundColor:
-                      row.change_pct == null
-                        ? undefined
-                        : `rgba(${row.change_pct >= 0 ? "38,166,154" : "239,83,80"},${Math.min(0.35, 0.07 + Math.abs(row.change_pct) * 0.06)})`,
-                  }}
-                  title={`${row.label} · ${dateTime(row.price_at)}`}
-                >
-                  <b>{row.symbol}</b>
-                  <strong>{pct(row.change_pct)}</strong>
-                  <span>{row.label}</span>
-                </button>
-              ))}
-            </div>
-          </section>
-          <section className="pulse-panel" aria-label="Market movers">
-            <div className="pulse-panel-heading">
-              <h2>
-                Market movers <span>SIP rankings</span>
-              </h2>
-              <button
-                type="button"
-                onClick={() => setExpanded((value) => !value)}
-                aria-expanded={expanded}
-              >
-                {expanded ? "Show top 5 each" : "Show up to 25 each"}
-              </button>
-            </div>
-            <div className="pulse-movers">
-              <MoversTable
-                identities={identities}
-                title="Gainers"
-                rows={(board?.gainers ?? []).slice(0, expanded ? 25 : 5)}
-                symbol={symbol}
-                onSelect={setSelected}
-                now={now}
-                analysis={analysis}
-                matched={matched}
-              />
-              <MoversTable
-                identities={identities}
-                title="Losers"
-                rows={(board?.losers ?? []).slice(0, expanded ? 25 : 5)}
-                symbol={symbol}
-                onSelect={setSelected}
-                now={now}
-                analysis={analysis}
-                matched={matched}
-              />
-            </div>
-            <p className="pulse-footnote">
-              Rankings:{" "}
-              <time title={dateTime(ranksAt)}>{age(ranksAt, now)}</time>.{" "}
-              {board?.ranking_basis ?? "Waiting for provider-ranked movers."}{" "}
-              Select a ticker for its evidence.
-            </p>
-          </section>
-          <section className="pulse-panel" aria-label="Most active stocks">
-            <div className="pulse-panel-heading">
-              <h2>
-                Volume leaders{" "}
-                <span>
-                  SIP activity · {board?.feed.toUpperCase() ?? "—"} prices
-                </span>
-              </h2>
-              <span
-                title={dateTime(
-                  board?.sources.find((s) => s.source === "activity")
-                    ?.updated_at,
-                )}
-              >
-                {age(
-                  board?.sources.find((s) => s.source === "activity")
-                    ?.updated_at,
-                  now,
-                )}
-              </span>
-            </div>
-            <div className="pulse-activity">
-              {board?.activity.slice(0, 10).map((row) => (
-                <button
-                  type="button"
-                  key={row.symbol}
-                  onClick={() => setSelected(row.symbol)}
-                  title={`Price: ${dateTime(row.price_at)}`}
-                >
-                  <b>{row.symbol}</b>
-                  <span>{price(row.price)}</span>
-                  <span className={tone(row.change_pct)}>
-                    {pct(row.change_pct)}
-                  </span>
-                  <span>{volume(row.screener_volume)} sh</span>
-                </button>
-              ))}
-              {!board?.activity.length && (
-                <p className="pulse-placeholder">
-                  No activity ranking available.
-                </p>
-              )}
-            </div>
-          </section>
-          <footer className="pulse-provenance">
-            <span>{board?.snapshot_basis}</span>
-            <span>{board?.coverage}</span>
-            <span>
-              Capture: {dateTime(board?.captured_at)} · Retrieval time is not
-              quote time.
-            </span>
-          </footer>
+          <PulseScanner
+            board={board}
+            identities={identities}
+            selected={symbol}
+            onSelect={setSelected}
+            analysis={analysis}
+            matched={matched}
+            now={now}
+          />
         </div>
+        <section
+          className="pulse-panel pulse-main-chart"
+          aria-label="Linked stock chart"
+          tabIndex={-1}
+          id="pulse-linked-chart"
+        >
+          <div className="terminal-panel-title">
+            <strong>
+              Chart <span className="pulse-link-indicator">● Linked</span>
+            </strong>
+            <span>{board?.feed.toUpperCase() ?? "—"} · historical bars</span>
+          </div>
+          <div className="pulse-chart-security">
+            <strong>{symbol ?? "Select a security"}</strong>
+            <span>
+              {symbol
+                ? (identities[symbol]?.name ??
+                  companyForSymbol?.name ??
+                  "Looking up security")
+                : ""}
+            </span>
+            {symbol && (
+              <button onClick={() => onOpenResearch(symbol)}>Research ↗</button>
+            )}
+          </div>
+          {symbol ? (
+            <PulseChart symbol={symbol} now={now} />
+          ) : (
+            <p className="pulse-placeholder">
+              Select a security in the scanner.
+            </p>
+          )}
+        </section>
         <aside
           className="pulse-panel pulse-intelligence"
           aria-label="Why stocks are moving"
@@ -586,14 +531,14 @@ export function MarketPulse({
             onChange={setLayout}
             onDrag={setDragging}
           />
-          {symbol && (
-            <InstrumentIdentity
-              symbol={symbol}
-              identity={identities[symbol]}
-              company={companyForSymbol}
-              loading={companyLoading}
-            />
-          )}
+          <div className="pulse-desk-security">
+            <strong>{symbol ?? "No selection"}</strong>
+            <span>
+              {symbol
+                ? (identities[symbol]?.name ?? companyForSymbol?.name)
+                : ""}
+            </span>
+          </div>
           <div
             id="pulse-detail-panel"
             role="tabpanel"
@@ -623,11 +568,8 @@ export function MarketPulse({
                         ? "Reading the evidence…"
                         : `✦ Explain top ${count || 10}`}
                   </button>
-                  <span>
-                    One Codex assessment · top 5 gainers + top 5 losers
-                    <br />
-                    Automatic refresh updates prices only. News uses{" "}
-                    {board?.news_provider === "alpaca" ? "Alpaca" : "Finnhub"}.
+                  <span title="One Codex assessment of the top five gainers and five losers. Price refresh never runs AI. Uses subscription allowance.">
+                    Top 5 + 5 · on demand · {provider?.model_id ?? "Codex"}
                   </span>
                   {!provider?.available && (
                     <button
@@ -639,11 +581,6 @@ export function MarketPulse({
                         ? "Connect Codex in Settings →"
                         : "Checking Codex connection…"}
                     </button>
-                  )}
-                  {provider?.available && (
-                    <span>
-                      Model: {provider.model_id} · uses subscription allowance
-                    </span>
                   )}
                   {provider?.available && !rankingReady(board, now) && (
                     <span>Waiting for valid, dated mover rankings.</span>
@@ -687,13 +624,7 @@ export function MarketPulse({
                         </div>
                       )}
                     </div>
-                    {mover && (
-                      <QuoteMetrics
-                        row={mover.snapshot}
-                        feed={board?.feed ?? ""}
-                        now={now}
-                      />
-                    )}
+
                     {explanation && analysis ? (
                       <Explanation
                         item={explanation}
@@ -760,7 +691,28 @@ export function MarketPulse({
               </>
             ) : symbol ? (
               layout.tab === "charts" ? (
-                <PulseChart symbol={symbol} now={now} />
+                <div className="pulse-chart-figures">
+                  <p>The linked chart stays visible alongside this desk.</p>
+                  <button
+                    onClick={() =>
+                      document.getElementById("pulse-linked-chart")?.focus()
+                    }
+                  >
+                    Focus chart ↗
+                  </button>
+                  {mover ? (
+                    <QuoteMetrics
+                      row={mover.snapshot}
+                      feed={board?.feed ?? ""}
+                      now={now}
+                    />
+                  ) : (
+                    <p>
+                      Supplemental mover figures are unavailable for this
+                      selection.
+                    </p>
+                  )}
+                </div>
               ) : (
                 <PulseCompany
                   company={companyForSymbol}
@@ -779,121 +731,20 @@ export function MarketPulse({
           </div>
         </aside>
       </div>
+      <footer className="pulse-terminal-status">
+        <span>
+          ● {board?.feed.toUpperCase() ?? "—"} snapshots · SIP rankings ·{" "}
+          {age(ranksAt, now)}
+        </span>
+        <span>Unadjusted bars · ETF proxies · {board?.coverage}</span>
+        <span title={dateTime(board?.captured_at)}>
+          Capture {dateTime(board?.captured_at)}
+        </span>
+      </footer>
     </section>
   );
 }
 
-function MoversTable({
-  title,
-  rows,
-  symbol,
-  onSelect,
-  now,
-  analysis,
-  matched,
-  identities,
-}: {
-  identities: Record<string, SecurityIdentity>;
-  title: string;
-  rows: PulseMover[];
-  symbol: string | null;
-  onSelect: (symbol: string) => void;
-  now: number;
-  analysis: PulseAnalysis | null;
-  matched: boolean;
-}) {
-  return (
-    <div className="pulse-mover-group">
-      <h3>
-        <span className={title === "Gainers" ? "up" : "down"}>
-          {title === "Gainers" ? "↗" : "↘"} {title}
-        </span>
-        <span>{rows.length} symbols</span>
-      </h3>
-      <div className="pulse-table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">Ticker</th>
-              <th scope="col">Price</th>
-              <th scope="col">Change</th>
-              <th
-                scope="col"
-                title="Day volume from the configured snapshot feed"
-              >
-                Day vol.
-              </th>
-              <th scope="col">Catalyst</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => {
-              const explanation =
-                analysis?.state === "completed" && matched
-                  ? analysis.receipt?.proposal?.explanations.find(
-                      (item) => item.symbol === row.symbol,
-                    )
-                  : undefined;
-              return (
-                <tr
-                  key={row.symbol}
-                  className={symbol === row.symbol ? "selected" : ""}
-                >
-                  <th scope="row">
-                    <button
-                      type="button"
-                      onClick={() => onSelect(row.symbol)}
-                      aria-pressed={symbol === row.symbol}
-                      aria-label={`Inspect ${row.symbol}`}
-                    >
-                      <span className="pulse-rank">{i + 1}</span>
-                      {row.symbol}
-                      {identities[row.symbol]?.name && (
-                        <small
-                          className="pulse-row-company"
-                          title={identities[row.symbol].name!}
-                        >
-                          {identities[row.symbol].name}
-                        </small>
-                      )}
-                    </button>
-                  </th>
-                  <td title={dateTime(row.as_of)}>{price(row.price)}</td>
-                  <td className={tone(row.change_pct)}>
-                    {pct(row.change_pct)}
-                  </td>
-                  <td
-                    title={`Snapshot day: ${dateTime(row.snapshot.day_at)} · price ${age(row.snapshot.price_at, now)}`}
-                  >
-                    {volume(row.snapshot.volume)}
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      className={`pulse-catalyst ${explanation && explanation.evidence !== "insufficient" ? "identified" : ""}`}
-                      onClick={() => onSelect(row.symbol)}
-                    >
-                      {explanation
-                        ? explanation.driver === "unclear"
-                          ? "Unclear"
-                          : explanation.driver.replaceAll("_", " ")
-                        : "Inspect →"}
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      {!rows.length && (
-        <p className="pulse-placeholder">
-          No ranked {title.toLowerCase()} available.
-        </p>
-      )}
-    </div>
-  );
-}
 function QuoteMetrics({
   row,
   feed,

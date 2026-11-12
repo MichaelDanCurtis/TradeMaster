@@ -23,7 +23,7 @@ type ChartResult = {
   retrieved_at: string;
 };
 export function PulseChart({ symbol, now }: { symbol: string; now: number }) {
-  const [range, setRange] = useState<"1D" | "5D" | "1M" | "1Y">("1M");
+  const [range, setRange] = useState<"1D" | "5D" | "1M" | "1Y">("1D");
   const [style, setStyle] = useState<"candles" | "line">("candles");
   const [result, setResult] = useState<ChartResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -98,7 +98,7 @@ export function PulseChart({ symbol, now }: { symbol: string; now: number }) {
       </div>
       <div className="pulse-chart-summary">
         <strong>{price(last?.close)}</strong>
-        <span className={tone(change)}>{pct(change)} over shown bars</span>
+        <span className={tone(change)}>{pct(change)} over loaded range</span>
         <span>
           {current?.feed?.toUpperCase() ?? "—"} · {age(current?.as_of, now)}
         </span>
@@ -144,15 +144,15 @@ export function PulseChart({ symbol, now }: { symbol: string; now: number }) {
             <dd>{volume(last.volume)}</dd>
           </div>
           <div>
-            <dt>Bars shown</dt>
+            <dt>Bars loaded</dt>
             <dd>{bars.length}</dd>
           </div>
         </dl>
       )}
       <p className="pulse-footnote">
-        Scroll to zoom; drag to pan. Volume is from the configured feed.
-        Unadjusted bars can jump at stock splits. 1D shows the latest available
-        trading session, which may be a previous day.
+        Scroll to zoom · drag to pan · times in your local timezone. Volume is
+        from the configured feed. Unadjusted bars can jump at stock splits. 1D
+        shows the latest available trading session, which may be a previous day.
       </p>
     </div>
   );

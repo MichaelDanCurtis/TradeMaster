@@ -1,6 +1,6 @@
 # Market Pulse
 
-Market Pulse is the default desktop workspace: a compact market overview with an
+Market Pulse is the default desktop workspace: a dense trading workstation with an
 on-demand, source-linked explanation of the top five gainers and five losers.
 Open it from the primary navigation or with Cmd/Ctrl+5. Existing shortcuts 1–4
 remain unchanged.
@@ -10,9 +10,11 @@ remain unchanged.
 1. Configure **Alpaca market data** in Settings, including the desired snapshot
    feed. The board retrieves seven benchmark/asset ETF proxies, eleven sector
    ETF proxies, the top gainers and losers, and the volume leaders.
-2. Select a mover to see its day range, day volume, opening gap, price relative
-   to day VWAP, and bid/ask spread. Expand the tables to inspect up to 25 symbols
-   on each side. Research and Watchlist buttons use the existing workflows.
+2. Select a scanner row to update the persistent chart and research desk together.
+   The scanner includes all 25 gainers and 25 losers, sortable columns, a company
+   and symbol filter, and separate gainers, losers and most-active views. Arrow
+   keys on a ticker button select adjacent rows. Research and Watchlist buttons
+   use the existing workflows.
 3. Configure the existing **Codex subscription research provider** in Settings
    and sign in to Codex with ChatGPT. For company news, set `news_provider` to
    `"alpaca"` in the Alpaca market-data provider configuration to reuse its account.
@@ -35,10 +37,16 @@ catalyst badges are not applied to the new ranking.
 
 ## Selected-stock workbench
 
-Click a mover, benchmark, sector ETF or volume leader to update the detail desk.
+Click a scanner row, benchmark or sector ETF to link the chart and detail desk.
+On desktop, the default layout places the scanner above the research desk on the
+left and a full-height chart on the right. Compact market and sector strips sit
+above these panes. Each pane scrolls independently inside the viewport.
+
 The selected security stays visible while switching between **Catalyst Desk**,
-**Charts**, and **Company & Figures**. Company identity and ownership do not depend
-on an AI explanation being available.
+**Charts** (supplemental quote figures and a chart-focus shortcut), and
+**Company & Figures**. The primary chart remains mounted beside every tab,
+preserving its range and style. Company identity and ownership do not depend on
+an AI explanation being available.
 
 - **Identity:** exact-symbol names and security types from Alpaca's read-only
   paper asset directory, with company names beneath mover tickers.
@@ -57,7 +65,9 @@ on an AI explanation being available.
 - **Layout:** use the position menu or drag the Detail desk handle to dock left,
   right or below. Drag the outside edge to resize, or focus it and use arrow keys.
   Position, width and selected tab are saved in this browser. Reset restores the
-  default. Narrow screens stack the desk below the board.
+  scanner-above-research layout. The workstation uses a new preference key so
+  older dashboard layouts do not override the new default. Narrow screens stack
+  the scanner, chart and research panels with bounded internal scrolling.
 
 The read-only routes are `/api/market-pulse/identities`,
 `/api/market-pulse/company/{symbol}` and `/api/market-pulse/chart/{symbol}`.
@@ -149,3 +159,8 @@ names and Yahoo company/ownership records. Browser checks covered exact warrant
 identity, holder dates, missing parent data, chart ranges, stock switching, all
 three dock positions, pointer dragging, keyboard resizing, saved preferences, reset
 and narrow screens, with no AI requests triggered.
+
+The dense-workstation revision uses 25-pixel scanner rows and a persistent chart.
+Desktop acceptance checks measure actual pane sizes and viewport containment,
+then exercise filtering, sorting, ticker linking, company tabs, resizing, docking
+and reload at 2283x1222 and 1440x900, plus a 390-pixel mobile layout.

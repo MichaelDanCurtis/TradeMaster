@@ -2,22 +2,22 @@ export type DetailTab = "catalyst" | "charts" | "company";
 export type Dock = "left" | "right" | "bottom";
 export type DeskLayout = { dock: Dock; width: number; tab: DetailTab };
 export const DEFAULT_DESK: DeskLayout = {
-  dock: "right",
-  width: 420,
+  dock: "bottom",
+  width: 800,
   tab: "catalyst",
 };
-export const DESK_KEY = "trademaster.market-pulse.desk.v1";
+export const DESK_KEY = "trademaster.market-pulse.desk.v2";
 export function readDesk(value: string | null): DeskLayout {
   try {
     const raw = JSON.parse(value ?? "null");
     return {
       dock: ["left", "right", "bottom"].includes(raw?.dock)
         ? raw.dock
-        : "right",
+        : "bottom",
       width:
         typeof raw?.width === "number" && Number.isFinite(raw.width)
-          ? Math.max(320, Math.min(680, raw.width))
-          : 420,
+          ? Math.max(320, Math.min(900, raw.width))
+          : 800,
       tab: ["catalyst", "charts", "company"].includes(raw?.tab)
         ? raw.tab
         : "catalyst",

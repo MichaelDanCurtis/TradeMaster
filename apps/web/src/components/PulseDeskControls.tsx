@@ -61,7 +61,7 @@ export function DeskControls({
           }}
           onDragEnd={() => onDrag(false)}
         >
-          ⠿ <span>Detail desk</span>
+          ⠿ <span>News & research</span>
         </button>
         <label>
           Position{" "}
@@ -133,7 +133,7 @@ export function DeskResize({
   onChange: (value: DeskLayout) => void;
 }) {
   const drag = useRef<{ x: number; width: number } | null>(null);
-  if (layout.dock === "bottom") return null;
+
   return (
     <div
       className="pulse-resize"
@@ -142,23 +142,28 @@ export function DeskResize({
       aria-label="Detail panel width"
       aria-orientation="vertical"
       aria-valuemin={320}
-      aria-valuemax={680}
+      aria-valuemax={900}
       aria-valuenow={layout.width}
       onPointerDown={(event) => {
         if (event.button !== 0) return;
-        drag.current = { x: event.clientX, width: layout.width };
+        drag.current = {
+          x: event.clientX,
+          width:
+            event.currentTarget.parentElement?.getBoundingClientRect().width ??
+            layout.width,
+        };
         event.currentTarget.setPointerCapture(event.pointerId);
         event.preventDefault();
       }}
       onPointerMove={(event) => {
         if (!drag.current) return;
         const delta =
-          (event.clientX - drag.current.x) * (layout.dock === "left" ? 1 : -1);
+          (event.clientX - drag.current.x) * (layout.dock !== "right" ? 1 : -1);
         onChange({
           ...layout,
           width: Math.max(
             320,
-            Math.min(680, Math.round(drag.current.width + delta)),
+            Math.min(900, Math.round(drag.current.width + delta)),
           ),
         });
       }}
@@ -180,11 +185,12 @@ export function DeskResize({
           event.key === "Home"
             ? 320
             : event.key === "End"
-              ? 680
-              : layout.width +
+              ? 900
+              : (event.currentTarget.parentElement?.getBoundingClientRect()
+                  .width ?? layout.width) +
                 (event.key === "ArrowRight" ? 20 : -20) *
-                  (layout.dock === "left" ? 1 : -1);
-        onChange({ ...layout, width: Math.max(320, Math.min(680, width)) });
+                  (layout.dock !== "right" ? 1 : -1);
+        onChange({ ...layout, width: Math.max(320, Math.min(900, width)) });
       }}
     >
       <span />
