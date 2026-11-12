@@ -14,8 +14,10 @@ remain unchanged.
    to day VWAP, and bid/ask spread. Expand the tables to inspect up to 25 symbols
    on each side. Research and Watchlist buttons use the existing workflows.
 3. Configure the existing **Codex subscription research provider** in Settings
-   and sign in to Codex with ChatGPT. Set `FINNHUB_API_KEY` locally for company
-   news, as described in `.env.example`; never commit the actual value.
+   and sign in to Codex with ChatGPT. For company news, set `news_provider` to
+   `"alpaca"` in the Alpaca market-data provider configuration to reuse its account.
+   The default remains Finnhub, which uses `FINNHUB_API_KEY` from your local
+   environment. Neither source silently falls back to the other.
 4. Choose **Explain top 10**. TradeMaster preserves that capture, gathers up to
    two dated news items per selected symbol, and asks the configured model for
    one combined assessment. Fewer symbols are analyzed if the provider returns
@@ -48,9 +50,13 @@ catalyst badges are not applied to the new ranking.
   Missing or invalid values remain blank. Old snapshots can remain visible with
   their ages. Spreads older than 15 minutes, crossed quotes, and invalid prices
   are not presented as usable current metrics.
-- **News:** only linked, dated Finnhub headlines and summaries within the four
+- **News:** linked, dated Alpaca or Finnhub headlines and summaries within the four
   days preceding the ranking timestamp are eligible. Later news is excluded.
-  Full articles, filings and causality are not independently verified. No news
+  Alpaca articles must match the ticker and have no revision after the ranking
+  timestamp. Each ticker fetch is capped at one 50-item page; company-specific
+  reports are preferred to broad movers lists and circuit-breaker alerts before
+  selecting two excerpts. This ranking does not establish causation. Full articles,
+  filings and causality are not independently verified. No news
   for the entire batch means no AI call; missing evidence for an individual
   symbol must produce an unclear/insufficient result.
 
@@ -89,5 +95,18 @@ HTTP lifecycle, cache behavior, and duplicate request recovery. Browser acceptan
 also covers disconnected setup, top-ten analysis, source links, an unclear catalyst,
 refreshing after analysis, table expansion, watchlist persistence, Research handoff,
 keyboard navigation, reload recovery and desktop/narrow layouts. Populated browser
-checks use explicitly labeled synthetic inputs. They do not establish live Alpaca
-entitlements, a working Finnhub key, or a completed real Codex assessment.
+checks use explicitly labeled synthetic inputs. Those synthetic checks do not establish live provider access. A separate local
+acceptance run on November 12, 2026 connected Alpaca market data and news through
+an existing Keychain reference and completed two real Codex assessments using
+`gpt-6.1-sol`. The final browser-triggered batch covered ten movers and passed
+citation validation; saved results survived reload. Credentials, account settings,
+news packets and screenshots remain local and are not distributed with the source.
+
+Codex uses its managed runtime state location with ephemeral assessment threads.
+Overriding `sqlite_home` to an empty directory stalled initialization on CLI 0.166;
+that override was removed without changing the restricted permissions or tool
+boundary. An opt-in runtime check starts no model turn:
+
+```sh
+TRADEMASTER_CODEX_SMOKE=1 uv run pytest tests/research/test_codex_research.py -k installed_codex
+```

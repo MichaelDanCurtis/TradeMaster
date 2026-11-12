@@ -149,3 +149,17 @@ def test_batch_snapshots_pin_feed_and_do_not_retry_entitlement_errors(monkeypatc
     monkeypatch.setattr(client, 'get', denied)
     with pytest.raises(RuntimeError, match='403'): provider.stock_snapshots(['SPY'], feed='sip')
     assert len(denied_calls) == 1
+
+
+def test_alpaca_news_requests_only_bounded_headlines_and_summaries(monkeypatch):
+    monkeypatch.setenv('TRADEMASTER_ALPACA_CREDS', '{"key_id":"test-key","secret_key":"test-secret"}')
+    calls = []
+    class NewsClient:
+        def get(self, url, **kwargs):
+            calls.append((url,kwargs)); return FakeResponse({'news':[{'id':1}], 'next_page_token':'not-followed'})
+    provider = AlpacaMarketDataProvider(secret_store=EnvSecretStore(),secret_ref='env:TRADEMASTER_ALPACA_CREDS',http_client=NewsClient())
+    at=datetime(2026,11,12,tzinfo=timezone.utc)
+    assert provider.company_news('nvda',start=at,end=at) == [{'id':1}]
+    assert len(calls) == 1 and calls[0][0].endswith('/v1beta1/news')
+    assert calls[0][1]['params']['include_content'] == 'false'
+    assert calls[0][1]['params']['limit'] == 50 and calls[0][1]['params']['symbols'] == 'NVDA'

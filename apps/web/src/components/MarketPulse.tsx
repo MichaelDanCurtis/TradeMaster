@@ -509,7 +509,8 @@ export function MarketPulse({
             <span>
               One Codex assessment · top 5 gainers + top 5 losers
               <br />
-              Automatic refresh updates prices only. News uses Finnhub.
+              Automatic refresh updates prices only. News uses{" "}
+              {board?.news_provider === "alpaca" ? "Alpaca" : "Finnhub"}.
             </span>
             {!provider?.available && (
               <button
@@ -661,7 +662,7 @@ function MoversTable({
         <span className={title === "Gainers" ? "up" : "down"}>
           {title === "Gainers" ? "↗" : "↘"} {title}
         </span>
-        <span>{rows.length} stocks</span>
+        <span>{rows.length} symbols</span>
       </h3>
       <div className="pulse-table-scroll">
         <table>

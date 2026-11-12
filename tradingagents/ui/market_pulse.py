@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 import copy
 import json
+import html
 import math
 import re
 import threading
@@ -110,9 +111,11 @@ def capture_market(market_factory, *, now=None):
     source_status = []
     provider = None
     feed = 'iex'
+    news_provider = 'finnhub'
     try:
         provider, config = market_factory()
         feed = config.get('feed') or 'iex'
+        news_provider = config.get('news_provider', 'finnhub')
     except Exception:
         pass
 
@@ -158,11 +161,11 @@ def capture_market(market_factory, *, now=None):
         groups[side] = [{**row, 'as_of': movers_status['updated_at'], 'snapshot': rows[row['symbol']]} for row in group]
     available = sum(s['status'] == 'available' for s in source_status)
     result = {'captured_at': clock().isoformat(), 'status': 'available' if available == 3 else 'partial' if available else 'unavailable',
-              'feed': feed, 'sources': source_status, 'benchmarks': [rows[s] for s in BENCHMARKS],
+              'feed': feed, 'news_provider': news_provider, 'sources': source_status, 'benchmarks': [rows[s] for s in BENCHMARKS],
               'sectors': [rows[s] for s in SECTORS], **groups,
               'activity': [{**rows[s], 'screener_volume': active_volume[s]} for s in active_symbols],
               'ranking_basis': 'Alpaca SIP screener; change from previous close. Rankings reset at market open; pre-open lists can describe the prior session.',
-              'coverage': 'Provider-ranked US exchange-tradable symbols; not a complete-market breadth measure.',
+              'coverage': 'Provider-ranked US exchange-tradable securities, which can include warrants; not a vetted stock universe or a complete-market breadth measure.',
               'snapshot_basis': f'{feed} snapshots. ETF prices are index/sector proxies. Supplemental quotes and day metrics can differ from SIP mover rankings.'}
     result['snapshot_id'] = 'pulse_' + content_hash(result)[:32]
     return result
@@ -212,31 +215,67 @@ class MarketPulseService:
                     'text': json.dumps(r)} for r in rows]
         packet = {'purpose': 'market_pulse', 'snapshot_id': board['snapshot_id'], 'collected_at': board['captured_at'],
                   'movers': rows, 'sources': sources, 'gaps': [], 'ranking_basis': board['ranking_basis'],
+                  'news_provider': board.get('news_provider', 'finnhub'),
                   'scope': 'Top five gainers and five losers, or fewer if unavailable. Possible catalysts, not trading advice or proof of causation.'}
         return self.briefs.reserve(BriefRequest(symbol='MARKET', idempotency_key=key,
             provider_config_hash=request.provider_config_hash), prepared_packet=packet)
 
 
-def collect_move_news(packet, *, news_fetcher=fetch_company_news):
+def collect_move_news(packet, *, news_fetcher=fetch_company_news, market_factory=None):
     packet = copy.deepcopy(packet)
     captured = now_utc()
+    provider_name = packet.get('news_provider', 'finnhub')
+    provider = None
+    if provider_name == 'alpaca' and market_factory is not None:
+        try:
+            provider, _ = market_factory()
+        except Exception:
+            pass
+    def plain(value):
+        return html.unescape(re.sub(r'<[^>]*>', '', str(value or ''))).strip()
     def fetch(row):
         anchor = datetime.fromisoformat(row['as_of'])
         cutoff = anchor-timedelta(days=4)
         sources, seen = [], set()
         try:
-            items = news_fetcher(row['symbol'], start_date=cutoff.date().isoformat(), end_date=anchor.date().isoformat())
+            if provider_name == 'alpaca':
+                items = provider.company_news(row['symbol'], start=cutoff, end=anchor)
+                # The latest two stories are often a multi-stock roundup and a
+                # volatility halt. Prefer company-specific evidence from the same
+                # bounded page, retaining timestamps so the model can judge timing.
+                def relevance(item):
+                    if not isinstance(item, dict): return (False, False)
+                    symbols = item.get('symbols') or []
+                    headline = str(item.get('headline') or '')
+                    price_alert = bool(re.search(r'circuit breaker|\bstocks moving\b', headline, re.I))
+                    specific = 0 < len(symbols) <= 3
+                    return (specific and not price_alert, specific)
+                items = sorted(items, key=relevance, reverse=True)
+            elif provider_name == 'finnhub':
+                items = news_fetcher(row['symbol'], start_date=cutoff.date().isoformat(), end_date=anchor.date().isoformat())
+            else:
+                raise ValueError('Unsupported company-news provider')
             for raw in items[:100]:
                 if not isinstance(raw, dict): continue
                 try:
-                    item = normalize_news_item(raw)
+                    updated_at = None
+                    if provider_name == 'alpaca':
+                        tagged = raw.get('symbols')
+                        if not isinstance(tagged, list) or row['symbol'] not in tagged: continue
+                        updated_at = timestamp(raw.get('updated_at'), captured)
+                        if not updated_at or updated_at > anchor: continue
+                        item = {'published_at': raw.get('created_at'), 'headline': plain(raw.get('headline')),
+                                'summary': plain(raw.get('summary')), 'source': plain(raw.get('source')), 'url': raw.get('url')}
+                    else:
+                        item = normalize_news_item(raw)
                     at = timestamp(item['published_at'], captured)
                     url = safe_url(item['url'])
                     if not at or not cutoff <= at <= anchor or not url or url in seen or not item['headline']: continue
                     seen.add(url)
                     sources.append({'source_id': f"news_{row['symbol']}_{len(sources)}", 'symbol': row['symbol'], 'kind': 'news',
                         'title': item['headline'][:180], 'publisher': item['source'][:80] or 'Publisher not supplied',
-                        'published_at': at.isoformat(), 'retrieved_at': captured.isoformat(), 'url': url,
+                        'published_at': at.isoformat(), 'updated_at': updated_at.isoformat() if updated_at else None,
+                        'retrieved_at': captured.isoformat(), 'url': url, 'news_provider': provider_name,
                         'text': item['headline'][:180]+'\n'+item['summary'][:300]})
                     if len(sources) == 2: break
                 except (ValueError, TypeError, OverflowError): continue
@@ -248,6 +287,7 @@ def collect_move_news(packet, *, news_fetcher=fetch_company_news):
             packet['sources'].extend(sources)
             if gap: packet['gaps'].append(gap)
     packet['news_collected_at'] = captured.isoformat()
+    packet['news_provider'] = provider_name
     return packet
 
 

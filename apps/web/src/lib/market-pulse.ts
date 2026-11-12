@@ -30,6 +30,7 @@ export type PulseBoard = {
   captured_at: string;
   status: "available" | "partial" | "unavailable";
   feed: string;
+  news_provider?: "alpaca" | "finnhub";
   cached: boolean;
   ranking_basis: string;
   snapshot_basis: string;

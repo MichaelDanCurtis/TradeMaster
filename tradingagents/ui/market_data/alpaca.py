@@ -139,6 +139,20 @@ class AlpacaMarketDataProvider:
         response.raise_for_status()
         return response.json()
 
+    def company_news(self, symbol: str, *, start: datetime, end: datetime) -> list[dict[str, Any]]:
+        """One bounded news page using the existing account; never fetch article bodies."""
+        response = self._http_client.get(
+            f"{self._base_url}/v1beta1/news", headers=self._headers(),
+            params={"symbols": _normalize_symbol(symbol), "start": _isoformat_utc(start),
+                    "end": _isoformat_utc(end), "sort": "desc", "limit": 50,
+                    "include_content": "false", "exclude_contentless": "false"}, timeout=self._timeout,
+        )
+        response.raise_for_status()
+        items = response.json().get("news")
+        if not isinstance(items, list):
+            raise ValueError("Invalid news response")
+        return items[:50]
+
     def _headers(self) -> dict[str, str]:
         credentials = _parse_credentials(self._secret_store.get_secret(self._secret_ref))
         return {

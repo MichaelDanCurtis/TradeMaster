@@ -344,7 +344,7 @@ class BriefService:
                 packet = row.packet
                 if is_pulse:
                     from tradingagents.ui.market_pulse import collect_move_news
-                    packet = collect_move_news(packet)
+                    packet = collect_move_news(packet, market_factory=self.market_factory)
                     if not self.update(identifier, packet=packet, packet_hash=content_hash(packet)):
                         return
                     if not any(s.get('kind') == 'news' for s in packet['sources']):

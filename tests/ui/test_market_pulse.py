@@ -207,7 +207,7 @@ def test_reservation_rejects_missing_or_old_capture_and_changed_provider(service
 def test_no_news_suppresses_ai_and_persists_gaps(service, monkeypatch):
     board = service.board()
     row, _ = service.reserve(PulseRequest(snapshot_id=board['snapshot_id'], provider_config_hash='a'*64))
-    def collect(value):
+    def collect(value, **kwargs):
         return collect_move_news(value, news_fetcher=lambda *a, **k: [])
     monkeypatch.setattr('tradingagents.ui.market_pulse.collect_move_news', collect)
     def forbidden(*a, **k): pytest.fail('AI must not run without news')
@@ -222,7 +222,7 @@ def test_no_news_suppresses_ai_and_persists_gaps(service, monkeypatch):
 def test_api_snapshot_submit_poll_and_latest(service, monkeypatch):
     # Real HTTP routes, SQL persistence, and dispatch lifecycle; deterministic upstreams only.
     monkeypatch.setattr('tradingagents.ui.explorer_briefs.BriefService.binding', lambda self: BINDING)
-    monkeypatch.setattr('tradingagents.ui.market_pulse.collect_move_news', lambda p: collect_move_news(p, news_fetcher=lambda *a, **k: []))
+    monkeypatch.setattr('tradingagents.ui.market_pulse.collect_move_news', lambda p, **kwargs: collect_move_news(p, news_fetcher=lambda *a, **k: []))
     app = FastAPI(); app.include_router(create_pulse_router(service.sessions, service.market_factory))
     with TestClient(app) as client:
         assert client.get('/api/market-pulse/analysis').json() == {'analysis': None}
@@ -242,7 +242,7 @@ def test_news_to_validated_receipt_is_saved_once_and_child_receives_no_secrets(s
     from pathlib import Path
     board = service.board()
     row, _ = service.reserve(PulseRequest(snapshot_id=board['snapshot_id'], provider_config_hash='a'*64))
-    def collect(value):
+    def collect(value, **kwargs):
         for mover in value['movers']:
             value['sources'].append({'source_id': 'news_'+mover['symbol']+'_0', 'symbol': mover['symbol'], 'kind': 'news',
                 'text': 'Company reports higher revenue', 'url': 'https://example.com/news'})
@@ -303,3 +303,48 @@ def test_quote_budget_is_shared_when_one_article_mentions_multiple_movers():
     evidence = {'movers': [{'symbol': 'AAA'}, {'symbol': 'BBB'}], 'sources': [
         {'source_id': 'news_'+s+'_0', 'symbol': s, 'kind': 'news', 'text': quote, 'url': 'https://example.com/same-article'} for s in ['AAA', 'BBB']]}
     assert receipt(value, evidence)['proposal'] is None
+
+
+def test_alpaca_news_uses_existing_account_and_rejects_other_symbols_or_later_revisions():
+    original = packet(); original['news_provider'] = 'alpaca'
+    anchor = datetime.fromisoformat(original['movers'][0]['as_of'])
+    def article(**changes):
+        return {'created_at': (anchor-timedelta(minutes=10)).isoformat(), 'updated_at': anchor.isoformat(),
+                'symbols': ['AAA'], 'headline': 'Revenue &amp; earnings update', 'summary': '<p>Higher revenue.</p>',
+                'url': 'https://example.com/update', 'source': 'Test publisher', **changes}
+    class NewsMarket:
+        def company_news(self, symbol, *, start, end):
+            assert symbol == 'AAA' and end == anchor and start == anchor-timedelta(days=4)
+            return [article(symbols=['BBB']), article(updated_at=(anchor+timedelta(minutes=1)).isoformat()),
+                    article(updated_at=None), article(), article()]
+    def forbidden(*args, **kwargs): pytest.fail('No Finnhub fallback should occur')
+    result = collect_move_news(original, market_factory=lambda: (NewsMarket(), {}), news_fetcher=forbidden)
+    assert len(result['sources']) == 1
+    source = result['sources'][0]
+    assert source['news_provider'] == 'alpaca' and source['updated_at'] == anchor.isoformat()
+    assert source['title'] == 'Revenue & earnings update' and '<p>' not in source['text']
+    assert not original['sources']
+
+
+def test_alpaca_news_failure_is_an_explicit_gap_without_provider_fallback():
+    original = packet(); original['news_provider'] = 'alpaca'
+    def unavailable(): raise RuntimeError('private-token')
+    result = collect_move_news(original, market_factory=unavailable)
+    assert not result['sources'] and result['gaps']
+    assert 'private-token' not in json.dumps(result)
+
+
+def test_company_announcement_is_not_buried_by_newer_roundup_and_price_alert():
+    original=packet(); original['news_provider']='alpaca'
+    anchor=datetime.fromisoformat(original['movers'][0]['as_of'])
+    def story(headline, symbols, minutes, url):
+        at=(anchor-timedelta(minutes=minutes)).isoformat()
+        return {'created_at':at,'updated_at':at,'symbols':symbols,'headline':headline,'summary':'',
+                'source':'Publisher','url':'https://example.com/'+url}
+    class NewsMarket:
+        def company_news(self,*args,**kwargs):
+            return [story('12 Technology Stocks Moving Today',['AAA','BBB','CCC','DDD'],1,'roundup'),
+                    story('AAA Shares Halted On Circuit Breaker',['AAA'],2,'halt'),
+                    story('AAA Signs Purchase Agreement',['AAA'],30,'agreement')]
+    result=collect_move_news(original,market_factory=lambda:(NewsMarket(),{}))
+    assert [source['title'] for source in result['sources']] == ['AAA Signs Purchase Agreement','AAA Shares Halted On Circuit Breaker']
