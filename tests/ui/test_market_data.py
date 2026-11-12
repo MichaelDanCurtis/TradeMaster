@@ -130,3 +130,22 @@ def test_alpaca_provider_requires_configured_secret_ref():
 
     with pytest.raises(SecretNotFoundError):
         provider.latest_quote("NVDA")
+
+
+def test_batch_snapshots_pin_feed_and_do_not_retry_entitlement_errors(monkeypatch):
+    monkeypatch.setenv('TRADEMASTER_ALPACA_CREDS', '{"key_id":"test-key","secret_key":"test-secret"}')
+    client = RecordingHttpClient()
+    provider = AlpacaMarketDataProvider(secret_store=EnvSecretStore(), secret_ref='env:TRADEMASTER_ALPACA_CREDS', http_client=client)
+    provider.stock_snapshots(['spy', 'SPY', 'QQQ'], feed='iex')
+    assert client.calls[0]['url'].endswith('/v2/stocks/snapshots')
+    assert client.calls[0]['params'] == {'symbols': 'SPY,QQQ', 'feed': 'iex'}
+    for symbols in ([], ['INVALID!'], ['A'+str(i) for i in range(101)]):
+        with pytest.raises(ValueError): provider.stock_snapshots(symbols)
+    assert len(client.calls) == 1
+    denied_calls = []
+    def denied(*args, **kwargs):
+        denied_calls.append(kwargs)
+        return FakeResponse({}, status_code=403)
+    monkeypatch.setattr(client, 'get', denied)
+    with pytest.raises(RuntimeError, match='403'): provider.stock_snapshots(['SPY'], feed='sip')
+    assert len(denied_calls) == 1

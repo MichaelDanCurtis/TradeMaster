@@ -126,6 +126,19 @@ class AlpacaMarketDataProvider:
         response.raise_for_status()
         return response.json()
 
+    def stock_snapshots(self, symbols: list[str], *, feed: str = "iex") -> dict[str, Any]:
+        """One bounded, read-only batch with an explicit feed; no entitlement fallback."""
+        import re
+        names = list(dict.fromkeys(s.strip().upper() for s in symbols))
+        if not names or len(names) > 100 or any(not re.fullmatch(r"[A-Z][A-Z0-9.\-]{0,11}", s) for s in names):
+            raise ValueError("Choose between 1 and 100 valid stock symbols")
+        response = self._http_client.get(
+            f"{self._base_url}/v2/stocks/snapshots", headers=self._headers(),
+            params={"symbols": ",".join(names), "feed": feed}, timeout=self._timeout,
+        )
+        response.raise_for_status()
+        return response.json()
+
     def _headers(self) -> dict[str, str]:
         credentials = _parse_credentials(self._secret_store.get_secret(self._secret_ref))
         return {

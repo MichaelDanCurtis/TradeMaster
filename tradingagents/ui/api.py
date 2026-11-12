@@ -703,6 +703,10 @@ def create_app(
     from tradingagents.research.api import create_research_router
 
     app.include_router(create_research_router(session_factory))
+    from tradingagents.ui.market_pulse import create_pulse_router
+    app.include_router(create_pulse_router(session_factory, lambda: _resolve_market_data_provider(
+        "alpaca-market-data", resolved_market_data_providers, UiRepository(session_factory), market_data_http_client,
+    )))
     from tradingagents.ui.explorer_briefs import create_brief_router
     app.include_router(create_brief_router(session_factory, lambda: _resolve_market_data_provider(
         "alpaca-market-data", resolved_market_data_providers, UiRepository(session_factory), market_data_http_client,

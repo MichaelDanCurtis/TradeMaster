@@ -36,6 +36,8 @@ Publishing this repository does not publish a hosted trading service.
 
 ## Capabilities and limits
 
+- [Market Pulse](docs/MARKET_PULSE.md): dense market overview, sector ETF map,
+  movers, and on-demand Codex catalyst explanations with linked news evidence.
 - Research explorer, source evidence, strategy drafts, and historical comparisons.
 - Local forecasting experiments; model weights and private datasets are not included.
 - Portfolio/account observations and paper-order scheduling with explicit approvals.

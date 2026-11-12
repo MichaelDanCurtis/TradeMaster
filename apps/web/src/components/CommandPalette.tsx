@@ -45,7 +45,7 @@ export type CommandPalettePaletteTab = Exclude<WorkspaceId, never>; // alias
 export type CommandPaletteProps = {
   isOpen: boolean;
   onClose: () => void;
-  onSelectTab: (tab: "portfolio" | "research" | "quant" | "settings") => void;
+  onSelectTab: (tab: WorkspaceId) => void;
   /**
    * Open the SymbolDetailDrawer for `symbol`. The drawer is built by a
    * parallel agent — if this prop isn't supplied we fall back to switching to
@@ -98,6 +98,7 @@ type PaletteSection = {
 };
 
 const TAB_ROWS: { tab: WorkspaceId; label: string; shortcut: string }[] = [
+  { tab: "pulse", label: "Market Pulse", shortcut: "5" },
   { tab: "portfolio", label: "Portfolio", shortcut: "1" },
   { tab: "research", label: "Research", shortcut: "2" },
   { tab: "quant", label: "Quant", shortcut: "3" },
@@ -370,7 +371,7 @@ export function CommandPalette({
         return;
       }
       if (item.kind === "tab") {
-        onSelectTab(item.tab as "portfolio" | "research" | "quant" | "settings");
+        onSelectTab(item.tab);
         onClose();
         return;
       }

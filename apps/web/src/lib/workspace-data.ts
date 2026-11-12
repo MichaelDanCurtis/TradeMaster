@@ -1,17 +1,6 @@
-/**
- * Top-level workspace tabs (signed off 2026-05-20).
- *
- * Flat four-tab IA:
- *   - portfolio: "where you are today" — current holdings, value, performance.
- *   - research:  "what to invest in"   — LLM-driven research committee (advisory).
- *   - quant:     deterministic trading agents running quant algorithms.
- *   - settings:  providers, secrets, snapshots, admin.
- *
- * The three-substrate model (brief/book/studio) and its sub-tabs (dashboard,
- * market, positions, performance, transactions, agents, builder, providers)
- * are intentionally gone — superseded by this four-tab structure.
- */
-export type WorkspaceId = "portfolio" | "research" | "quant" | "settings";
+/** Primary workspaces. Market Pulse is the read-only market overview;
+ * Research is advisory and Quant retains the approval-gated execution path. */
+export type WorkspaceId = "pulse" | "portfolio" | "research" | "quant" | "settings";
 
 export type NewsSentiment = "positive" | "neutral" | "negative";
 export type AgentConversationType = "agent" | "group" | "platform";
