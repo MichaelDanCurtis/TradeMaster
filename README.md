@@ -8,7 +8,14 @@ It is experimental software. The historical experiments have **not established a
 reliable advantage over SPY**; model output and simulated returns are research evidence,
 not promises of profit.
 
-## Run locally
+## Install on Mac
+
+Download **TradeMaster for Apple Silicon** from [GitHub Releases](https://github.com/MichaelDanCurtis/TradeMaster/releases).
+Open the DMG, drag the app into Applications, and launch it. The desktop package
+bundles its local dashboard, Python API and workers. See [installation and signing
+notes](docs/DESKTOP_INSTALL.md) for macOS requirements, first-launch setup and data storage.
+
+## Run from source
 
 Use Python 3.12, Node.js 22, [uv](https://docs.astral.sh/uv/), and tmux.
 

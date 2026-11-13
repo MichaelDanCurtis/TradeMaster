@@ -721,6 +721,7 @@ def create_app(
             "http://host.docker.internal:3000",
             "http://localhost:3000",
             "http://127.0.0.1:3000",
+            "http://127.0.0.1:18898",
         ],
         allow_credentials=True,
         allow_methods=["*"],

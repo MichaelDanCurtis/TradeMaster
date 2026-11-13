@@ -4,7 +4,10 @@
     "apps/web"
   ],
   "overrides": {
-    "postcss": "^8.5.23"
+    "postcss": "^8.5.23",
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.1"
+    }
   },
   "scripts": {
     "dev:local": "bash scripts/dev-local.sh",
