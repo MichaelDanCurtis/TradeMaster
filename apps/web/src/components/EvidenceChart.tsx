@@ -180,7 +180,7 @@ export function EvidenceChart({
       {!performanceMode && chartView === "volume-profile" ? <VolumeProfileOverlay bins={volumeProfileBins} /> : null}
       <div className="chart-engine-legend">
         <span>{performanceMode ? "Percent return" : "OHLCV"}</span>
-        <span>{performanceMode ? `${symbol}${compareEnabled ? ` vs ${effectiveCompareSymbol}` : ""}` : "VWAP + volume"}</span>
+        <span>{performanceMode ? `${symbol}${compareEnabled ? ` vs ${effectiveCompareSymbol}` : ""}` : (bars.some(bar => bar.vwap != null) ? "Bar VWAP + volume" : "Volume")}</span>
         <span>{Math.min(newsEvents.length, 20)} events</span>
       </div>
     </div>
@@ -274,7 +274,7 @@ function renderPriceChart(
     scaleMargins: { bottom: 0, top: 0.82 }
   });
 
-  if (chartView !== "line" && chartView !== "area" && chartView !== "step-line") {
+  if (bars.some(bar => bar.vwap != null) && chartView !== "line" && chartView !== "area" && chartView !== "step-line") {
     const vwapSeries = chart.addSeries(LineSeries, {
       color: CHART_NEUTRAL_COLOR,
       lastValueVisible: false,
@@ -283,7 +283,7 @@ function renderPriceChart(
       priceLineVisible: false,
       title: "VWAP"
     });
-    vwapSeries.setData(toVwapLineData(bars));
+    vwapSeries.setData(toVwapLineData(bars.filter(bar => bar.vwap != null)));
   }
 }
 
@@ -367,6 +367,13 @@ function formatTickMark(time: string, range: MarketRange): string {
 
   if (Number.isNaN(date.getTime())) {
     return "";
+  }
+
+  if (range === "1D" || range === "5D") {
+    return date.toLocaleString("en-US", {
+      ...(range === "5D" ? { month: "short", day: "numeric" } as const : {}),
+      hour: "2-digit", minute: "2-digit", hour12: false
+    });
   }
 
   if (range === "1M" || range === "YTD") {

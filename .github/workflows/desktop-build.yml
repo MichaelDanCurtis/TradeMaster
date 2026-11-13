@@ -1,0 +1,28 @@
+name: Build Mac preview
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  apple-silicon:
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      - run: uv python install 3.12
+      - run: python3 scripts/check_publication.py
+      - run: python3 scripts/build-macos.py --version 0.1.0
+      # This manual CI artifact is ad-hoc signed, not a notarized public release.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: TradeMaster-macOS-arm64-local-preview
+          path: .release/TradeMaster-*-macOS-arm64.dmg
+          if-no-files-found: error

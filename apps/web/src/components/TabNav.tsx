@@ -1,13 +1,14 @@
 "use client";
 
 /**
- * TabNav — flat four-tab primary navigation.
+ * TabNav — flat primary primary navigation.
  *
  * Signed off 2026-05-20 as the replacement for the three-substrate model.
  * TradingView / Webull register: uppercase, sans semibold, 14px,
  * accent-blue underline on active.
  *
  * Tabs:
+ *   MARKET PULSE — what is moving and why
  *   PORTFOLIO  — where you are today
  *   RESEARCH   — what to invest in
  *   QUANT      — deterministic execution
@@ -16,9 +17,10 @@
 
 import type { WorkspaceId } from "@/lib/workspace-data";
 
-const TAB_ORDER: WorkspaceId[] = ["portfolio", "research", "quant", "settings"];
+const TAB_ORDER: WorkspaceId[] = ["pulse", "portfolio", "research", "quant", "settings"];
 
 const TAB_LABELS: Record<WorkspaceId, string> = {
+  pulse: "MARKET PULSE",
   portfolio: "PORTFOLIO",
   research: "RESEARCH",
   quant: "QUANT",
@@ -26,6 +28,7 @@ const TAB_LABELS: Record<WorkspaceId, string> = {
 };
 
 const TAB_TAGLINES: Record<WorkspaceId, string> = {
+  pulse: "What is moving and why",
   portfolio: "Where you are today",
   research: "What to invest in",
   quant: "Deterministic execution",

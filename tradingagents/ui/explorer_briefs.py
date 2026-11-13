@@ -337,10 +337,20 @@ class BriefService:
         try:
             is_challenge = bool(row.packet and row.packet.get('purpose') == 'thesis_challenge')
             is_historical = bool(row.packet and row.packet.get('purpose') == 'historical_replay')
-            if is_challenge or is_historical:
+            is_pulse = bool(row.packet and row.packet.get('purpose') == 'market_pulse')
+            if is_challenge or is_historical or is_pulse:
                 if content_hash(row.packet) != row.packet_hash:
                     raise ValueError('Challenge packet fingerprint mismatch')
                 packet = row.packet
+                if is_pulse:
+                    from tradingagents.ui.market_pulse import collect_move_news
+                    packet = collect_move_news(packet, market_factory=self.market_factory)
+                    if not self.update(identifier, packet=packet, packet_hash=content_hash(packet)):
+                        return
+                    if not any(s.get('kind') == 'news' for s in packet['sources']):
+                        self.update(identifier, state="insufficient_evidence", completed_at=now_utc(),
+                            message="No usable dated company news was collected. No AI call was made; no clear catalyst can be identified.")
+                        return
             else:
                 packet = collect_packet(row.symbol, self.market_factory)
                 from tradingagents.ui.evidence_attachments import attachment_sources

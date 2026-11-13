@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { MarketPulse } from "@/components/MarketPulse";
 import { CommandPalette } from "@/components/CommandPalette";
 import { PortfolioStrip } from "@/components/PortfolioStrip";
 import { PortfolioWorkspace } from "@/components/PortfolioWorkspace";
@@ -37,7 +38,7 @@ import {
 
 export function MarketShell() {
   const [shellState, setShellState] = useState<WorkspaceShellState>({
-    activeWorkspace: "portfolio",
+    activeWorkspace: "pulse",
     selectedSymbol: WATCHLIST[0].symbol
   });
   const [watchlistItems, setWatchlistItems] = useState<WatchlistItem[]>(WATCHLIST);
@@ -175,7 +176,7 @@ export function MarketShell() {
   }, []);
 
   // -------------------------------------------------------------------------
-  // Global keyboard shortcuts (Cmd/Ctrl+K for the palette, Cmd/Ctrl+1..4 for
+  // Global keyboard shortcuts (Cmd/Ctrl+K for the palette, Cmd/Ctrl+1..5 for
   // tabs, Esc to close the palette). Number / palette shortcuts are silenced
   // whenever the user is typing into an input or textarea so we never steal
   // keystrokes from the watchlist add box or the trade ticket.
@@ -212,7 +213,8 @@ export function MarketShell() {
         "1": "portfolio",
         "2": "research",
         "3": "quant",
-        "4": "settings"
+        "4": "settings",
+        "5": "pulse"
       };
       const tab = shortcutMap[event.key];
       if (tab) {
@@ -321,9 +323,10 @@ export function MarketShell() {
 
   const activeTab = shellState.activeWorkspace;
   const isSettings = activeTab === "settings";
+  const isFullWidth = isSettings || activeTab === "pulse";
 
   return (
-    <main className={isSettings ? "terminal-shell terminal-shell-settings" : "terminal-shell"}>
+    <main className={isFullWidth ? "terminal-shell terminal-shell-settings" : "terminal-shell"}>
       <header className="terminal-topbar">
         <div className="brand-lockup">
           <span className="brand-mark">TM<span className="brand-mark-dot" aria-hidden="true">.</span></span>
@@ -351,10 +354,10 @@ export function MarketShell() {
         </div>
       </header>
       <TabNav activeTab={activeTab} onSelectTab={handleSelectTab} />
-      {isSettings ? null : <WatchStatusStrip onSelectSymbol={handleOpenSymbolDetail} />}
-      {isSettings ? null : <PortfolioStrip />}
-      <div className={isSettings ? "market-shell market-shell-full" : "market-shell"}>
-        {isSettings ? null : (
+      {isFullWidth ? null : <WatchStatusStrip onSelectSymbol={handleOpenSymbolDetail} />}
+      {isFullWidth ? null : <PortfolioStrip />}
+      <div className={isFullWidth ? "market-shell market-shell-full" : "market-shell"}>
+        {isFullWidth ? null : (
           <WatchlistRail
             items={watchlistItems}
             selectedSymbol={shellState.selectedSymbol}
@@ -365,6 +368,7 @@ export function MarketShell() {
         )}
         <div className="workspace-main-stack">
           <TabContent
+            onOpenSettings={() => handleSelectTab("settings")}
             activeTab={activeTab}
             pendingQuantIntent={pendingQuantIntent}
             strategyReview={strategyReview}
@@ -409,6 +413,7 @@ export function MarketShell() {
 }
 
 function TabContent({
+  onOpenSettings,
   activeTab,
   pendingQuantIntent,
   strategyReview,
@@ -425,6 +430,7 @@ function TabContent({
   onOpenResearchSymbol,
   onOpenSymbolDetail
 }: {
+  onOpenSettings: () => void;
   activeTab: WorkspaceId;
   pendingQuantIntent: PendingQuantIntent | null;
   strategyReview: StrategyReviewSelection | null;
@@ -444,6 +450,9 @@ function TabContent({
   onOpenResearchSymbol: (symbol: string) => void;
   onOpenSymbolDetail: (symbol: string) => void;
 }) {
+  if (activeTab === "pulse") {
+    return <MarketPulse onOpenResearch={onOpenResearchSymbol} onOpenSettings={onOpenSettings} onAddToWatchlist={onAddToWatchlist} />;
+  }
   if (activeTab === "portfolio") {
     return (
       <>

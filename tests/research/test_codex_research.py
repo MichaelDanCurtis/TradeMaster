@@ -191,3 +191,24 @@ def test_images_use_only_temporary_local_paths_and_keep_tool_boundary(transport)
 def test_images_reject_paths_bad_ids_and_unbounded_inputs(tmp_path):
     for inputs in [[('../secret',b'\x89PNG\r\n\x1a\n')],[('attachment_1_p1',b'not png')],[('attachment_1_p1',b'\x89PNG\r\n\x1a\n')]*5]:
         with pytest.raises(ValueError):codex.image_inputs(tmp_path,inputs)
+
+
+@pytest.mark.integration
+def test_installed_codex_initializes_with_research_isolation_without_model_turn(tmp_path):
+    """Opt-in runtime regression: startup must not hang on an empty SQLite location."""
+    import os
+    import shutil
+    if os.environ.get('TRADEMASTER_CODEX_SMOKE') != '1':
+        pytest.skip('Set TRADEMASTER_CODEX_SMOKE=1 to check the installed signed-in runtime; no model turn is started')
+    binary, home, _ = codex.runtime_paths({'codex_binary': shutil.which('codex')})
+    server = codex.AppServer(binary, home, str(tmp_path), 20)
+    try:
+        result = server.request('initialize', {'clientInfo': {'name':'trademaster_smoke','version':'1'}, 'capabilities': {'experimentalApi':True}})
+        assert result.get('userAgent')
+        server.send({'method':'initialized','params':{}})
+        assert server.request('account/read', {'refreshToken':False})['account']['type'] == 'chatgpt'
+        assert server.request('model/list', {'includeHidden':False,'limit':100})['data']
+        config = server.request('config/read', {'includeLayers':False}).get('config', {})
+        assert not any(value.get('enabled',True) for value in (config.get('mcp_servers') or {}).values())
+    finally:
+        server.close()

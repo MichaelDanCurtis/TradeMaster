@@ -66,7 +66,10 @@ class AppServer:
             "remote_control","tool_suggest","skill_mcp_dependency_install"]
         options = {**{f"features.{key}":False for key in disabled}, "features.code_mode.enabled":False,
             "web_search":"disabled", "tools.view_image":False,"project_doc_max_bytes":0,"skills.max_context_tokens":1,
-            "notify":[],"sqlite_home":str(Path(directory)/"state"),"model_provider":"openai"}
+            "notify":[],"model_provider":"openai"}
+        # Use the managed runtime state location: an empty sqlite_home stalls CLI
+        # 0.166 initialization. Research threads remain ephemeral, with all tool
+        # and network permissions isolated below; no user configuration is edited.
         options.update({"otel.exporter":"none","otel.trace_exporter":"none","otel.metrics_exporter":"none"})
         config_path=Path(home)/"config.toml"
         config=tomllib.loads(config_path.read_text()) if config_path.exists() else {}

@@ -35,7 +35,7 @@ describe("market shell workspace layout", () => {
     assert.doesNotMatch(source, /useState<WatchlistItem\[\]>\(\(\) =>\s*loadPersistedWatchlistItems/);
   });
 
-  it("routes the current four rooms and retains the shared watchlist outside settings", () => {
+  it("routes the workspaces and gives settings and Market Pulse the full screen", () => {
     const source = readFileSync(new URL("./MarketShell.tsx", import.meta.url), "utf-8");
 
     assert.match(source, /activeTab === "portfolio"/);
@@ -43,7 +43,7 @@ describe("market shell workspace layout", () => {
     assert.match(source, /activeTab === "research"/);
     assert.match(source, /activeTab === "quant"/);
     assert.match(source, /activeTab === "settings"/);
-    assert.match(source, /isSettings \? null : \(\s*<WatchlistRail/);
+    assert.match(source, /isFullWidth \? null : \(\s*<WatchlistRail/);
   });
 
   it("passes symbol research and pending approved-idea handoffs into Quant", () => {

@@ -28,6 +28,9 @@ def main(output):
         if payload['packet'].get('purpose') == 'historical_replay':
             from tradingagents.ui.historical_replay import HISTORICAL_SYSTEM
             system = HISTORICAL_SYSTEM
+        if payload['packet'].get('purpose') == 'market_pulse':
+            from tradingagents.ui.market_pulse import MOVERS_SYSTEM, MoversProposal, validate_movers
+            system, schema, validator = MOVERS_SYSTEM, MoversProposal, validate_movers
         completion = client.complete(system=system, user=canonical_json(payload["packet"]), schema=schema.model_json_schema(),
                                      **({'images': images} if images else {}))
         receipt = validator(completion, payload["packet"], binding)

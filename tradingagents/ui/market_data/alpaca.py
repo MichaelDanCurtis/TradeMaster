@@ -126,6 +126,46 @@ class AlpacaMarketDataProvider:
         response.raise_for_status()
         return response.json()
 
+    def stock_snapshots(self, symbols: list[str], *, feed: str = "iex") -> dict[str, Any]:
+        """One bounded, read-only batch with an explicit feed; no entitlement fallback."""
+        import re
+        names = list(dict.fromkeys(s.strip().upper() for s in symbols))
+        if not names or len(names) > 100 or any(not re.fullmatch(r"[A-Z][A-Z0-9.\-]{0,11}", s) for s in names):
+            raise ValueError("Choose between 1 and 100 valid stock symbols")
+        response = self._http_client.get(
+            f"{self._base_url}/v2/stocks/snapshots", headers=self._headers(),
+            params={"symbols": ",".join(names), "feed": feed}, timeout=self._timeout,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def asset_metadata(self, symbol: str) -> dict[str, Any]:
+        """Read a security's name from the paper asset directory; no account/order writes."""
+        import re
+        symbol = symbol.strip().upper()
+        if not re.fullmatch(r"[A-Z][A-Z0-9.\-]{0,11}", symbol):
+            raise ValueError("Invalid security symbol")
+        response = self._http_client.get(
+            f"https://paper-api.alpaca.markets/v2/assets/{symbol}", headers=self._headers(),
+            params={}, timeout=self._timeout,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def company_news(self, symbol: str, *, start: datetime, end: datetime) -> list[dict[str, Any]]:
+        """One bounded news page using the existing account; never fetch article bodies."""
+        response = self._http_client.get(
+            f"{self._base_url}/v1beta1/news", headers=self._headers(),
+            params={"symbols": _normalize_symbol(symbol), "start": _isoformat_utc(start),
+                    "end": _isoformat_utc(end), "sort": "desc", "limit": 50,
+                    "include_content": "false", "exclude_contentless": "false"}, timeout=self._timeout,
+        )
+        response.raise_for_status()
+        items = response.json().get("news")
+        if not isinstance(items, list):
+            raise ValueError("Invalid news response")
+        return items[:50]
+
     def _headers(self) -> dict[str, str]:
         credentials = _parse_credentials(self._secret_store.get_secret(self._secret_ref))
         return {

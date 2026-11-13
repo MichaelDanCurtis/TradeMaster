@@ -8,7 +8,14 @@ It is experimental software. The historical experiments have **not established a
 reliable advantage over SPY**; model output and simulated returns are research evidence,
 not promises of profit.
 
-## Run locally
+## Install on Mac
+
+Download **TradeMaster for Apple Silicon** from [GitHub Releases](https://github.com/MichaelDanCurtis/TradeMaster/releases).
+Open the DMG, drag the app into Applications, and launch it. The desktop package
+bundles its local dashboard, Python API and workers. See [installation and signing
+notes](docs/DESKTOP_INSTALL.md) for macOS requirements, first-launch setup and data storage.
+
+## Run from source
 
 Use Python 3.12, Node.js 22, [uv](https://docs.astral.sh/uv/), and tmux.
 
@@ -36,6 +43,8 @@ Publishing this repository does not publish a hosted trading service.
 
 ## Capabilities and limits
 
+- [Market Pulse](docs/MARKET_PULSE.md): dense market overview, sector ETF map,
+  movers, and on-demand Codex catalyst explanations with linked news evidence.
 - Research explorer, source evidence, strategy drafts, and historical comparisons.
 - Local forecasting experiments; model weights and private datasets are not included.
 - Portfolio/account observations and paper-order scheduling with explicit approvals.
